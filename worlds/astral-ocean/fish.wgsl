@@ -13,8 +13,9 @@ fn aoTarget(i: u32, lag0: f32, t: f32) -> vec3f {
   let F = aoFrame(P, t - lag, 0.0);
   let w = (0.6 + 2.2 * sin(3.14159 * clamp(lag / 10.0, 0.0, 1.0))) * (0.75 + 0.3 * sin(t * 0.17 + lag * 0.6));
   let an = lag * 0.7 + t * 0.12;                         // twisting band
-  let b = (h.x * 2.0 - 1.0) * w;
-  let th = (h.y - 0.5) * 0.7 * (0.5 + 0.5 * w);
+  let gr = sqrt(-2.0 * log(max(h.x, 1e-4)));
+  let b = gr * cos(h.y * TAU) * w * 0.42;
+  let th = gr * sin(h.y * TAU) * 0.22 * (0.5 + 0.5 * w);
   let ax = F.r * cos(an) + F.u * sin(an);
   let ay = F.u * cos(an) - F.r * sin(an);
   let wave = F.u * sin(lag * 0.8 - t * 0.45) * 1.6 + F.r * sin(lag * 0.5 - t * 0.3 + 1.0) * 1.2;
@@ -32,7 +33,17 @@ fn aoTarget(i: u32, lag0: f32, t: f32) -> vec3f {
   let pos = tg + dev;
   let rel = pos - G.camPos;
   let dl = max(length(rel), 1e-3);
-  let avoid = rel / dl * smoothstep(6.5, 1.0, dl) * 3.0;
+  var avoid = rel / dl * smoothstep(6.5, 1.0, dl) * 3.0;
+  for (var k = 0u; k < 3u; k++) {          // keep clear of the whales' bodies
+    let W = paths[k];
+    for (var j = 0; j < 5; j++) {
+      let sp = aoFrame(W, t, f32(j) * 0.22).p;
+      let r = pos - sp;
+      let d = max(length(r), 1e-3);
+      let R = W.d.w * 0.2 + 5.0;
+      avoid += r / d * smoothstep(R, R * 0.4, d) * 4.0;
+    }
+  }
   let nz = curl3(pos * 0.09 + vec3f(0.0, t * 0.03, f.d.w)) * 0.55;
   let acc = -0.65 * dev - 1.3 * vel + avoid + nz;
   vel += acc * dt;

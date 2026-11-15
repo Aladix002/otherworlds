@@ -4,7 +4,10 @@ Fly mode (speed ×0.7). Spawn (0,0,0) looks −Z at the warm nebula core; the do
 islet at (0,−2,26), behind the spawn.
 
 ## Files
-- `world.js` — paths, whale mesh builder, jelly/puff/islet data, pipelines, audio. Poses and fly-through are computed at
+- `layout.js` — pure layout: `PATHS`, `JGROUPS`, poses and fly-through. Creature phases (`u0`) are solved at load so
+  life is in frame for the spawn view and the motion-clip times (9 / 30 / 49 s); `flyCam` mirrors the core spline.
+  Paths keep ≥ 47 m between whales and ≥ 20 m from jelly columns, the islet and spawn.
+- `world.js` — whale mesh builder (humpback profile, airfoil flippers, notched fluke), jelly/puff/islet data, pipelines, audio. Poses and fly-through are computed at
   module load from the creatures' analytic paths (JS twin `pathPos`/`frame`).
 - `common.wgsl` — path storage + `aoPathPos`/`aoFrame` (spine frame at body fraction s, body follows head) + `aoWave`.
   **Keep in sync with `pathPos` in world.js.**
@@ -29,8 +32,7 @@ quality in `init` (cube sizes, fish, trail particles, jellies, tentacle segments
 ≥ ~1.3 px and scale intensity by area, so they stay temporally stable.
 
 ## Perf
-Medium ≈ 4.6 ms avg GPU at scale 1.0 on the Barcelo iGPU (core post included). Heaviest: sky pass and close whales.
+Medium ≈ 3.6 ms avg GPU at scale 1.0 on the Barcelo iGPU (core post included). Heaviest: sky pass and close whales.
 
 ## Known issues / ideas
-- Fish shoals may pass through the islet edge.
-- Whale throat pleats can look busy on the side at close range.
+- Fish steer around whale spines on the GPU; jellies rely on the static layout separation.

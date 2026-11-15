@@ -15,136 +15,89 @@ import PUFFBAKE from './puffbake.wgsl';
 import GLOW from './glow.wgsl';
 import ISLET from './islet.wgsl';
 
-const DOOR = [0, -2, 26];
-const CORE = [-0.316, 0.163, -0.935];
-// paths: [cx, cy, cz, R, e, h, yaw, phase, speed, u0, dir, L]  (0-2 whales, 3-4 fish shoals). WGSL twin in common.wgsl
-const PATHS = [
-  [-25, 10, -105, 80, 0.72, 12, 0.4, 0, 3.4, 1.565, 1, 58],
-  [30, -6, 10, 70, 0.9, 8, -0.8, 1.3, 3.0, 4.5, -1, 42],
-  [0, 30, -20, 165, 0.7, 20, 1.9, 2.2, 4.2, 0.855, 1, 75],
-  [-8, 1, -20, 20, 0.7, 3, 0.3, 0.5, 2.2, 0, 1, 0],
-  [16, 4, 14, 26, 0.8, 4, -0.5, 1.9, 2.5, 2, -1, 0],
-];
-// jelly groups: [x, bottomY, z, radius, count, H, hueLo, hueHi]
-const JGROUPS = [[-12, -16, -42, 9, 22, 28, 0.0, 0.6], [40, -12, 4, 10, 16, 26, 0.3, 1.0], [-26, -18, 34, 8, 12, 24, 0.0, 0.85]];
-
-function pathPos(p, u, o) {
-  const lx = p[3] * Math.cos(u), lz = p[4] * p[3] * Math.sin(u), ly = p[5] * (Math.sin(0.5 * u + p[7]) + 0.35 * Math.sin(1.37 * u + 2 * p[7]));
-  const c = Math.cos(p[6]), s = Math.sin(p[6]);
-  o[0] = p[0] + c * lx + s * lz; o[1] = p[1] + ly; o[2] = p[2] - s * lx + c * lz; return o;
-}
-const _a = [0, 0, 0], _b = [0, 0, 0];
-// spine frame at time t, body fraction s -> { p, f, r, u }
-function frame(p, t, s) {
-  const U = (t) => p[9] + p[10] * p[8] * t / p[3];
-  const uh = U(t);
-  pathPos(p, uh + 0.002, _a); pathPos(p, uh - 0.002, _b);
-  const sp = Math.hypot(_a[0] - _b[0], _a[1] - _b[1], _a[2] - _b[2]) * 250;
-  const us = uh - p[10] * s * p[11] / sp;
-  const P = pathPos(p, us, [0, 0, 0]);
-  pathPos(p, us + 0.002, _a); pathPos(p, us - 0.002, _b);
-  let f = [(_a[0] - _b[0]) * p[10], (_a[1] - _b[1]) * p[10], (_a[2] - _b[2]) * p[10]];
-  const fl = Math.hypot(...f); f = f.map((x) => x / fl);
-  let r = [-f[2], 0, f[0]]; const rl = Math.hypot(...r); r = r.map((x) => x / rl);
-  const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
-  return { p: P, f, r, u };
-}
-const lookAt = (pos, tgt) => { const d = [tgt[0] - pos[0], tgt[1] - pos[1], tgt[2] - pos[2]], l = Math.hypot(...d); return { pos, yaw: Math.atan2(-d[0], -d[2]), pitch: Math.asin(d[1] / l) }; };
-const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
+import { DOOR, CORE, PATHS, JGROUPS, POSES, FLY, FLY_DUR, frame } from './layout.js';
 
 // ---------- geometry ----------
+export const WRM = 0.095;
+const wBase = (s) => s < 0.25 ? Math.pow(Math.sin(s / 0.25 * Math.PI / 2), 0.5) : Math.max(0.03, 1 - 0.93 * Math.pow((s - 0.25) / 0.7, 1.3));
 function whaleGeo(q) {
   const P = [], I = [], UV = [];
-  const NS = [40, 64, 80][q], NR = [16, 24, 28][q], Rm = 0.1;
-  const rad = (s) => s < 0.28 ? Rm * Math.pow(Math.sin(s / 0.28 * Math.PI / 2), 0.6) : Rm * Math.max(0.004, 1 - 0.95 * Math.pow(Math.min((s - 0.28) / 0.68, 1), 1.45));
+  const NS = [44, 72, 90][q], NR = [16, 26, 30][q], Rm = WRM;
+  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
   for (let j = 0; j <= NS; j++) {
-    const s = 0.965 * Math.pow(j / NS, 1.0), r = rad(s);
+    const v = j / NS, s = 0.95 * (v < 0.5 ? 0.5 * Math.pow(2 * v, 1.25) : 1 - 0.5 * Math.pow(2 - 2 * v, 1.15));
+    const b = Rm * wBase(s);
+    const wid = b * (1 - 0.45 * sm(0.68, 0.92, s));
+    const top = b * 0.86 * (1 - 0.22 * (1 - sm(0.02, 0.2, s)));
+    const bot = b * (0.92 + 0.22 * Math.exp(-(((s - 0.22) / 0.13) ** 2)));
     for (let i = 0; i < NR; i++) {
       const a = i / NR * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      let y = r * 0.92 * ca; if (ca < 0) y *= 0.85;
-      y -= 0.18 * r * (1 - Math.min(1, s / 0.3));
-      y += 0.35 * r * Math.exp(-(((s - 0.66) / 0.035) ** 2)) * Math.max(ca, 0) ** 6;
-      P.push(r * sa, y, s); UV.push(0, 0);
+      let y = ca > 0 ? top * ca : bot * ca;
+      y += 0.35 * b * Math.exp(-(((s - 0.68) / 0.03) ** 2)) * Math.max(ca, 0) ** 8;
+      P.push(wid * sa, y - 0.12 * b * (1 - sm(0.0, 0.3, s)), s); UV.push(0, 0);
     }
   }
   for (let j = 0; j < NS; j++) for (let i = 0; i < NR; i++) {
     const a = j * NR + i, b = j * NR + (i + 1) % NR, c = a + NR, d = b + NR;
     I.push(a, c, b, b, c, d);
   }
-  // lofted thin surface: sections[k] = [center, chordDir, thickDir, chord, thick], uv
+  // lofted thin airfoil surface. secs: [center, chordDir, thickDir, chord, thick, u]; leading edge at -chordDir
   const loft = (secs, NA, part) => {
-    const base = P.length / 3;
+    const base = P.length / 3, i0 = I.length;
     for (const [C, cd, td, ch, th, u] of secs) for (let i = 0; i < NA; i++) {
-      const a = i / NA * Math.PI * 2, x = Math.cos(a) * ch * 0.5, y = Math.sin(a) * th * 0.5;
+      const a = i / NA * Math.PI * 2, c = Math.cos(a), x = c * ch * 0.5, y = Math.sin(a) * th * 0.5 * (0.6 - 0.4 * c);
       P.push(C[0] + cd[0] * x + td[0] * y, C[1] + cd[1] * x + td[1] * y, C[2] + cd[2] * x + td[2] * y); UV.push(part, u);
     }
     for (let j = 0; j < secs.length - 1; j++) for (let i = 0; i < NA; i++) {
       const a = base + j * NA + i, b = base + j * NA + (i + 1) % NA, c = a + NA, d = b + NA;
       I.push(a, c, b, b, c, d);
     }
+    // orient outward: test a triangle of the middle section against its section center
+    const jm = secs.length >> 1, a = base + jm * NA + (NA >> 2), b = base + jm * NA + (NA >> 2) + 1, c = a + NA, C = secs[jm][0];
+    const v = (k) => [P[k * 3], P[k * 3 + 1], P[k * 3 + 2]];
+    const A = v(a), B = v(b), Cc = v(c);
+    const e1 = [Cc[0] - A[0], Cc[1] - A[1], Cc[2] - A[2]], e2 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]];
+    const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+    if (n[0] * (A[0] - C[0]) + n[1] * (A[1] - C[1]) + n[2] * (A[2] - C[2]) < 0) for (let k = i0; k < I.length; k += 3) { const t = I[k + 1]; I[k + 1] = I[k + 2]; I[k + 2] = t; }
   };
-  const NF = [10, 16, 20][q], NA = [8, 10, 12][q];
+  const nrm = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const NF = [10, 16, 20][q], NA = [8, 12, 14][q];
   for (const side of [-1, 1]) {
-    const s0 = 0.27, r0 = rad(s0), secs = [];
-    let D = [side * 1, -0.5, 0.42]; const dl = Math.hypot(...D); D = D.map((x) => x / dl);
-    for (let k = 0; k <= NF; k++) {
-      const t = k / NF, len = 0.31;
-      const C = [side * 0.7 * r0 + D[0] * t * len, -0.45 * r0 + D[1] * t * len - 0.04 * t * t, s0 + D[2] * t * len + 0.05 * t * t];
-      const ch = 0.06 * (1 - 0.8 * Math.pow(t, 1.6)) * (1 + 0.07 * Math.sin(t * 34)) + 0.004;
-      const cd = [0, 0.15, 1], td = [-D[1] * side, Math.abs(D[0]), 0];
-      secs.push([C, cd, td, ch, ch * 0.22, t]);
+    const s0 = 0.27, b0 = Rm * wBase(s0), secs = [];
+    const D = nrm([side, -0.45, 0.62]);
+    let cd = [0, 0.1, 1]; const k = cd[0] * D[0] + cd[1] * D[1] + cd[2] * D[2]; cd = nrm([cd[0] - D[0] * k, cd[1] - D[1] * k, cd[2] - D[2] * k]);
+    const td = cross(D, cd);
+    for (let j = 0; j <= NF; j++) {
+      const t = j / NF, len = 0.3;
+      const C = [side * 0.55 * b0 + D[0] * t * len, -0.4 * b0 + D[1] * t * len - 0.03 * t * t, s0 + D[2] * t * len + 0.03 * t * t];
+      const ch = (0.075 * (1 - 0.82 * Math.pow(t, 1.3)) + 0.004) * (1 + 0.05 * Math.sin(t * 36) * (1 - t)) * (j === NF ? 0.3 : 1);
+      secs.push([C, cd, td, ch, ch * 0.34 * (1 - 0.3 * t), t]);
     }
-    loft(side < 0 ? secs.slice().reverse() : secs, NA, side);
+    loft(secs, NA, side);
   }
-  const fl = [], NFL = [14, 22, 26][q];
-  for (let k = 0; k <= NFL; k++) {
-    const x = (k / NFL * 2 - 1) * 0.17, ax = Math.abs(x) / 0.17;
-    const ch = 0.08 * Math.pow(Math.max(0, 1 - Math.pow(ax, 2.4)), 0.5) + 0.004;
-    const zle = 0.915 + 0.42 * Math.abs(x) - 0.03 * ax * ax;
-    fl.push([[x, 0, zle + ch * 0.5], [0, 0, 1], [0, 1, 0], ch, 0.012 * (1 - ax) + 0.003, ax]);
+  const fl = [], NFL = [16, 24, 30][q];
+  for (let j = 0; j <= NFL; j++) {
+    const x = (j / NFL * 2 - 1) * 0.16, ax = Math.abs(x) / 0.16;
+    let ch = 0.072 * Math.pow(Math.max(0, 1 - Math.pow(ax, 2.2)), 0.6) + 0.006;
+    const notch = Math.exp(-((x / 0.022) ** 2));
+    ch *= 1 - 0.3 * notch;
+    const zle = 0.912 + 0.42 * Math.abs(x) - 0.5 * x * x;
+    fl.push([[x, 0, zle + ch * 0.5], [0, 0, 1], [0, 1, 0], ch, 0.018 * Math.pow(1 - ax, 0.8) + 0.002, ax]);
   }
   loft(fl, NA, 2);
-  const g = { pos: Float32Array.from(P), nrm: new Float32Array(P.length), uv: Float32Array.from(UV), idx: Uint32Array.from(I) };
-  return g;
+  return { pos: Float32Array.from(P), nrm: new Float32Array(P.length), uv: Float32Array.from(UV), idx: Uint32Array.from(I) };
 }
-
-
-// critic poses and fly-through, computed from the creatures' analytic paths (needed before init)
-const POSES = [{ pos: [0, 0, 0], yaw: 0, pitch: 0.1 }, {}, {}, {}, {}, {}], FLY = [];
-{
-      const W1 = frame(PATHS[1], 40, 0.42);
-      const p1 = add(add(W1.p, W1.r, 30), W1.u, 5);
-      const G0 = JGROUPS[0], gc = [G0[0], G0[1] + G0[5] * 0.5, G0[2]];
-      const p2 = add(gc, CORE, -21);
-      const S3 = frame(PATHS[3], 16 - 4.5, 0);
-      const p3 = add(add(S3.p, S3.r, 10), S3.u, 2.5);
-      const P = POSES;
-      Object.assign(P[1], lookAt(p1, add(W1.p, W1.f, 4)), { t: 40 });
-      Object.assign(P[2], lookAt(p2, gc), { t: 14 });
-      Object.assign(P[3], lookAt(p3, S3.p), { t: 16 });
-      Object.assign(P[4], lookAt([-6, -24, -34], [-14, 6, -46]), { t: 22 });
-      Object.assign(P[5], lookAt([-5, -0.4, 15], [1.5, -0.2, 27]), { t: 10 });
-      const pts = [[0, 0, 0], [-6, -1, -28], [-26, 4, -55], [8, 12, -78], [48, 6, -40], [44, 0, -2], [22, 3, 18], [5, 0, 15], [-18, -2, 26], [-24, 2, 4], [0, 0, 0]];
-            for (let i = 0; i < pts.length; i++) {
-        const n = pts[Math.min(i + 1, pts.length - 1)], pv = pts[Math.max(i - 1, 0)];
-        const L = lookAt(pts[i], add(pts[i], [n[0] - pv[0], (n[1] - pv[1]) * 0.5, n[2] - pv[2]]));
-        FLY.push({ pos: pts[i], yaw: L.yaw, pitch: L.pitch * 0.5 });
-      }
-      for (let i = 1; i < FLY.length; i++) {   // unwrap yaw
-        const a = FLY[i - 1].yaw; let b = FLY[i].yaw;
-        while (b - a > Math.PI) b -= Math.PI * 2; while (b - a < -Math.PI) b += Math.PI * 2; FLY[i].yaw = b;
-      }
-    }
 
 export default {
   id: 'astral-ocean',
   title: 'Astrálny oceán',
   movement: 'fly',
   speed: 0.7,
-  spawn: { pos: [0, 0, 0], yaw: 0, pitch: 0.1 },
+  spawn: { pos: [0, 0, 0], yaw: 0, pitch: 0.12 },
   poses: POSES,
   flythrough: FLY,
-  flythroughDuration: 60,
+  flythroughDuration: FLY_DUR,
   doors: [{ pos: DOOR, yaw: Math.PI, to: 'underwater' }],
   bounds: { center: [0, 0, -15], radius: 150 },
   env: {
@@ -153,13 +106,13 @@ export default {
   },
   post: { exposure: 1.0, bloom: 0.2, bloomThreshold: 0.65, bloomKnee: 0.7, bloomRadius: 1.2, saturation: 1.12, vignette: 0.32, contrast: 1.03 },
   clearColor: [0.004, 0.005, 0.016],
-  doorLight: [0.09, 0.08, 0.14],
+  doorLight: [0.1, 0.12, 0.2],
   fov: 64,
 
   sdf(x, y, z) {
     const qx = x - DOOR[0], qy = y - DOOR[1], qz = z - DOOR[2], r = Math.hypot(qx, qz);
     const rr = qy > -1 ? 3.3 : Math.max(0, 3.3 * (1 + (qy + 1) / 5.5));
-    return Math.max(r - rr, qy - 0.02, -6.6 - qy) * 0.85;
+    return Math.max(r - rr, qy - 0.02, -7.4 - qy) * 0.85;
   },
 
   async init(ctx, progress) {
@@ -202,7 +155,7 @@ export default {
     const wg = M.computeNormals(whaleGeo(q));
     this.whaleMesh = M.upload(wg);
     this.whale = ctx.pipeline({ code: UTIL + COMMON + WHALE, buffers: [M.layout], layouts: [pathL], blend: 'premul', label: 'ao-whale' });
-    this.NT = [350, 800, 1000][q];
+    this.NT = [500, 1000, 1400][q];
     this.trail = ctx.pipeline({ code: UTIL + COMMON + TRAIL, layouts: [pathL], blend: 'add', cull: 'none', constants: { NT: this.NT }, label: 'ao-trail' });
 
     // ---- fish ----
@@ -268,51 +221,90 @@ export default {
     this.puffBG = ctx.bindGroup(puffL, [ctx.buffer(Float32Array.from(pf), 'storage'), ptex.createView(), ctx.samplers.linear]);
     this.puffs = ctx.pipeline({ code: UTIL + PUFFS, layouts: [puffL], blend: 'premul', cull: 'none', label: 'ao-puffs' });
 
-    // ---- islet: floating rock under the door, crystals, small satellite rocks ----
+    // ---- islet: floating rock under the door: rooty underside, crystals, stones, glowing sprouts, drifting debris ----
     {
-      const { fbm2 } = ctx.noise;
-      const prof = [[0.0, -6.6], [0.5, -6.1], [1.1, -4.9], [1.8, -3.5], [2.5, -2.1], [3.0, -1.1], [3.3, -0.5], [3.3, -0.15], [3.1, 0.0], [2.2, 0.0], [1.0, 0.0], [0.0, 0.0]];
-      const rock = M.lathe(prof, [28, 40, 48][q]);
+      const { fbm2 } = ctx.noise, D = DOOR;
+      const prof = [[0.0, -7.4], [0.35, -7.0], [0.8, -5.9], [1.3, -4.8], [1.9, -3.6], [2.5, -2.3], [3.0, -1.2], [3.3, -0.55], [3.35, -0.18], [3.15, 0.0], [2.2, 0.0], [1.0, 0.0], [0.0, 0.0]];
+      const SEG = [32, 48, 56][q];
+      const rock = M.lathe(prof, SEG);
+      const rAt = (y) => { for (let k = 0; k < prof.length - 1; k++) { const [r0, y0] = prof[k], [r1, y1] = prof[k + 1]; if (y >= y0 && y <= y1) return r0 + (r1 - r0) * (y - y0) / (y1 - y0 || 1); } return 0; };
+      const disp = (a, y, x, z) => {
+        const w = Math.min(1, Math.max(0, -y / 0.7));
+        const ridge = Math.pow(Math.abs(Math.sin(a * 6 + 1.3 * fbm2(Math.cos(a) * 2, y * 0.3, 2))), 0.6);
+        return 1 + w * (0.2 * fbm2(Math.cos(a) * 2 + y * 0.35, Math.sin(a) * 2 + y * 0.2, 4) + 0.07 * fbm2(x * 1.3, z * 1.3 + y, 2) - 0.14 * ridge * Math.min(1, -y / 3));
+      };
       for (let i = 0; i < rock.pos.length; i += 3) {
         const x = rock.pos[i], y = rock.pos[i + 1], z = rock.pos[i + 2];
-        const a = Math.atan2(z, x), w = Math.min(1, Math.max(0, -y / 0.6));
-        const k = 1 + w * (0.22 * fbm2(Math.cos(a) * 2 + y * 0.35, Math.sin(a) * 2 + y * 0.2, 4) + 0.08 * fbm2(x * 1.3, z * 1.3 + y, 2));
-        rock.pos[i] = x * k + DOOR[0]; rock.pos[i + 1] = y + w * 0.25 * fbm2(x * 0.7 + 5, z * 0.7, 3) + DOOR[1]; rock.pos[i + 2] = z * k + DOOR[2];
+        const a = Math.atan2(z, x), k = disp(a, y, x, z), w = Math.min(1, Math.max(0, -y / 0.7));
+        rock.pos[i] = x * k + D[0]; rock.pos[i + 1] = y + w * 0.3 * fbm2(x * 0.7 + 5, z * 0.7, 3) + D[1]; rock.pos[i + 2] = z * k + D[2];
         rock.uv[i / 3 * 2] = 0;
       }
       M.computeNormals(rock);
+      for (let j = 0; j < prof.length; j++) {     // weld the lathe seam (first and last column share positions)
+        const a = j * (SEG + 1) * 3, b = (j * (SEG + 1) + SEG) * 3;
+        for (let c = 0; c < 3; c++) { const m = (rock.nrm[a + c] + rock.nrm[b + c]) * 0.5; rock.nrm[a + c] = rock.nrm[b + c] = m; }
+      }
       const parts = [rock], glows = [];
       const m4 = new Float32Array(16);
-      const crystal = (pos, dir, r, h, col) => {
-        const g = M.merge([M.cylinder(r, r * 0.9, h, 6, 1), M.translate(M.cone(r * 0.9, h * 0.45, 6), 0, h, 0)]);
+      const orient = (g, pos, dir) => {
         let [dx, dy, dz] = dir; const l = Math.hypot(dx, dy, dz); dx /= l; dy /= l; dz /= l;
-        // basis with Y -> dir
-        let ax = [dy * 0 - dz * 1, dz * 0 - dx * 0, dx * 1 - dy * 0]; if (Math.hypot(...ax) < 1e-3) ax = [1, 0, 0];
+        let ax = [-dz, 0, dx]; if (Math.hypot(...ax) < 1e-3) ax = [1, 0, 0];
         const al = Math.hypot(...ax); ax = ax.map((v) => v / al);
         const az = [ax[1] * dz - ax[2] * dy, ax[2] * dx - ax[0] * dz, ax[0] * dy - ax[1] * dx];
         m4.set([ax[0], ax[1], ax[2], 0, dx, dy, dz, 0, az[0], az[1], az[2], 0, pos[0], pos[1], pos[2], 1]);
-        M.transform(g, m4);
-        for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = 1; g.uv[i + 1] = col; }
-        parts.push(g);
-        glows.push(pos[0] + dx * h * 0.7, pos[1] + dy * h * 0.7, pos[2] + dz * h * 0.7, h * 1.6, ...(col < 0.5 ? [0.05, 0.16, 0.32] : [0.2, 0.08, 0.3]), 0);
+        return M.transform(g, m4);
       };
-      const D = DOOR;
+      const flag = (g, u, v) => { for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = u; g.uv[i + 1] = v; } return g; };
+      const crystal = (pos, dir, r, h, col, glow = true) => {
+        const g = orient(M.merge([M.cylinder(r, r * 0.85, h, 6, 1), M.translate(M.cone(r * 0.85, h * 0.4, 6), 0, h, 0)]), pos, dir);
+        parts.push(flag(g, 1, col));
+        const l = Math.hypot(...dir);
+        if (glow) glows.push(pos[0] + dir[0] / l * h, pos[1] + dir[1] / l * h, pos[2] + dir[2] / l * h, h * 1.1, ...(col < 0.5 ? [0.04, 0.12, 0.26] : [0.15, 0.06, 0.24]), 0);
+      };
+      const rng = ctx.rng;
+      // crystals rooted in the underside, pointing out and down
+      for (let i = 0; i < 9; i++) {
+        const a = i / 9 * Math.PI * 2 + 0.4 + rng() * 0.3, y = -1.6 - rng() * 3.6, r = rAt(y) * disp(a, y, 0, 0) * 0.85;
+        crystal([D[0] + Math.cos(a) * r, D[1] + y, D[2] + Math.sin(a) * r], [Math.cos(a), -0.7 - rng() * 0.6, Math.sin(a)], 0.07 + 0.05 * rng(), 0.45 + 0.5 * rng(), (i % 2) * 0.9);
+      }
+      // small crystal clusters on the top rim, out of the door corridor
+      for (const [x, z, c] of [[2.3, 1.3, 0], [-2.4, -0.9, 0.9], [-2.0, 1.8, 0], [1.9, -1.9, 0.9]]) {
+        for (let k = 0; k < 3; k++) crystal([D[0] + x + (rng() - 0.5) * 0.4, D[1] - 0.12, D[2] + z + (rng() - 0.5) * 0.4], [x * 0.15 + (rng() - 0.5) * 0.6, 1, z * 0.15 + (rng() - 0.5) * 0.6], 0.04 + 0.03 * rng(), 0.22 + 0.25 * rng(), c, k === 0);
+      }
+      // hanging roots
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * Math.PI * 2 + rng(), y0 = -1.5 - rng() * 3, r0 = rAt(y0) * 0.75, len = 2 + rng() * 3.5, path = [];
+        for (let k = 0; k <= 10; k++) {
+          const t = k / 10, rr = r0 * (1 - 0.3 * t) + 0.4 * Math.sin(t * 5 + i);
+          path.push([D[0] + Math.cos(a + 0.3 * Math.sin(t * 3 + i)) * rr, D[1] + y0 - t * len, D[2] + Math.sin(a + 0.3 * Math.sin(t * 3 + i)) * rr]);
+        }
+        parts.push(flag(M.tube(path, (t) => 0.13 * (1 - t) + 0.015, 5), 0, 0));
+        const e = path[10]; glows.push(e[0], e[1] - 0.1, e[2], 0.5, 0.06, 0.16, 0.3, 0);
+      }
+      // stones and glowing sprouts on top (kept out of the door corridor and leaf swing)
+      const free = (x, z) => Math.hypot(x, z) < 2.9 && !(Math.abs(x) < 1.3 && Math.abs(z) < 2.4);
+      for (let i = 0, n = 0; i < 200 && n < 26; i++) {
+        const x = (rng() - 0.5) * 6, z = (rng() - 0.5) * 6; if (!free(x, z)) continue; n++;
+        const r = M.rock(30 + n, 1, 0.4), sc = 0.06 + 0.16 * rng() * rng();
+        M.scale(r, sc, sc * 0.6, sc); M.translate(r, D[0] + x, D[1] + sc * 0.15, D[2] + z);
+        parts.push(flag(r, 0, 0));
+      }
+      for (let i = 0, n = 0; i < 300 && n < 30; i++) {
+        const x = (rng() - 0.5) * 6.2, z = (rng() - 0.5) * 6.2; if (!free(x, z)) continue; n++;
+        const h = 0.12 + 0.22 * rng(), col = rng() < 0.6 ? 0 : 0.9;
+        const g = orient(M.cone(0.018, h, 4), [D[0] + x, D[1] - 0.02, D[2] + z], [(rng() - 0.5) * 0.5, 1, (rng() - 0.5) * 0.5]);
+        parts.push(flag(g, 1, col));
+        glows.push(D[0] + x, D[1] + h, D[2] + z, 0.12, ...(col < 0.5 ? [0.1, 0.3, 0.45] : [0.4, 0.15, 0.4]), 0);
+      }
+      // drifting debris (bobs in the vertex shader: uv.x = 2, uv.y = phase)
       for (let i = 0; i < 7; i++) {
-        const a = i / 7 * Math.PI * 2 + 0.3, rr = 1.2 + (i % 3) * 0.6;
-        crystal([D[0] + Math.cos(a) * rr, D[1] - 3.2 - (i % 3) * 0.9, D[2] + Math.sin(a) * rr], [Math.cos(a) * 0.6, -1, Math.sin(a) * 0.6], 0.14 + 0.05 * (i % 2), 1.0 + 0.6 * ((i * 7) % 3), (i % 2) * 0.9);
+        const r = M.rock(11 + i, q > 0 ? 2 : 1, 0.5), sc = 0.2 + 0.45 * rng(), a = i * 0.9 + rng(), d = 4.5 + rng() * 3.5;
+        M.scale(r, sc, sc * 0.8, sc); M.translate(r, D[0] + Math.cos(a) * d, D[1] - 1 - rng() * 6, D[2] + Math.sin(a) * d);
+        parts.push(flag(r, 2, i * 1.7));
       }
-      crystal([D[0] + 2.4, D[1] - 0.1, D[2] + 1.2], [0.4, 1, 0.2], 0.12, 0.8, 0.0);
-      crystal([D[0] - 2.5, D[1] - 0.1, D[2] - 0.6], [-0.35, 1, -0.1], 0.1, 0.6, 0.9);
-      crystal([D[0] - 2.2, D[1] - 0.1, D[2] + 1.6], [-0.3, 1, 0.4], 0.09, 0.5, 0.0);
-      for (let i = 0; i < 4; i++) {
-        const r = M.rock(11 + i, q > 0 ? 2 : 1, 0.45), s = 0.4 + 0.3 * i, a = i * 1.9 + 0.7;
-        M.scale(r, s, s * 0.8, s); M.translate(r, D[0] + Math.cos(a) * (5 + i), D[1] - 1.5 - i * 1.2, D[2] + Math.sin(a) * (5 + i));
-        for (let k = 0; k < r.uv.length; k += 2) r.uv[k] = 0;
-        parts.push(r);
-      }
-      glows.push(D[0], D[1] - 6.2, D[2], 7, 0.06, 0.12, 0.3, 0);
+      glows.push(D[0], D[1] - 7.2, D[2], 6, 0.05, 0.1, 0.26, 0);
       this.isletMesh = M.upload(M.merge(parts));
-      this.islet = ctx.pipeline({ code: ISLET, buffers: [M.layout], label: 'ao-islet' });
+      this.islet = ctx.pipeline({ code: ISLET, buffers: [M.layout], constants: { DX: DOOR[0], DY: DOOR[1], DZ: DOOR[2] }, label: 'ao-islet' });
       const glL = ctx.layout(['storage']);
       this.NG = glows.length / 8;
       this.glowBG = ctx.bindGroup(glL, [ctx.buffer(Float32Array.from(glows), 'storage')]);
@@ -344,11 +336,11 @@ export default {
 
   renderTransparent(ctx, pass) {
     pass.setPipeline(this.puffs); pass.setBindGroup(1, this.puffBG); pass.draw(6, this.NPF);
-    pass.setPipeline(this.whale); pass.setBindGroup(1, this.pathBG); this.whaleMesh.draw(pass, 3);
-    pass.setPipeline(this.trail); pass.draw(6, this.NT * 3);
     pass.setPipeline(this.bell); pass.setBindGroup(1, this.jelBG); this.bellMesh.draw(pass, this.NJ);
     pass.setPipeline(this.tent); pass.draw(6 * 16 * this.NSEG, this.NJ);
     pass.setPipeline(this.fishDraw); pass.setBindGroup(1, this.fishDrawBG); pass.draw(6, this.NF);
+    pass.setPipeline(this.whale); pass.setBindGroup(1, this.pathBG); this.whaleMesh.draw(pass, 3);
+    pass.setPipeline(this.trail); pass.draw(6, this.NT * 3);
     pass.setPipeline(this.motes); pass.draw(6, this.NM);
     pass.setPipeline(this.glow); pass.setBindGroup(1, this.glowBG); pass.draw(6, this.NG);
   },

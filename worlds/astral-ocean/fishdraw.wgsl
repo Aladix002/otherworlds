@@ -10,7 +10,8 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let ax = normalize(f.f.xyz - V * dot(f.f.xyz, V) / (d * d) + vec3f(1e-5));
   let ay = normalize(cross(ax, V));
   let px = aoPix(d);
-  let len = 0.11; let wid = 0.03;
+  let sz = 0.6 + 0.9 * fract(f.d.w * 7.31) * fract(f.d.w * 2.17);
+  let len = 0.11 * sz; let wid = 0.03 * sz;
   let ls = max(len, px * 2.2); let ws = max(wid, px * 1.3);
   let c = aoCorner(vi);
   var o: VO;
@@ -19,7 +20,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let shoal = select(0.0, 1.0, ii >= NHALF);
   let col = mix(vec3f(0.35, 1.2, 1.15), vec3f(1.45, 0.95, 0.4), shoal);
   let sh = 0.65 + 0.35 * sin(G.time * (1.1 + f.d.w * 0.01) + f.d.w * 7.0);
-  o.col = col * sh * (0.35 + 0.65 * fract(f.d.w * 3.7)) * (len * wid) / (ls * ws) * 1.6 * smoothstep(0.4, 1.5, d) * mix(1.0, 0.3, smoothstep(30.0, 160.0, d));
+  o.col = col * sh * (0.35 + 0.65 * fract(f.d.w * 3.7)) * (len * wid) / (ls * ws) * 1.6 * smoothstep(0.4, 1.5, d) * mix(1.0, 0.15, smoothstep(20.0, 120.0, d));
   return o;
 }
 @fragment fn fs(in: VO) -> @location(0) vec4f {

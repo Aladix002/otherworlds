@@ -22,14 +22,14 @@ fn aoBasis(n: vec3f) -> mat3x3f {
 
 fn aoSpiral(d: vec3f) -> vec3f {
   let c = dot(d, GAL);
-  if (c < 0.9) { return vec3f(0.0); }
+  if (c < 0.96) { return vec3f(0.0); }
   // tangent-plane coordinates, tilted disc
   let B = aoBasis(GAL);
   var p = vec2f(dot(d, B[0]), dot(d, B[1])) / c;
   let ca = cos(0.5); let sa = sin(0.5);
   p = vec2f(ca * p.x - sa * p.y, sa * p.x + ca * p.y);
   p.y /= 0.52;
-  p /= 0.2;
+  p /= 0.12;
   let r = length(p);
   let th = atan2(p.y, p.x);
   let lr = log(max(r, 1e-3));
@@ -43,13 +43,13 @@ fn aoSpiral(d: vec3f) -> vec3f {
   col += mix(vec3f(0.35, 0.45, 1.1), vec3f(0.7, 0.55, 1.1), r) * disc * (0.12 + arm * 1.1);
   col += vec3f(1.4, 0.45, 0.9) * knots * disc * 1.4;
   col *= 1.0 - 0.75 * arm2 * smoothstep(0.08, 0.3, r) * disc * 2.0;   // dust lanes on the inner arm edge
-  return col * 0.55 * smoothstep(0.9, 0.93, c);
+  return col * 0.4 * smoothstep(0.96, 0.975, c);
 }
 
 fn aoFar(d: vec3f) -> vec3f {
   var q = d * 1.7;
   q += vec3f(fbm3(q * 1.1 + 1.7, 4), fbm3(q * 1.1 + 9.2, 4), fbm3(q * 1.1 + 4.4, 4)) * 0.55;
-  let n = fbm3(q, 7) * 0.5 + 0.5;
+  let n = fbm3(q, 6) * 0.5 + 0.5;
   let band = exp(-pow(dot(d, vec3f(0.947, 0.0, -0.320)) / 0.5, 2.0));
   let cw = max(dot(d, CORE), 0.0);
   let core = pow(cw, 6.0);
@@ -69,11 +69,14 @@ fn aoFar(d: vec3f) -> vec3f {
   dens *= 1.0 - 0.8 * smoothstep(0.82, 0.97, lane) * smoothstep(0.1, 0.5, band + core);
   var e = col * dens * 0.32;
   let cn = fbm3(d * 9.0 + 2.0, 5) * 0.5 + 0.5;
-  e += vec3f(1.5, 0.62, 0.3) * pow(cw, 40.0) * 0.55 * smoothstep(0.25, 0.85, cn) * (0.3 + n) + vec3f(1.8, 1.1, 0.6) * pow(cw, 400.0) * 0.8;
+  let lanes = smoothstep(0.7, 0.95, 1.0 - abs(fbm3(d * 16.0 + 5.0, 4))) * smoothstep(0.2, 0.8, cn);
+  e += vec3f(1.5, 0.62, 0.3) * pow(cw, 60.0) * 0.32 * smoothstep(0.3, 0.85, cn) * (0.3 + n);
+  e += vec3f(1.8, 1.15, 0.7) * (pow(cw, 900.0) * 1.2 + pow(cw, 6000.0) * 6.0);
+  e *= 1.0 - 0.75 * lanes * pow(cw, 25.0);
   e += vec3f(0.9, 0.3, 0.55) * pow(cw, 4.0) * 0.03;
   // second, cooler glow region
   let c2 = max(dot(d, normalize(vec3f(0.7, -0.35, -0.2))), 0.0);
-  e += vec3f(0.1, 0.45, 0.65) * pow(c2, 8.0) * 0.35 * (0.4 + n);
+  e += vec3f(0.1, 0.4, 0.65) * pow(c2, 10.0) * 0.18 * (0.4 + n);
   // faint distant galaxies
   for (var i = 0; i < 14; i++) {
     let h = hash33(vec3f(f32(i), 3.1, 7.7));

@@ -17,7 +17,7 @@ fn aoJel(j: J, t: f32) -> JS {
   let y = fract((j.b.w * H + prog * 0.3 * j.a.w + t * 0.05) / H) * H;
   s.p = vec3f(j.a.x + 0.9 * sin(t * 0.071 + 6.0 * j.b.z), j.a.y + y, j.a.z + 0.9 * cos(t * 0.063 + 5.0 * j.b.w));
   s.fade = smoothstep(0.0, 5.0, y) * smoothstep(H, H - 5.0, y);
-  s.u = normalize(vec3f(0.22 * sin(t * 0.09 + j.b.z * 7.0), 1.0, 0.22 * cos(t * 0.083 + j.b.w * 9.0)));
+  s.u = normalize(vec3f(0.09 * sin(t * 0.09 + j.b.z * 7.0), 1.0, 0.09 * cos(t * 0.083 + j.b.w * 9.0)));
   s.r = normalize(cross(s.u, vec3f(0.0, 0.0, 1.0)));
   s.fw = cross(s.r, s.u);
   let pink = vec3f(1.5, 0.32, 0.8); let cyan = vec3f(0.25, 0.9, 1.5); let vio = vec3f(0.75, 0.38, 1.6); let gold = vec3f(1.5, 0.75, 0.3);
@@ -48,7 +48,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   return o;
 }
 fn aoLn(d: f32, w: f32, fw: f32) -> f32 { return (1.0 - smoothstep(0.0, w + fw, d)) * w / (w + fw); }
-@fragment fn fs(in: VO) -> @location(0) vec4f {
+@fragment fn fs(in: VO, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
   let V = normalize(G.camPos - in.w);
   let n = normalize(in.n);
   let fres = 1.0 - abs(dot(n, V));
@@ -57,15 +57,15 @@ fn aoLn(d: f32, w: f32, fw: f32) -> f32 { return (1.0 - smoothstep(0.0, w + fw, 
   let lr = length(in.l.xz);
   var e = 0.05 + 0.8 * pow(fres, 2.2);
   // four gonads (clover) near the top
-  let gon = pow(0.5 + 0.5 * cos(4.0 * th), 3.0) * exp(-pow((lr - 0.32) / 0.12, 2.0)) * smoothstep(0.75, 0.3, v);
+  let gon = pow(0.5 + 0.5 * cos(4.0 * th), 4.0) * exp(-pow((lr - 0.3) / 0.09, 2.0)) * smoothstep(0.7, 0.3, v);
   // radial canals
   let q = th * 16.0 / TAU;
   let can = aoLn(abs(fract(q) - 0.5), 0.04, fwidth(q)) * smoothstep(0.15, 0.5, v);
   // glowing rim with bead lights
-  let rim = exp(-pow((v - 0.97) / 0.035, 2.0)) * (0.7 + 0.6 * pow(0.5 + 0.5 * cos(th * 24.0), 4.0));
-  e += can * 0.35 + rim * 1.6;
+  let rim = exp(-pow((v - 0.975) / 0.022, 2.0)) * (0.6 + 0.6 * pow(0.5 + 0.5 * cos(th * 24.0), 4.0));
+  e += can * 0.3 + rim * 0.9;
   let glow = 0.55 + 0.7 * in.m.x;
-  var c = in.col * e * glow + vec3f(1.4, 0.9, 0.6) * gon * 0.9 * glow * length(in.col) * 0.5;
+  var c = (in.col * e + (in.col * 0.7 + vec3f(0.25, 0.2, 0.15)) * gon * 0.35) * glow * select(0.45, 1.0, ff);
   let d = distance(in.w, G.camPos);
   c *= smoothstep(0.6, 2.5, d) * mix(1.0, 0.25, smoothstep(40.0, 220.0, d));
   return vec4f(c * 0.55, 0.0);
@@ -81,7 +81,7 @@ fn aoTent(S: JS, j: J, tj: u32, u: f32, t: f32) -> vec3f {
   let rimPull = 1.0 - 0.3 * aoPulse(fract(S.f - u * 0.18 + 1.0)) * (1.0 - u);
   let r = r0 * (1.0 - 0.45 * u) * rimPull + select(0.0, 0.12 * sin(u * 9.0 + t * 0.8 + h.z * 6.0) * u, oral);
   let sway = vec3f(sin(t * 0.55 + f32(tj) * 1.3 + j.b.z * 20.0 - u * 3.3), 0.0, cos(t * 0.43 + f32(tj) * 0.7 + j.b.w * 9.0 - u * 2.7));
-  let lp = vec3f(cos(th) * r, -0.05 - u * Lt, sin(th) * r) + sway * pow(u, 1.4) * Lt * 0.18;
+  let lp = vec3f(cos(th) * r, -0.05 - u * Lt, sin(th) * r) + sway * pow(u, 1.6) * Lt * 0.06;
   return S.p + (S.r * lp.x + S.u * lp.y + S.fw * lp.z) * j.a.w;
 }
 struct TO { @builtin(position) pos: vec4f, @location(0) a: f32, @location(1) col: vec3f };
