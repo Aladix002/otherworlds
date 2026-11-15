@@ -39,8 +39,10 @@ fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = ce
   alb = mix(alb, hex(0x3a2a22), smoothstep(0.6, 0.75, N3.y) * 0.6);
   alb = mix(alb, hex(0x2a1f2c), smoothstep(0.55, 0.75, N1.y + N2.x * 0.2) * 0.5);
   alb = mix(alb, mix(hex(0x221e2a), hex(0x3a3642), N2.w) * (0.65 + 0.7 * N4.w), rockM);
-  let pb = dotGlow(p.xz * 2.3 + 7.0, 0.32, 0.3);
-  alb = mix(alb, mix(hex(0x35323e), hex(0x5a5866), pb.y) * (0.6 + 0.6 * pb.x), pb.x * near * soil);
+  if (dist < 36.0) {
+    let pb = dotGlow(p.xz * 2.3 + 7.0, 0.32, 0.3);
+    alb = mix(alb, mix(hex(0x35323e), hex(0x5a5866), pb.y) * (0.6 + 0.6 * pb.x), pb.x * near * soil);
+  }
   let wet = 1.0 - smoothstep(-0.1, 0.6, p.y);
   alb *= 1.0 - 0.45 * wet;
   let pl = pulse(p);
@@ -70,21 +72,25 @@ fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = ce
   }
   // glowing moss: sparse bright specks, soft carpets where plants glow
   let flat = soil * smoothstep(0.8, 0.93, n0.y) * smoothstep(0.05, 0.35, p.y);
-  let dg = dotGlow(p.xz * 5.3, 0.03 + 0.2 * smoothstep(0.15, 1.2, lsum), 0.17);
-  e += mix(hue, slotOf(dg.y * 4.0), 0.2) * dg.x * 0.55 * flat * (1.0 - smoothstep(14.0, 32.0, dist));
+  if (dist < 32.0) {
+    let dg = dotGlow(p.xz * 5.3, 0.03 + 0.2 * smoothstep(0.15, 1.2, lsum), 0.17);
+    e += mix(hue, slotOf(dg.y * 4.0), 0.2) * dg.x * 0.55 * flat * (1.0 - smoothstep(14.0, 32.0, dist));
+  }
   e += hue * smoothstep(0.5, 0.8, N3.z * 0.6 + N2.z * 0.5) * mossM * (0.25 + 0.75 * N4.z) * 0.05 * flat * (0.3 + lsum);
   // moss ring at the foot of the door
   let dd = distance(p.xz, U.door.xz);
-  let dr = exp(-pow((dd - 1.5) / 0.8, 2.0));
-  let db = dotGlow(p.xz * 11.0 + 3.0, dr * 0.35, 0.3);
-  e += mix(U.slot[0].rgb, U.slot[2].rgb, db.y) * (db.x * 0.7 + dr * N3.z * 0.04);
+  if (dd < 4.0) {
+    let dr = exp(-pow((dd - 1.5) / 0.8, 2.0));
+    let db = dotGlow(p.xz * 11.0 + 3.0, dr * 0.35, 0.3);
+    e += mix(U.slot[0].rgb, U.slot[2].rgb, db.y) * (db.x * 0.7 + dr * N3.z * 0.04);
+  }
   // lichen streaks on the cliff
   let lich = smoothstep(0.74, 0.8, nz(vec2f((p.x + p.z) * 0.2, p.y * 0.03)).x) * smoothstep(0.4, 0.7, N2.y) * rockM * smoothstep(1.0, 4.0, p.y);
   e += U.slot[0].rgb * lich * 0.1;
   e *= pl * (1.0 + 0.6 * touch(p));
   let n = normalize(n0 + vec3f(bump.x, 0.0, bump.y) * (0.55 + 0.5 * rockM));
-  let gl = glowAt(p);
-  var c = shadeJ(alb, n, p, 1.0 - 0.3 * rockM) + alb * gl * 0.8;
+  let gl = slotCol(lm) * pl * exp(-max(p.y - terrH(p.xz), 0.0) * 0.22) * U.misc.w;
+  var c = shadeG(alb, n, gl, 1.0 - 0.3 * rockM) + alb * gl * 0.8;
   let V = normalize(G.camPos - p);
   c += (gl * 0.5 + G.sunColor * 0.5) * pow(1.0 - max(dot(n, V), 0.0), 4.0) * (0.05 + 0.25 * sheen + 0.2 * wet);
   return vec4f(c + e, 1.0);
@@ -112,13 +118,14 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
   let m = in.at.x; let sl = slotOf(in.b.y); let pl = pulse(p);
   var alb: vec3f; var e = vec3f(0.0); var ao = 1.0; var extra = vec3f(0.0);
   let dist = distance(p, G.camPos);
+  let gl = glowAt(p);
   let V = normalize(G.camPos - p);
   if (m < 0.5) {
     let q = in.uv;
     let N = nz(q * vec2f(0.35, 0.06));
     let Nb = nz(q * vec2f(1.3, 0.25));
     let fis = nz(vec2f(q.x * 0.8 + N.y * 0.25, q.y * 0.03)).z;      // vertical bark fissures
-    let Nf = nz(q * vec2f(3.7, 1.1));
+    var Nf = vec4f(0.5); if (dist < 45.0) { Nf = nz(q * vec2f(3.7, 1.1)); }
     alb = mix(hex(0x1e1620), hex(0x42322c), N.x) * (0.45 + 1.1 * fis) * (0.8 + 0.4 * Nb.y) * (0.75 + 0.5 * Nf.x);
     alb = mix(alb, hex(0x1f3a26) * (0.7 + 0.6 * Nb.w), smoothstep(0.25, 0.7, n.y + N.z * 0.4) * 0.8);
     let nf = 1.0 - smoothstep(20.0, 60.0, dist);
@@ -137,12 +144,14 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
     let hm = 1.0 - smoothstep(3.0, 14.0, hy);
     e = sl * (core * (0.5 + 1.7 * wave) + halo * (0.1 + 0.3 * wave)) * hm;
     e += (sl * 0.5 + 0.5) * core * wave * hm * 0.35;
-    let ls = dotGlow(q * vec2f(4.5, 3.3), 0.16, 0.22).x * hm;
-    e += slotOf(in.b.y + 1.0) * ls * ls * 0.4;
+    if (dist < 40.0) {
+      let ls = dotGlow(q * vec2f(4.5, 3.3), 0.16, 0.22).x * hm;
+      e += slotOf(in.b.y + 1.0) * ls * ls * 0.4;
+    }
     ao = 0.5 + 0.5 * smoothstep(-0.2, 2.5, hy);
     // moonlit / glow-lit rim
     let rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);
-    extra = (G.sunColor * (0.5 + 1.2 * max(dot(n, G.sunDir) + 0.3, 0.0)) * U.misc.x + glowAt(p) * 0.4) * rim * 0.5;
+    extra = (G.sunColor * (0.5 + 1.2 * max(dot(n, G.sunDir) + 0.3, 0.0)) * U.misc.x + gl * 0.4) * rim * 0.5;
   } else if (m < 1.5 || m > 2.5) {
     let x = in.uv.x; let ax = abs(x); let vv = in.uv.y; let rnd = in.at.w;
     alb = mix(hex(0x0b2420), hex(0x1f5236), vv * 0.6 + rnd * 0.4);
@@ -164,7 +173,7 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
     e = slotOf(in.b.y + 2.0) * (0.05 + 0.1 * bead + 1.1 * trav) * df * (0.35 + 0.65 * max(dot(n, V), 0.0));
   }
   e *= pl * (1.0 + 0.8 * touch(p));
-  return vec4f(shadeJ(alb, n, p, ao) + extra + e, 1.0);
+  return vec4f(shadeG(alb, n, gl, ao) + extra + e, 1.0);
 }
 
 // ---------------- generic props: 0 rock, 1 candelabra shrub, 2 mushrooms, 3 rosette, 4 lantern, 5 reed, 6 tuft ----------------

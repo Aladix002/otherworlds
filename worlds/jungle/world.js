@@ -278,7 +278,7 @@ export default {
     this.reedCat = this.cat(ctx, this.mesh(ctx, reed(4)), null, reeds, 2.5, 70, 99);
     // ground cover: clumps of small glowing tufts and star flowers
     const tf = [];
-    for (let i = 0; i < [240, 520, 760][q]; i++) {
+    for (let i = 0; i < [220, 440, 720][q]; i++) {
       let x, z;
       if (i < 8) { const a = (i / 8) * TAU; x = dxs + Math.cos(a) * (1.3 + R()); z = dz + Math.sin(a) * (1.3 + R()) + 0.3; if (Math.abs(x - dxs) < 0.8) continue; }
       else if (R() < 0.4) { const k = R() * 5 | 0, t = R(), sd = R() < 0.5 ? -1 : 1, o = 1.5 + R() * 2, [ax, az] = PATH[k], [bx, bz] = PATH[k + 1], L = Math.hypot(bx - ax, bz - az); x = ax + (bx - ax) * t - ((bz - az) / L) * sd * o; z = az + (bz - az) * t + ((bx - ax) / L) * sd * o; }

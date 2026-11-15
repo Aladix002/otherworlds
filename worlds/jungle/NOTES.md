@@ -39,10 +39,13 @@ shrubs, rosettes, lanterns, reeds, tuft clumps, pads, spores, fireflies). Shafts
 Post in the module (`exposure 1.35, bloom 0.2`). Puff instance ranges in `vsPuff` (40 billows, 220 spray, 10 lotus halos, 6 frog halos).
 
 ## Perf
-PERF_PLACEHOLDER
+Medium, 1080p fly-through: avg 7.6-7.7 ms, p99 9.7-15 ms at scale ~1 on a quiet machine; 9.6-9.8 ms avg with the scale dipping to
+0.6 while other agents' shoots share the iGPU (still PASS). Low: avg 6.6 ms. Bundle 164 KB.
+`shadeG` reuses one lightmap sample per fragment; `dotGlow` layers and fine bark detail are skipped beyond 32-45 m.
 CPU frustum/distance culling with 2 LODs per instanced category.
 
 ## Known issues / next
 Water has no true reflections of geometry (sky, moon glitter, lightmap glow, waterfall and lotus streaks only). Koi are opaque meshes
 under an alpha-blended surface (no refraction). `tools/shoot.mjs` samples three 0.5 s clips of the fly-through, so motion sheets
-always show three short segments.
+always show three short segments. Its arrival frame is taken 3 frames after the postcard pipeline is requested, so the
+postcard overlay may not be compiled yet in `door-arrival.png` (the frame then shows the plain scene).

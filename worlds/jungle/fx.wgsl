@@ -236,13 +236,15 @@ fn wrapAround(p: vec2f, c: vec2f, size: f32) -> vec2f { return c + (p - c) - siz
     o.soft = 0.0;
   } else if (ii < 270u) {
     let L = U.lotus[ii - 260u];
-    wp = vec3f(L.x, 0.3 * L.z, L.y);
     sz = 1.9 * L.z;
-    col = LOTUSC * (0.03 + 0.1 * L.w) * (0.8 + 0.3 * pulse(wp));
+    wp = vec3f(L.x, 0.5 * sz, L.y);
+    o.soft = 2.0;
+    col = LOTUSC * (0.025 + 0.06 * L.w) * (0.8 + 0.3 * pulse(wp));
   } else {
     let f = U.frog[ii - 270u];
-    wp = f.xyz + vec3f(0.0, 0.12, 0.0);
     sz = 0.55;
+    wp = f.xyz + vec3f(0.0, 0.5 * sz - 0.05, 0.0);
+    o.soft = 2.0;
     col = mix(U.slot[3].rgb, U.slot[0].rgb, 0.35) * (0.05 + 0.12 * U.frogB[ii - 270u].z);
   }
   let fogA = exp(-distance(wp, G.camPos) * 0.012) * (1.0 - G.transition);
@@ -259,12 +261,13 @@ fn wrapAround(p: vec2f, c: vec2f, size: f32) -> vec2f { return c + (p - c) - siz
   let q = (c.x * vec2f(fw.y, -fw.x) * 0.6 + c.y * fw) * 1.1;
   let wp = vec3f(f.x + q.x, 0.012, f.z + q.y);
   o.pos = G.viewProj * vec4f(wp, 1.0);
-  o.col = mix(vec3f(1.0, 0.4, 0.12), slotOf(b.y), 0.3) * 0.2 * exp(f.y * 1.5) * (1.0 - G.transition);
+  o.col = mix(vec3f(1.0, 0.4, 0.12), slotOf(b.y), 0.3) * 0.11 * exp(f.y * 1.5) * (1.0 - G.transition) * smoothstep(1.5, 5.0, distance(f.xyz, G.camPos));
   return o;
 }
 @fragment fn fsPuff(in: BO) -> @location(0) vec4f {
   let r2 = dot(in.c, in.c);
   let s = max(1.0 - r2, 0.0);
-  let k = select(exp(-r2 * 12.0), s * s * exp(-r2 * 1.2), in.soft > 0.5);
+  var k = select(exp(-r2 * 12.0), s * s * exp(-r2 * 1.2), in.soft > 0.5);
+  if (in.soft > 1.5) { k = max(1.0 - dot(in.c - vec2f(0.0, -0.25), in.c - vec2f(0.0, -0.25)) * 1.8, 0.0); k = k * k * smoothstep(-0.5, -0.2, in.c.y); }
   return vec4f(in.col * k, 0.0);
 }
