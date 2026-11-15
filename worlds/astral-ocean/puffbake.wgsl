@@ -10,7 +10,7 @@
     let r = length(w);
     let n = fbm2(w * 2.2 + off * 2.0, 4) * 0.5 + 0.5;
     let fil = pow(1.0 - abs(fbm2(w * 3.0 - off, 5)), 4.0);
-    let fall = smoothstep(1.0, 0.15, r) * smoothstep(1.0, 0.75, length(uv));
+    let fall = smoothstep(1.0, 0.05, r) * smoothstep(1.0, 0.55, length(uv));
     o[k] = clamp(fall * (smoothstep(0.3, 0.9, n) * 0.85 + fil * 0.18) * fall, 0.0, 1.0);
   }
   textureStore(outTex, vec2u(id.xy), o);

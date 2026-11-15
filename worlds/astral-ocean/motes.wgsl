@@ -1,5 +1,5 @@
 // Stateless stardust motes wrapped in a box around the camera (faded before the wrap), for near parallax.
-const BOX = 34.0;
+const BOX = 40.0;
 struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) col: vec3f };
 @vertex fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VO {
   let h = hash3u(vec3u(ii, 11u, 23u));
@@ -11,18 +11,20 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   p = G.camPos + rel;
   let d = length(rel);
   let px = aoPix(d);
-  let r = 0.018 + 0.03 * h2.x * h2.x;
-  let rs = max(r, px * 1.4);
+  let r = 0.012 + 0.02 * h2.x * h2.x;
+  let rs = max(r, px * 2.2);
   let c = aoCorner(vi);
   var o: VO;
   o.pos = G.viewProj * vec4f(billboard(p, c, vec2f(rs)), 1.0);
   o.c = c;
-  let tint = mix(mix(vec3f(0.6, 0.75, 1.5), vec3f(1.5, 0.6, 1.2), step(0.6, h2.y)), vec3f(1.5, 1.1, 0.6), step(0.85, h2.y));
-  let tw = 0.6 + 0.4 * sin(t * (0.5 + h2.z) + h.x * 50.0);
-  o.col = tint * tw * (r / rs) * (r / rs) * 1.8 * smoothstep(0.6, 2.5, d) * (1.0 - smoothstep(BOX * 0.3, BOX * 0.48, d));
+  let tint = mix(mix(vec3f(0.6, 0.75, 1.5), vec3f(1.4, 0.65, 1.2), step(0.6, h2.y)), vec3f(1.5, 1.1, 0.6), step(0.85, h2.y));
+  let tw = 0.65 + 0.35 * sin(t * (0.4 + 0.7 * h2.z) + h.x * 50.0);
+  // never a big blurry orb: motes dissolve before they get close
+  o.col = tint * tw * (r / rs) * (r / rs) * 2.4 * smoothstep(2.5, 7.0, d) * (1.0 - smoothstep(BOX * 0.3, BOX * 0.48, d));
   return o;
 }
 @fragment fn fs(in: VO) -> @location(0) vec4f {
-  let a = exp(-dot(in.c, in.c) * 5.0) - 0.0067;
+  let r2 = dot(in.c, in.c);
+  let a = exp(-r2 * 5.0) - 0.0067 * r2;
   return vec4f(in.col * max(a, 0.0), 0.0);
 }

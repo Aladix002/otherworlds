@@ -4,10 +4,11 @@ export const CORE = [-0.316, 0.163, -0.935];
 // paths: [cx, cy, cz, R, e, h, yaw, phase, speed, u0, dir, L]  (0-2 whales, 3-4 fish shoals). WGSL twin in common.wgsl
 export const PATHS = [
   [-5, 28, -138, 75, 0.7, 5, 0.3, 0, 3.2, 1.9, 1, 58],
-  [32, -32, -18, 48, 0.8, 4, -0.6, 1.3, 2.8, 4.4, -1, 42],
+  [34, -25, -22, 48, 0.8, 3, -0.6, 1.3, 2.8, 4.4, -1, 42],
   [0, 96, -30, 150, 0.7, 6, 1.9, 2.2, 4.0, 0.9, 1, 75],
   [8, 3, -12, 16, 0.7, 2, 0.3, 0.5, 2.0, 0, 1, 0],
   [8, -6, -68, 12, 0.8, 2, -0.5, 1.9, 2.0, 2, -1, 0],
+  [0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0],     // escort shoal: becomes a copy of whale 1's path, offset to its side (see end of file)
 ];
 // jelly groups: [x, bottomY, z, radius, count, H, hueLo, hueHi]
 export const JGROUPS = [[-14, -8, -45, 8, 20, 26, 0.0, 0.6], [45, -2, 2, 9, 14, 26, 0.3, 1.0], [-28, -16, 36, 7, 10, 22, 0.0, 0.85]];
@@ -32,6 +33,13 @@ export function frame(p, t, s) {
   const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
   return { p: P, f, r, u };
 }
+// allocation-free spine position (for the collision sdf)
+export function spine(p, t, s, o) {
+  const uh = p[9] + p[10] * p[8] * t / p[3];
+  pathPos(p, uh + 0.002, _a); pathPos(p, uh - 0.002, _b);
+  const sp = Math.hypot(_a[0] - _b[0], _a[1] - _b[1], _a[2] - _b[2]) * 250;
+  return pathPos(p, uh - p[10] * s * p[11] / sp, o);
+}
 export const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
 export const lookAt = (pos, tgt) => { const d = [tgt[0] - pos[0], tgt[1] - pos[1], tgt[2] - pos[2]], l = Math.hypot(...d); return { pos, yaw: Math.atan2(-d[0], -d[2]), pitch: Math.asin(d[1] / l) }; };
 
@@ -47,10 +55,12 @@ const G0c = [JGROUPS[0][0], JGROUPS[0][1] + JGROUPS[0][5] * 0.55, JGROUPS[0][2]]
 // fly-through: a compact slow loop (spawn -> past jelly group 0 -> down toward the deep whale -> back). Times follow
 // the core rule (proportional to length + 2 x yaw change). Creature phases are then solved so life is in frame at the
 // motion-clip times (0.15, 0.5, 0.82 of the duration) and in the spawn view.
+const JC = add(G0c, CORE, -15);          // jelly close-up: backlit by the nebula core
 const WP = [
-  [[0, 0, 0], [0, 2, -30]], [[4, 1.5, -8], [8, 3, -20]], [[10, 3, -18], [-6, 4, -30]], [[18, 9, -28], [-6, 6, -40]], [[8, 7, -36], G0c],
-  [[-1, 5, -33], G0c], [[-4, 1, -56], G0c], [[14, -6, -48], [32, -30, -20]],
-  [[24, -12, -20], [32, -32, -18]], [[12, -4, 6], [0, 0, -20]], [[0, 0, 0], [0, 2, -30]],
+  [[0, 0, 0], [0, 2, -30]], [[5, 1.5, -9], [-2, 8, -34]], [[12, 3.5, -20], add(G0c, [7, 9, -6])], [[19, 9, -34], add(G0c, [0, 4, 0])], [[12, 10, -22], G0c],
+  [[2, 7, -24], add(G0c, [0, 2, 0])], [add(JC, [1, 0, 0]), add(G0c, [0, 3, 0])],
+  [[-5, -6, -36], [20, -24, -30]], [[5, -17, -31], [20, -24, -30]], [[11, -21, -19], [20, -24, -30]],
+  [[8, -9, -3], [0, 0, -20]],
 ];
 function buildFly() {
   FLY.length = 0;
@@ -77,27 +87,63 @@ function solvePhase(k, t, s, target) {
   for (let u = 0; u < 6.2832; u += 0.004) { PATHS[k][9] = u; const d = Math.hypot(...frame(PATHS[k], t, s).p.map((x, j) => x - target[j])); if (d < best) { best = d; bu = u; } }
   PATHS[k][9] = bu; return best;
 }
+const wpTimes = () => {
+  const ts = [0]; let acc = 0;
+  for (let i = 1; i < FLY.length; i++) { const a = FLY[i - 1].pos, b = FLY[i].pos; acc += Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) + Math.abs(FLY[i].yaw - FLY[i - 1].yaw) * 2 + 0.01; ts.push(acc); }
+  return ts.map((t) => t * FLY_DUR / acc);
+};
 {
-  let M = [32, -26, -20];
-  for (let it = 0; it < 4; it++) {      // deep whale passing below/in front for the last clip; look at it
-    WP[8][1] = M; WP[9][1] = add(M, [-8, 4, 0]); buildFly();
-    const c = flyCam(49.2);
-    let best = 1e9, bu = 0;
-    for (let u = 0; u < 6.2832; u += 0.004) { PATHS[1][9] = u; const p = frame(PATHS[1], 49.2, 0.45).p; const d = Math.hypot(p[0] - c.pos[0], p[1] - c.pos[1], p[2] - c.pos[2]); if (d < best) { best = d; bu = u; } }
-    PATHS[1][9] = bu; M = frame(PATHS[1], 49.2, 0.45).p;
+  // the close whale passes the camera in profile for the last clip (t = 49.2): solve its phase so its mid-body is
+  // ~34 m in front of the camera then, and keep the three nearby waypoints looking at where it will be
+  for (let it = 0; it < 6; it++) {
+    const c = flyCam(49.2), ts = wpTimes();
+    solvePhase(1, 49.2, 0.4, add(c.pos, norm([c.fwd[0], 0, c.fwd[2]]), 34));
+    for (const k of [7, 8, 9]) WP[k][1] = frame(PATHS[1], ts[k], 0.4).p;
+    buildFly();
   }
-  const c9 = flyCam(9), c30 = flyCam(30);
-  solvePhase(3, 9 - 3, 0, add(c9.pos, c9.fwd, 7));
-  solvePhase(0, 10, 0.45, add([0, 0, 0], norm([0.3, 0.2, -1]), 95));
-  solvePhase(4, 30 - 3, 0, add(c30.pos, c30.fwd, 8));
+  const c9 = flyCam(9.2);
+  solvePhase(3, 9.2 - 5, 0, add(c9.pos, c9.fwd, 9));
+  solvePhase(0, 10, 0.45, add([0, 0, 0], norm([0.12, 0.34, -1]), 95));
+  solvePhase(4, 30 - 5, 0, add(G0c, [9, -6, 6]));
 }
 {
   const P = POSES;
-  const W1 = frame(PATHS[1], 40, 0.5);
-  Object.assign(P[1], lookAt(add(add(W1.p, W1.r, 36), W1.u, 6), add(W1.p, W1.f, 2)), { t: 40 });
-  Object.assign(P[2], lookAt(add(G0c, CORE, -24), add(G0c, [0, 2, 0])), { t: 14 });
+  // 1: the close whale in profile, on a third with lead room
+  const W1 = frame(PATHS[1], 40, 0.45);
+  Object.assign(P[1], lookAt(add(add(W1.p, W1.r, 37), W1.u, 3), add(W1.p, W1.f, 9)), { t: 40 });
+  // 2: jellies backlit by the core
+  Object.assign(P[2], lookAt(add(G0c, CORE, -22), add(G0c, [0, 2, 0])), { t: 14 });
+  // 3: the fish ribbon flowing past
   const c3 = flyCam(9.4);
   Object.assign(P[3], lookAt(c3.pos, add(c3.pos, c3.fwd)), { t: 9.4 });
-  Object.assign(P[4], lookAt([-30, -16, -30], [-12, 30, -50]), { t: 70 });
+  // The great far whale has a free phase: pick the one where, in every key view, it is either whole in frame or
+  // clearly out of it, and never sits on top of another whale.
+  const fwdOf = (p) => [-Math.sin(p.yaw) * Math.cos(p.pitch), Math.sin(p.pitch), -Math.cos(p.yaw) * Math.cos(p.pitch)];
+  const views = [[P[0].pos, fwdOf(P[0]), 10], [P[1].pos, fwdOf(P[1]), 40], [P[2].pos, fwdOf(P[2]), 14]];
+  for (const T of [9.2, 9.7, 30, 30.5, 49.2, 49.7]) { const c = flyCam(T); views.push([c.pos, c.fwd, T]); }
+  const proj = (c, f, p) => {
+    const r = norm([-f[2], 0, f[0]]), u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+    const d = [p[0] - c[0], p[1] - c[1], p[2] - c[2]], z = d[0] * f[0] + d[1] * f[1] + d[2] * f[2];
+    return z < 1 ? [9, 9] : [(d[0] * r[0] + d[1] * r[1] + d[2] * r[2]) / z, (d[0] * u[0] + d[1] * u[1] + d[2] * u[2]) / z];
+  };
+  const pts = (k, c, f, t) => [0, 0.25, 0.5, 0.75, 1].map((sv) => proj(c, f, frame(PATHS[k], t, sv).p));
+  let best = 1e9, bu = 0;
+  for (let u0 = 0; u0 < 6.2832; u0 += 0.02) {
+    PATHS[2][9] = u0; let sc = 0;
+    for (const [c, f, t] of views) {
+      const a = pts(2, c, f, t), nin = a.filter((q) => Math.abs(q[0]) < 1.0 && Math.abs(q[1]) < 0.52).length, nout = a.filter((q) => Math.abs(q[0]) > 1.3 || Math.abs(q[1]) > 0.8).length;
+      if (nin < 5 && nout < 5) sc += 10;
+      if (nin === 5) { sc -= 1; for (const k of [0, 1]) for (const q of pts(k, c, f, t)) for (const w of a) if (Math.hypot(q[0] - w[0], q[1] - w[1]) < 0.3) sc += 1; }
+    }
+    if (sc < best) { best = sc; bu = u0; }
+  }
+  PATHS[2][9] = bu;
+  // 4: looking up through the rising jellies at the great whale far overhead
+  const W2 = frame(PATHS[2], 70, 0.45).p, top = add(G0c, [0, 6, 0]), d4 = norm([W2[0] - top[0], W2[1] - top[1], W2[2] - top[2]]);
+  const c4 = add(add(top, d4, -26), [0, -4, 0]);
+  Object.assign(P[4], lookAt(c4, add(c4, norm(add(d4, [0, -0.12, 0])), 50)), { t: 70 });
   Object.assign(P[5], lookAt([-7.5, 0.6, 12.5], [0.6, -2.6, 26]), { t: 26 });
 }
+
+// small fish escorting the close whale give it scale (slot 11 = side offset for shoals)
+PATHS[5] = PATHS[1].slice(); PATHS[5][11] = 11;

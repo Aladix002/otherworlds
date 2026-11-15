@@ -15,7 +15,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) 
   o.pos = G.viewProj * vec4f(billboard(P.p.xyz, rc, vec2f(P.p.w)), 1.0);
   o.uv = c * 0.5 + 0.5;
   o.ch = u32(P.q.w) % 4u;
-  o.a = smoothstep(P.p.w * 0.5, P.p.w * 1.6, d) * (1.0 - smoothstep(260.0, 380.0, d));
+  o.a = smoothstep(P.p.w * 0.6, P.p.w * 1.8, d) * (1.0 - smoothstep(300.0, 420.0, d));
   o.col = P.q.rgb;
   return o;
 }
@@ -24,5 +24,6 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) 
   var dn = s.r;
   if (in.ch == 1u) { dn = s.g; } else if (in.ch == 2u) { dn = s.b; } else if (in.ch == 3u) { dn = s.a; }
   dn *= in.a;
-  return vec4f(in.col * dn, dn * 0.22);
+  dn = dn * dn * (3.0 - 2.0 * dn) * 0.8;
+  return vec4f(in.col * dn, dn * 0.16);
 }

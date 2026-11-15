@@ -53,8 +53,9 @@ fn aoFar(d: vec3f) -> vec3f {
   let band = exp(-pow(dot(d, vec3f(0.947, 0.0, -0.320)) / 0.5, 2.0));
   let cw = max(dot(d, CORE), 0.0);
   let core = pow(cw, 6.0);
+  let lowm = smoothstep(-0.4, 0.5, fbm3(d * 1.3 + 31.0, 3));
   let zen = pow(max(dot(d, normalize(vec3f(-0.2, 1.0, -0.3))), 0.0), 2.5);
-  var dens = pow(smoothstep(0.42 - 0.12 * zen, 0.95, n), 1.4) * (0.06 + 1.0 * band + 1.2 * core + 1.3 * zen);
+  var dens = pow(smoothstep(0.42 - 0.12 * zen, 0.95, n), 1.4) * (0.26 + 0.4 * lowm + 0.8 * band + 1.2 * core + 1.15 * zen);
   let hue = fbm3(q * 0.6 + 11.0, 3) * 0.5 + 0.5;
   let viol = vec3f(0.24, 0.08, 0.55);
   let mag = vec3f(0.62, 0.07, 0.42);
@@ -63,20 +64,21 @@ fn aoFar(d: vec3f) -> vec3f {
   var col = mix(blue, viol, smoothstep(0.2, 0.5, hue));
   col = mix(col, mag, smoothstep(0.5, 0.75, hue));
   col = mix(col, teal, smoothstep(0.6, 0.9, fbm3(q * 0.8 - 5.0, 3) * 0.5 + 0.5) * 0.85);
-  col = mix(col, vec3f(1.1, 0.42, 0.12), core * smoothstep(0.4, 0.9, n));
+  col = mix(col, vec3f(1.1, 0.46, 0.3), core * smoothstep(0.4, 0.9, n));
   // dark dust lanes
   let lane = 1.0 - abs(fbm3(q * 2.1 + 4.0, 5));
   dens *= 1.0 - 0.8 * smoothstep(0.82, 0.97, lane) * smoothstep(0.1, 0.5, band + core);
   var e = col * dens * 0.32;
   let cn = fbm3(d * 9.0 + 2.0, 5) * 0.5 + 0.5;
   let lanes = smoothstep(0.7, 0.95, 1.0 - abs(fbm3(d * 16.0 + 5.0, 4))) * smoothstep(0.2, 0.8, cn);
-  e += vec3f(1.5, 0.62, 0.3) * pow(cw, 60.0) * 0.32 * smoothstep(0.3, 0.85, cn) * (0.3 + n);
-  e += vec3f(1.8, 1.15, 0.7) * (pow(cw, 900.0) * 1.2 + pow(cw, 6000.0) * 6.0);
+  e += vec3f(1.5, 0.66, 0.42) * pow(cw, 60.0) * 0.3 * smoothstep(0.3, 0.85, cn) * (0.3 + n);
+  // the core itself: a soft roll-off instead of a clipped disc
+  e += vec3f(1.7, 1.1, 0.72) * (pow(cw, 250.0) * 0.22 + pow(cw, 1200.0) * 0.7 + pow(cw, 6000.0) * 1.6);
   e *= 1.0 - 0.75 * lanes * pow(cw, 25.0);
   e += vec3f(0.9, 0.3, 0.55) * pow(cw, 4.0) * 0.03;
   // second, cooler glow region
   let c2 = max(dot(d, normalize(vec3f(0.7, -0.35, -0.2))), 0.0);
-  e += vec3f(0.1, 0.4, 0.65) * pow(c2, 10.0) * 0.18 * (0.4 + n);
+  e += vec3f(0.08, 0.36, 0.6) * pow(c2, 3.5) * 0.07 * (0.25 + n) * (0.5 + lowm);
   // faint distant galaxies
   for (var i = 0; i < 14; i++) {
     let h = hash33(vec3f(f32(i), 3.1, 7.7));
@@ -86,13 +88,14 @@ fn aoFar(d: vec3f) -> vec3f {
       let Bg = aoBasis(gd);
       var p = vec2f(dot(d, Bg[0]), dot(d, Bg[1])) / k;
       let a = h.x * 6.28; p = vec2f(cos(a) * p.x - sin(a) * p.y, sin(a) * p.x + cos(a) * p.y);
-      p.y /= 0.25 + 0.6 * h.y;
-      let rr = length(p) / (0.006 + 0.01 * h.z);
-      e += mix(vec3f(1.0, 0.8, 0.6), vec3f(0.6, 0.7, 1.2), h.y) * (exp(-rr * rr * 3.0) * 0.8 + exp(-rr * 2.0) * 0.25);
+      p.y /= 0.2 + 0.3 * h.y;
+      let rr = length(p) / (0.005 + 0.008 * h.z);
+      e += mix(vec3f(1.0, 0.8, 0.6), vec3f(0.6, 0.7, 1.2), h.y) * (exp(-rr * rr * 6.0) * 0.7 + exp(-rr * 2.4) * 0.22);
     }
   }
   e += aoSpiral(d);
-  return e + vec3f(0.004, 0.005, 0.018);
+  // space is never black: a low-frequency indigo/violet haze under everything
+  return e + mix(vec3f(0.005, 0.008, 0.028), vec3f(0.02, 0.008, 0.036), lowm) + vec3f(0.0, 0.006, 0.008) * pow(c2, 2.0);
 }
 
 // mid-distance wisps: rgb emission, a = coverage
