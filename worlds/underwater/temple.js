@@ -105,7 +105,7 @@ export function buildTemple(M, heightAt, PADY, door, rng) {
     for (const s of [-1, 1]) g.push(M.translate(M.cylinder(0.075, 0.115, 0.85, 10, 2), 0.11 * s, 0.05, s * 0.04));
     for (const s of [-1, 1]) g.push(M.translate(M.cylinder(0.11, 0.13, 0.08, 10), 0.11 * s, 0.0, 0.08 * s + 0.04));
     ell(0.22, 0.2, 0.15, 0, 0.98, 0); ell(0.24, 0.32, 0.15, 0, 1.3, 0); ell(0.27, 0.12, 0.16, 0, 1.55, 0);
-    for (const s of [-1, 1]) ell(0.075, 0.12, 0.075, 0.27 * s, 1.5, 0);
+    for (const s of [-1, 1]) ell(0.06, 0.07, 0.06, 0.25 * s, 1.52, 0);
     g.push(M.translate(M.cylinder(0.06, 0.055, head ? 0.14 : 0.07, 10), 0, 1.62, 0));
     if (head) ell(0.11, 0.14, 0.12, 0, 1.86, 0.01);
     if (pedestal) g.push(M.translate(M.box(0.8, 0.9, 0.8), 0, -0.45, 0));

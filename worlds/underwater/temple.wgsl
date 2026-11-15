@@ -22,5 +22,6 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   alb = mix(alb, vec3f(0.52, 0.55, 0.42), low * 0.6);
   alb = mix(alb, vec3f(0.75, 0.42, 0.5), smoothstep(0.78, 0.86, nf.w) * smoothstep(0.3, 0.6, nz.b) * 0.7); // pink coralline spots
   let ao = mix(0.4, 1.0, smoothstep(-0.3, 2.2, hgt));
-  return vec4f(uwLit(alb, n, wp, caus, ao), 1.0);
+  let sh = colShadow(wp + n * 0.6);
+  return vec4f(uwLit(alb, n, wp, caus * sh, ao * mix(0.6, 1.0, sh)), 1.0);
 }

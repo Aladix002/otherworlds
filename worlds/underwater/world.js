@@ -178,7 +178,7 @@ export default {
     this.tVB = ctx.buffer(nv * 32, 'vertex');
     this.tIB = ctx.buffer(plane.idx, 'index');
     this.tCount = plane.idx.length;
-    const tMod = ctx.shader(COMMON + TERRAIN, 'uw-terrain');
+    const tMod = ctx.shader(COMMON + 'fn colShadow(wp: vec3f) -> f32 { return 1.0; }\n' + TERRAIN, 'uw-terrain-gen');
     const tGenL = ctx.layout(['storage-rw']);
     const tc = { ...this.consts, SEGX, SEGZ, SX, SZ, CZ };
     const tGen = ctx.compute({ module: tMod, entry: 'gen', layouts: [this.envL, tGenL], constants: tc });
@@ -188,12 +188,31 @@ export default {
     ctx.queue.submit([enc.finish()]);
     await progress(0.3);
 
-    this.terrain = ctx.pipeline({ module: tMod, buffers: [ctx.mesh.layout], layouts: [this.envL], constants: this.consts, label: 'uw-terrain' });
     // --- temple and ruins (one static mesh)
     const T = buildTemple(ctx.mesh, (x, z) => this.heightAt(x, z), PADY, [DOORX, this.doorY, DOORZ], ctx.math.makeRng(7));
     this.cols = T.cols; this.boxes = T.boxes;
     this.templeMesh = ctx.mesh.upload(T.geo, 'uw-temple');
-    this.temple = ctx.pipeline({ code: COMMON + TEMPLE, buffers: [ctx.mesh.layout], layouts: [this.envL], constants: this.consts, label: 'uw-temple' });
+    // analytic column shadows (temple + gateway columns) shared by the terrain and temple shaders
+    const SC = T.cols.filter((c) => c[3] - this.heightAt(c[0], c[1]) > 1.5);
+    const SH = `const NCOL = ${SC.length}u;\nconst COLS = array<vec4f, ${SC.length}>(${SC.map((c) => `vec4f(${c[0].toFixed(2)}, ${c[1].toFixed(2)}, ${(c[2] - 0.05).toFixed(2)}, ${c[3].toFixed(2)})`).join(',')});
+fn colShadow(wp: vec3f) -> f32 {
+  if (abs(wp.x) > 14.0 || wp.z < 28.0 || wp.z > 112.0 || (wp.z > 62.0 && wp.z < 96.0)) { return 1.0; }
+  let d = SUN.xz / SUN.y;
+  var s = 1.0;
+  for (var i = 0u; i < NCOL; i++) {
+    let C = COLS[i];
+    let h = C.w - wp.y;
+    if (h <= 0.0) { continue; }
+    let rel = C.xy - wp.xz;
+    let t = clamp(dot(rel, d) / dot(d, d), 0.0, h);
+    let dist = length(wp.xz + d * t - C.xy);
+    s *= mix(1.0, smoothstep(C.z - 0.2, C.z + 0.25, dist), smoothstep(0.0, 0.5, h - t) * step(0.05, t));
+  }
+  return mix(1.0, s, 0.85);
+}
+`;
+    this.terrain = ctx.pipeline({ code: COMMON + SH + TERRAIN, buffers: [ctx.mesh.layout], layouts: [this.envL], constants: this.consts, label: 'uw-terrain' });
+    this.temple = ctx.pipeline({ code: COMMON + SH + TEMPLE, buffers: [ctx.mesh.layout], layouts: [this.envL], constants: this.consts, label: 'uw-temple' });
     await progress(0.5);
     // --- kelp forest
     {

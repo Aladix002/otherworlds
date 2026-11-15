@@ -39,10 +39,10 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let fw = length(fwidth(wp.xz)) * freq;
   let rip = (1.0 - uss(0.5, 1.6, fw)) * (1.0 - 0.7 * kelp) * (1.0 - deep) * smoothstep(0.6, 0.9, n.y);
   let s = sin(ph); let rs = sign(s) * pow(abs(s), 0.6);
-  n = normalize(n + vec3f(dir.x, 0.0, dir.y) * rs * 0.22 * rip + vec3f(nf.x - 0.5, 0.0, nf.y - 0.5) * 0.25 * (1.0 - uss(0.4, 1.2, fw * 0.3)));
+  n = normalize(n + vec3f(dir.x, 0.0, dir.y) * rs * 0.3 * rip + vec3f(nf.x - 0.5, 0.0, nf.y - 0.5) * 0.25 * (1.0 - uss(0.4, 1.2, fw * 0.3)));
   // materials: white sand -> golden kelp sand with pebbles -> dark silt
   let m = nb.w;
-  var alb = mix(vec3f(0.86, 0.82, 0.70), vec3f(0.95, 0.9, 0.78), smoothstep(0.35, 0.7, m));
+  var alb = mix(vec3f(0.74, 0.7, 0.6), vec3f(0.86, 0.81, 0.69), smoothstep(0.35, 0.7, m));
   alb *= 0.9 + 0.2 * nf.z;
   let kel = mix(vec3f(0.66, 0.48, 0.28), vec3f(0.5, 0.38, 0.26), smoothstep(0.4, 0.7, nf.w + m * 0.4));
   alb = mix(alb, kel, kelp);
@@ -53,6 +53,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   alb = mix(alb, vec3f(0.42, 0.55, 0.32), smoothstep(0.62, 0.8, nb.z) * 0.35 * (1.0 - deep));
   // kelp canopy dapple
   let dap = mix(1.0, 0.45 + 1.1 * textureSample(tNoise, sRep, wp.xz * 0.045 + G.time * vec2f(0.004, 0.002)).r, kelp);
-  var c = uwLit(alb, n, wp, caus * dap, dap);
+  let sh = colShadow(wp);
+  var c = uwLit(alb, n, wp, caus * dap * sh, dap * mix(0.55, 1.0, sh));
   return vec4f(c, 1.0);
 }
