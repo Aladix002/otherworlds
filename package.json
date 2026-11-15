@@ -1,0 +1,15 @@
+{
+  "name": "otherworlds",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs all",
+    "build:test": "node tools/build.mjs _test",
+    "shoot": "node tools/shoot.mjs",
+    "perf": "node tools/perf.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "puppeteer-core": "^23.0.0"
+  }
+}
