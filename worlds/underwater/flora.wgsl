@@ -16,15 +16,17 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let across = vec3f(-dir.z, 0.0, dir.x);
   let ph = B.b.w;
   let tm = G.time;
-  var bend = 0.15; var curl = 0.0;
+  var bend = 0.08 + 0.5 * fract(ph * 3.3); var curl = 0.0;
   if (ty > 0.5 && ty < 1.5) { bend = 0.75; curl = 0.6; }
   if (ty > 1.5) { bend = 0.08; }
-  let sw = sin(tm * 0.7 + ph + base.x * 0.13) * 0.6 + sin(tm * 0.43 + ph * 1.7 + base.z * 0.11) * 0.4;
+  let pp = ph + B.a.w * 2.0 * step(0.5, ty);
+  let sw = sin(tm * 0.7 + pp + base.x * 0.13) * 0.6 + sin(tm * 0.43 + pp * 1.7 + base.z * 0.11) * 0.4;
   let h = B.b.x * fade;
-  let lean = dir * (bend + sw * 0.18) + vec3f(0.48, 0.0, 0.36) * (0.12 + 0.1 * sw) * step(ty, 0.5);
+  let lean = dir * (bend + sw * 0.2) + vec3f(0.48, 0.0, 0.36) * (0.14 + 0.16 * sw) * step(ty, 0.5);
   let a = t * (1.0 - curl * t * 0.5);
   var p = base + vec3f(0.0, h * a, 0.0) + lean * h * t * t * 1.2 - vec3f(0.0, h * curl * t * t * t * 0.5, 0.0);
   var wd = B.b.y * select(1.0 - t * t, 1.0 - 0.35 * t, ty > 0.5);
+  if (ty > 2.5) { wd = B.b.y * (0.2 + sin(PI * pow(t, 0.7))); }
   wd = max(wd, px * 0.6) * fade;
   // face the blade toward the camera a bit for thin round things (tentacles, whips, pens)
   var ax = across;
@@ -45,15 +47,20 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   var alb = mix(vec3f(0.18, 0.42, 0.12), vec3f(0.42, 0.55, 0.16), hv) * (0.55 + 0.6 * t);
   var em = vec3f(0.0);
   if (ty > 0.5 && ty < 1.5) {
-    let tip = smoothstep(0.6, 1.0, t);
-    alb = mix(mix(vec3f(0.75, 0.25, 0.55), vec3f(0.55, 0.3, 0.8), hv), vec3f(1.0, 0.8, 0.9), tip * 0.6);
-    em = mix(vec3f(0.9, 0.3, 0.7), vec3f(0.5, 0.4, 1.0), hv) * tip * 0.08;
+    // anemone: warm coral / peach / rose bodies with pale glowing tips
+    let tip = smoothstep(0.55, 1.0, t);
+    let body = select(select(vec3f(1.0, 0.45, 0.3), vec3f(0.95, 0.28, 0.42), hv > 0.35), vec3f(1.0, 0.66, 0.25), hv > 0.7);
+    alb = mix(body * (0.5 + 0.6 * t), vec3f(1.0, 0.92, 0.8), tip * 0.75) * (0.85 + 0.3 * in.k.z * in.k.z);
+    em = body * tip * 0.06;
   } else if (ty > 1.5 && ty < 2.5) {
     alb = mix(vec3f(0.95, 0.45, 0.12), vec3f(0.95, 0.75, 0.2), hv) * (0.7 + 0.4 * t);
   } else if (ty > 2.5) {
+    // deep-floor sea pens: soft glowing feathers
     alb = vec3f(0.3, 0.32, 0.4);
-    let pulse = 0.55 + 0.45 * sin(G.time * (0.4 + hv * 0.3) + ph * 6.0 - t * 3.0);
-    em = mix(vec3f(0.1, 0.9, 1.0), vec3f(0.6, 0.35, 1.0), hv) * (0.3 + 0.7 * t) * pulse * 0.35 * (0.6 + 0.4 * abs(sin(t * 25.0)));
+    let pulse = 0.55 + 0.45 * sin(G.time * (0.4 + hv * 0.3) + ph * 6.0 - t * 2.0);
+    em = mix(vec3f(0.1, 0.9, 1.0), vec3f(0.6, 0.35, 1.0), hv) * (0.15 + 0.85 * t * t) * pulse * 0.3 * (1.0 - 0.6 * in.k.z * in.k.z);
+  } else {
+    alb *= 0.8 + 0.4 * smoothstep(0.5, 0.0, abs(in.k.z));   // lighter midrib
   }
   let ao = mix(0.45, 1.0, t);
   var c = uwLit(alb, n, in.w, causticsAt(in.w), ao);

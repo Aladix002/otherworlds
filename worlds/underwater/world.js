@@ -8,7 +8,7 @@ import { buildTemple, mat } from './temple.js';
 import FISH from './fish.wgsl';
 import CRIT from './critter.wgsl';
 import DEEP from './deep.wgsl';
-import { turtleGeo, rayGeo, sharkGeo, animate } from './critters.js';
+import { turtleGeo, rayGeo, whaleGeo, animate } from './critters.js';
 import KELP from './kelp.wgsl';
 import FLORA from './flora.wgsl';
 import ROCK from './rock.wgsl';
@@ -16,9 +16,9 @@ import { scatter } from './scatter.js';
 import SHAFTS from './shafts.wgsl';
 import MOTES from './motes.wgsl';
 
-const PADY = -13.0, DOORX = -3.0, DOORZ = 104.0;
-const SEGX = 256, SEGZ = 384, SX = 320, SZ = 480, CZ = -90;
-const SUN = [0.2425, 0.9216, -0.3031], WCOL = [0.03, 0.27, 0.37];
+const PADY = -13.0, DOORX = 14.0, DOORZ = 104.0;
+const SEGX = 256, SEGZ = 440, SX = 320, SZ = 550, CZ = -125;
+const SUN = [0.4202, 0.8804, 0.2201], WCOL = [0.03, 0.27, 0.37], KCOL = [0.075, 0.215, 0.145];
 
 const ss = (a, b, x) => { let t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
@@ -31,12 +31,12 @@ function rawH(N, x, z) {
   const zw = z + 8 * N.fbm2(x * 0.008 + 3.1, z * 0.008 - 1.7, 2);
   let y = -7 - 6 * ss(115, 15, zw) - 8 * ss(25, -25, zw) - 14 * ss(-20, -140, zw) - 40 * ss(-138, -168, zw) - 32 * ss(-160, -250, zw) - 6 * ss(-230, -320, zw);
   const kelp = ss(10, -30, zw) * (1 - ss(-125, -160, zw));
-  y += N.fbm2(x * 0.035, z * 0.035, 3) * (0.7 + 1.3 * kelp);
+  y += N.fbm2(x * 0.035, z * 0.035, 3) * (0.7 + 1.3 * kelp) + 1.1 * N.fbm2(x * 0.012 + 7.3, z * 0.012 + 2.1, 2) * ss(-20, 20, zw);
   const slope = ss(-150, -175, zw) * (1 - ss(-250, -290, zw));
   y += (N.ridge2(x * 0.022 + 5, z * 0.022 + 1, 3) - 0.45) * 10 * slope;
   const ax = Math.abs(x + 6 * N.fbm2(x * 0.01 - 4, z * 0.01 + 2, 2));
-  y += ss(80, 150, ax) * Math.min(24, -y - 3);
-  y += ss(110, 160, z) * Math.min(16, -y - 3);
+  y += ss(80, 150, ax) * Math.min(24, -y - 0.7);
+  y += ss(106, 150, z) * (-y - 0.5);
   return y;
 }
 function kelpGeo(nodes, bs) {
@@ -45,11 +45,12 @@ function kelpGeo(nodes, bs) {
   for (let j = 0; j < nodes - 1; j++) for (let s = 0; s < 3; s++) {
     const a = j * 3 + s, b = j * 3 + (s + 1) % 3; idx.push(a, a + 3, b, b, a + 3, b + 3);
   }
-  for (let j = 2; j < nodes; j++) for (let k = 0; k < 2; k++) {
-    const ang = j * 2.39996 + k * Math.PI + Math.sin(j * 7.1) * 0.5, r = (Math.sin(j * 12.9898 + k * 78.233) * 43758.5453) % 1;
-    const b0 = pos.length / 3;
-    for (let i = 0; i <= bs; i++) for (const sd of [-1, 1]) { pos.push(ang, (j - 0.3 * k) / (nodes - 1), sd); uv.push(1 + i / bs, Math.abs(r)); }
-    for (let i = 0; i < bs; i++) { const a = b0 + i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  // one blade per node, spiralling irregularly around the stipe; 3 vertices across (soft normals, ruffled edges)
+  for (let j = 2; j < nodes; j++) {
+    const h = (n) => Math.abs((Math.sin(j * 12.9898 + n * 78.233) * 43758.5453) % 1);
+    const ang = j * 2.39996 + h(1) * 1.6, b0 = pos.length / 3;
+    for (let i = 0; i <= bs; i++) for (const sd of [-1, 0, 1]) { pos.push(ang, (j - 0.8 * h(2)) / (nodes - 1), sd); uv.push(1 + i / bs, h(0)); }
+    for (let i = 0; i < bs; i++) for (let k = 0; k < 2; k++) { const a = b0 + i * 3 + k; idx.push(a, a + 3, a + 1, a + 1, a + 3, a + 4); }
   }
   return { pos: new Float32Array(pos), nrm: new Float32Array(pos.length), uv: new Float32Array(uv), idx: new Uint32Array(idx) };
 }
@@ -66,10 +67,10 @@ function fishGeo(M) {
 // CPU twins of lightAt / waterAt (for env + door lighting)
 function lightAt(out, y) {
   const d = Math.min(Math.max(-y, 0), 150);
-  const kb = ss(12, 24, d) * (1 - ss(34, 55, d)), db = ss(35, 80, d), e = Math.exp(-Math.max(d - 35, 0) * 0.045) * 2.2, wm = ss(0, 30, d);
-  out[0] = Math.exp(-d * 0.045) * mix(1.18, 1, wm) * mix(1, 1.3, kb) * mix(1, 0.4, db) * e;
+  const kb = ss(12, 24, d) * (1 - ss(34, 55, d)), db = ss(35, 80, d), e = Math.exp(-Math.max(d - 35, 0) * 0.045) * 2.2, wm = ss(4, 32, d);
+  out[0] = Math.exp(-d * 0.045) * mix(1.5, 1, wm) * mix(1, 1.3, kb) * mix(1, 0.4, db) * e;
   out[1] = Math.exp(-d * 0.022) * mix(1, 1.05, kb) * mix(1, 0.75, db) * e;
-  out[2] = Math.exp(-d * 0.02) * mix(0.84, 1, wm) * mix(1, 0.8, kb) * mix(1, 1.6, db) * e;
+  out[2] = Math.exp(-d * 0.02) * mix(0.78, 1, wm) * mix(1, 0.8, kb) * mix(1, 1.6, db) * e;
   return out;
 }
 
@@ -80,11 +81,11 @@ export default {
   spawn: { pos: [2, -6.5, 80], yaw: 0, pitch: -0.08 },
   poses: [
     { pos: [11, -9.5, 66], yaw: 0.5, pitch: 0.02 },
-    { pos: [-9.5, -11.6, 61], yaw: -1.0, pitch: 0.5 },
+    { pos: [-9.5, -10.8, 61], yaw: -1.0, pitch: 0.5 },
     { pos: [-8, -20, -40], yaw: 0.25, pitch: 0.24 },
-    { pos: [10, -18, -50], yaw: 0, pitch: 0.05, t: 20 },
-    { pos: [4, -29, -139], yaw: 0.0, pitch: -0.55 },
-    { pos: [0, -95, -255], yaw: 0, pitch: 0.2 },
+    { pos: [18.3, -17.3, -67.3], yaw: 0.18, pitch: -0.48, t: 14 },
+    { pos: [4, -29, -139], yaw: 0.0, pitch: -0.55, t: 215 },
+    { pos: [0, -95, -255], yaw: 0, pitch: 0.2, t: 57 },
   ],
   flythrough: [
     { pos: [-16, -6.5, 100], yaw: -0.6, pitch: -0.05 },
@@ -102,20 +103,23 @@ export default {
     { pos: [-4, -19, -66], yaw: -1.0, pitch: 0.08 },
     { pos: [-4, -21, -84], yaw: -1.9, pitch: 0.1 },
     { pos: [4, -30, -140], yaw: 0, pitch: -0.3 },
-    { pos: [-2, -88, -242], yaw: 0, pitch: -0.15 },
-    { pos: [0, -93, -262], yaw: 0.15, pitch: 0.1 },
-    { pos: [6, -92, -280], yaw: 0.5, pitch: 0.1 },
-    { pos: [10, -90, -292], yaw: 0.7, pitch: 0.1 },
-    { pos: [-4, -88, -300], yaw: 1.4, pitch: 0.05 },
+    { pos: [0, -86, -238], yaw: 0, pitch: -0.1 },
+    { pos: [0, -94.4, -251], yaw: 0, pitch: 0.2 },
+    { pos: [0.5, -95.3, -257], yaw: 0, pitch: 0.22 },
+    { pos: [-6, -97, -267], yaw: -0.7, pitch: 0.3 },
+    { pos: [6, -93, -284], yaw: 0.6, pitch: 0.1 },
+    { pos: [10, -90, -296], yaw: 1.2, pitch: 0.1 },
+    { pos: [-6, -88, -302], yaw: 1.6, pitch: 0.05 },
+    { pos: [-24, -86, -290], yaw: 2.7, pitch: 0.05 },
   ],
   flythroughDuration: 60,
-  doors: [{ pos: [DOORX, null, DOORZ], yaw: Math.PI, to: 'jungle' }],
+  doors: [{ pos: [DOORX, null, DOORZ], yaw: 0, to: 'jungle' }],
   bounds: { min: [-140, -125, -310], max: [140, -0.9, 135] },
   env: {
     sunDir: SUN, sunColor: [1.0, 1.5, 1.6], fogColor: [0.05, 0.5, 0.62], fogDensity: 0.016,
     ambientSky: [0.08, 0.7, 0.85], ambientGround: [0.03, 0.25, 0.3],
   },
-  post: { exposure: 0.95, bloom: 0.1, bloomThreshold: 1.0, vignette: 0.3, saturation: 1.18, contrast: 1.06 },
+  post: { exposure: 0.74, bloom: 0.1, bloomThreshold: 1.0, vignette: 0.3, saturation: 1.15, contrast: 1.05 },
   clearColor: [0.05, 0.5, 0.62],
   fov: 64,
   doorLight: [0.03, 0.05, 0.06],
@@ -178,7 +182,7 @@ export default {
     this.tVB = ctx.buffer(nv * 32, 'vertex');
     this.tIB = ctx.buffer(plane.idx, 'index');
     this.tCount = plane.idx.length;
-    const tMod = ctx.shader(COMMON + 'fn colShadow(wp: vec3f) -> f32 { return 1.0; }\n' + TERRAIN, 'uw-terrain-gen');
+    const tMod = ctx.shader(COMMON + 'fn colShadow(wp: vec3f) -> vec2f { return vec2f(1.0); }\nfn sandAO(p: vec2f) -> f32 { return 1.0; }\n' + TERRAIN, 'uw-terrain-gen');
     const tGenL = ctx.layout(['storage-rw']);
     const tc = { ...this.consts, SEGX, SEGZ, SX, SZ, CZ };
     const tGen = ctx.compute({ module: tMod, entry: 'gen', layouts: [this.envL, tGenL], constants: tc });
@@ -189,26 +193,48 @@ export default {
     await progress(0.3);
 
     // --- temple and ruins (one static mesh)
-    const T = buildTemple(ctx.mesh, (x, z) => this.heightAt(x, z), PADY, [DOORX, this.doorY, DOORZ], ctx.math.makeRng(7));
+    const T = buildTemple(ctx.mesh, (x, z) => this.heightAt(x, z), PADY, [DOORX, this.doorY, DOORZ], ctx.math.makeRng(7), [8.0, 62.2]);
     this.cols = T.cols; this.boxes = T.boxes;
     this.templeMesh = ctx.mesh.upload(T.geo, 'uw-temple');
     // analytic column shadows (temple + gateway columns) shared by the terrain and temple shaders
     const SC = T.cols.filter((c) => c[3] - this.heightAt(c[0], c[1]) > 1.5);
-    const SH = `const NCOL = ${SC.length}u;\nconst COLS = array<vec4f, ${SC.length}>(${SC.map((c) => `vec4f(${c[0].toFixed(2)}, ${c[1].toFixed(2)}, ${(c[2] - 0.05).toFixed(2)}, ${c[3].toFixed(2)})`).join(',')});
-fn colShadow(wp: vec3f) -> f32 {
-  if (abs(wp.x) > 14.0 || wp.z < 28.0 || wp.z > 112.0 || (wp.z > 62.0 && wp.z < 96.0)) { return 1.0; }
+    const f2 = (v) => v.toFixed(2);
+    const SB = [...T.shade, [DOORX, DOORZ, 0.72, 0.13]];
+    const SH = `const NCOL = ${SC.length}u;\nconst COLS = array<vec4f, ${SC.length}>(${SC.map((c) => `vec4f(${f2(c[0])}, ${f2(c[1])}, ${f2(c[2] - 0.05)}, ${f2(c[3])})`).join(',')});
+const NSB = ${SB.length}u;\nconst SBX = array<vec4f, ${SB.length}>(${SB.map((b) => `vec4f(${b.map(f2).join(',')})`).join(',')});
+fn inRuins(p: vec2f) -> bool { return (abs(p.x) < 15.0 && p.y > 27.0 && p.y < 64.0) || (abs(p.x - DOORX) < 9.0 && abs(p.y - DOORZ) < 10.0); }
+// x = analytic sun shadow of the columns and the entablature, y = contact occlusion at the column feet
+fn colShadow(wp: vec3f) -> vec2f {
+  if (!inRuins(wp.xz)) { return vec2f(1.0); }
   let d = SUN.xz / SUN.y;
-  var s = 1.0;
+  var s = 1.0; var c = 1.0;
   for (var i = 0u; i < NCOL; i++) {
     let C = COLS[i];
     let h = C.w - wp.y;
-    if (h <= 0.0) { continue; }
     let rel = C.xy - wp.xz;
+    c *= 1.0 - 0.6 * (1.0 - smoothstep(C.z - 0.1, C.z + 0.55, length(rel))) * step(0.0, h);
+    if (h <= 0.0) { continue; }
     let t = clamp(dot(rel, d) / dot(d, d), 0.0, h);
     let dist = length(wp.xz + d * t - C.xy);
     s *= mix(1.0, smoothstep(C.z - 0.2, C.z + 0.25, dist), smoothstep(0.0, 0.5, h - t) * step(0.05, t));
   }
-  return mix(1.0, s, 0.85);
+  let hE = PADY + 7.4 - wp.y;
+  if (hE > 0.4 && wp.z < 64.0) {
+    let q = wp.xz + d * hE;
+    let e = min(sdBox2(q - vec2f(0.0, 55.3), vec2f(7.0, 0.7)), sdBox2(vec2f(abs(q.x) - 6.25, q.y - 52.0), vec2f(0.5, 3.6)));
+    s *= smoothstep(-0.15, 0.25 + hE * 0.04, e);
+  }
+  return vec2f(mix(1.0, s, 0.88), c);
+}
+// soft contact shade on the sand around the stylobate, plinths, fallen blocks, amphorae and the door
+fn sandAO(p: vec2f) -> f32 {
+  if (!inRuins(p)) { return 1.0; }
+  var a = 1.0;
+  for (var i = 0u; i < NSB; i++) {
+    let B = SBX[i];
+    a *= 1.0 - 0.5 * exp(-max(sdBox2(p - B.xy, B.zw), 0.0) * 2.6);
+  }
+  return a;
 }
 `;
     this.terrain = ctx.pipeline({ code: COMMON + SH + TERRAIN, buffers: [ctx.mesh.layout], layouts: [this.envL], constants: this.consts, label: 'uw-terrain' });
@@ -217,32 +243,37 @@ fn colShadow(wp: vec3f) -> f32 {
     // --- kelp forest
     {
       const rng = ctx.math.makeRng(11), nK = [200, 380, 520][ctx.q.level], K = [], C = [];
-      const keep = [...this.poses, ...this.flythrough].map((p) => p.pos);
-      const cluster = (x, z) => {
+      const keep = this.poses.map((p) => p.pos), F = this.flythrough;
+      for (let i = 1; i < F.length; i++) for (let k = 0; k < 8; k++) keep.push(F[i].pos.map((v, j) => mix(F[i - 1].pos[j], v, k / 8)));
+      const cluster = (x, z, hf) => {
         C.push(x, z);
-        const ns = 2 + (rng() < 0.6 ? 1 : 0) + (rng() < 0.3 ? 1 : 0), top = 1 + rng() * 5;
+        const ns = 2 + (rng() < 0.6 ? 1 : 0) + (rng() < 0.3 ? 1 : 0);
         for (let k = 0; k < ns; k++) {
-          const a = rng() * 6.283, rr = k ? 0.25 + rng() * 0.35 : 0, sx = x + Math.cos(a) * rr, sz = z + Math.sin(a) * rr;
-          const y = this.heightAt(sx, sz);
-          K.push(sx, y - 0.3, sz, Math.max(4, -y - top - rng() * 4 - k * 1.5), rng() * 6.283, 1.4 + rng() * 0.7, rng(), 0);
+          const a = rng() * 6.283, rr = k ? 0.3 + rng() * 0.5 : 0, sx = x + Math.cos(a) * rr, sz = z + Math.sin(a) * rr;
+          const y = this.heightAt(sx, sz) - 0.3, up = -0.9 - y, hk = hf * (0.75 + 0.45 * rng());
+          // short understory plants, mid-water plants, and giants whose tops trail along the surface as a canopy
+          K.push(sx, y, sz, hk > 1 ? up + 2 + (hk - 1) * 16 : Math.max(3, up * hk), rng() * 6.283, 1.2 + rng() * 0.8, rng(), 0);
         }
       };
-      for (const [x, z] of [[-7, -137], [-12, -133], [15, -135], [20, -131], [-3, -42], [-15, -48]]) cluster(x, z);
-      for (let tries = 0; C.length < nK * 2 && tries < 40000; tries++) {
+      for (const [x, z, h] of [[-7, -137, 0.6], [-12, -133, 1.2], [15, -135, 0.8], [20, -131, 0.5], [-3, -42, 1.3], [-15, -48, 0.8],
+        [-5, -146.5, 0.3], [11.5, -148, 0.26], [2.5, -151.5, 0.2], [-13, -150, 0.22], [19, -145.5, 0.33]]) cluster(x, z, h);
+      for (let tries = 0; C.length < nK * 2 && tries < 60000; tries++) {
         const x = rng() * 230 - 115, z = rng() * -142 - 6;
-        const zone = ss(-6, -20, z) * (1 - ss(-130, -147, z)) * ss(-0.35, 0.15, N.fbm2(x * 0.02 + 9, z * 0.02, 2));
-        if (rng() > zone || Math.hypot(x - 10, z + 70) < 17 || Math.abs(x) > 105 || keep.some((k) => Math.hypot(k[0] - x, k[2] - z) < 4.5)) continue;
+        const gr = N.fbm2(x * 0.028 + 9, z * 0.028, 2);
+        const zone = ss(-6, -20, z) * (1 - ss(-130, -147, z)) * ss(-0.02, 0.22, gr);
+        if (rng() > zone || Math.hypot(x - 10, z + 68) < 19 || Math.abs(x) > 105 || keep.some((k) => Math.hypot(k[0] - x, k[2] - z) < 5.5)) continue;
         let ok = true;
-        for (let i = 0; i < C.length; i += 2) if (Math.hypot(C[i] - x, C[i + 1] - z) < 3.0) { ok = false; break; }
+        for (let i = 0; i < C.length; i += 2) if (Math.hypot(C[i] - x, C[i + 1] - z) < 2.4) { ok = false; break; }
         if (!ok) continue;
-        cluster(x, z);
+        const r = rng();
+        cluster(x, z, (r < 0.32 ? 1.05 + rng() * 0.5 : r < 0.72 ? 0.5 + 0.4 * rng() : 0.2 + 0.25 * rng()) + 0.5 * Math.max(0, gr - 0.15));
       }
       this.kelpData = new Float32Array(K); this.nKelp = K.length / 8;
       this.kelpVis = new Uint32Array(this.nKelp); this.nKelpVis = 0;
       this.kelpVisBuf = ctx.buffer(this.nKelp * 4, 'storage');
       const kl = ctx.layout(['storage', 'storage']);
       this.kelpBG = ctx.bindGroup(kl, [ctx.buffer(this.kelpData, 'storage'), this.kelpVisBuf]);
-      this.kelpMesh = ctx.mesh.upload(kelpGeo(30, 5), 'uw-kelp');
+      this.kelpMesh = ctx.mesh.upload(kelpGeo(44, 7), 'uw-kelp');
       this.kelp = ctx.pipeline({ code: COMMON + KELP, buffers: [ctx.mesh.layout], layouts: [this.envL, kl], cull: 'none', constants: this.consts, label: 'uw-kelp' });
     }
     await progress(0.6);
@@ -265,7 +296,7 @@ fn colShadow(wp: vec3f) -> f32 {
       const q = ctx.q.level, rng = ctx.math.makeRng(31);
       const SC = [ // center, speed, wander radius, size, count, species
         [0, -8.2, 44, 0.8, 14, 1.0, 19, 0.34, 36, 0], [5, -9.6, 59, 0.6, 6, 0.8, 4, 0.3, 24, 1],
-        [-14, -10, 46, 0.5, 4, 1.5, 9, 0.16, [36, 60, 80][q], 2], [-6, -6.8, 90, 0.7, 8, 1, 7, 0.26, 26, 3],
+        [-14, -10, 46, 0.5, 4, 1.5, 9, 0.16, [36, 60, 80][q], 2], [-6, -6.8, 90, 0.7, 8, 1, 7, 0.26, 26, 3], [7, -10.2, 60, 0.45, 5, 0.8, 3.5, 0.2, 22, 2], [1, -10, 60, 0.5, 6, 1, 3, 0.24, 14, 3],
         [-15, -17, -55, 1.5, 22, 3, 25, 0.3, [120, 220, 320][q], 4], [30, -24, -95, 0.4, 6, 1.5, 6, 0.42, 8, 5],
         [-6, -19, -50, 0.6, 6, 2, 6, 0.36, 16, 3]];
       const sd = new Float32Array(SC.length * 12), fd = [];
@@ -291,18 +322,18 @@ fn colShadow(wp: vec3f) -> f32 {
     // --- turtles, rays, mantas, whale shark
     {
       this.H = (x, z) => this.heightAt(x, z);
-      this.critData = new Float32Array(6 * 12);
+      this.critData = new Float32Array(7 * 12);
       animate(this.critData, 0, this.H);
       this.critBuf = ctx.buffer(this.critData, 'storage');
       const cl = ctx.layout(['storage']);
       this.critBG = ctx.bindGroup(cl, [this.critBuf]);
       this.crit = ctx.pipeline({ code: COMMON + CRIT, buffers: [ctx.mesh.layout], layouts: [this.envL, cl], cull: 'none', constants: this.consts, label: 'uw-crit' });
       const M = ctx.mesh;
-      this.critMeshes = [[M.upload(turtleGeo(M)), 2, 0], [M.upload(rayGeo(M, false)), 1, 2], [M.upload(rayGeo(M, true)), 2, 3], [M.upload(sharkGeo(M)), 1, 5]];
+      this.critMeshes = [[M.upload(turtleGeo(M)), 2, 0], [M.upload(rayGeo(M, false)), 1, 2], [M.upload(rayGeo(M, true)), 2, 3], [M.upload(whaleGeo(M)), 2, 5]];
     }
     // --- deep life
     {
-      const rng = ctx.math.makeRng(41), J = [[-2.5, -93.5, -262, 0.45], [3.5, -96, -267, 0.38], [-6, -89.5, -276, 0.55], [6, -92, -281, 0.5]];
+      const rng = ctx.math.makeRng(41), J = [[-2.55, -94.05, -259.96, 0.55], [3.77, -93.9, -259.63, 0.46], [-6, -89.5, -276, 0.55], [6, -92, -281, 0.5]];
       for (let i = 0; i < 12; i++) J.push([(rng() - 0.5) * 120, -60 - rng() * 45, -200 - rng() * 100, 0.35 + rng() * 0.35]);
       for (const j of J) j[1] = Math.max(j[1], this.heightAt(j[0], j[2]) + 3);
       this.nJel = J.length;
@@ -310,12 +341,13 @@ fn colShadow(wp: vec3f) -> f32 {
       this.deepBG = ctx.bindGroup(dl, [ctx.buffer(new Float32Array(J.flat()), 'storage')]);
       const mod = ctx.shader(COMMON + DEEP, 'uw-deep');
       this.chain = ctx.pipeline({ module: mod, vs: 'vsChain', fs: 'fsGlow', layouts: [this.envL, dl], blend: 'add', cull: 'none', constants: this.consts, label: 'uw-chain' });
-      this.jelly = ctx.pipeline({ module: mod, vs: 'vsJelly', fs: 'fsJelly', buffers: [ctx.mesh.layout], layouts: [this.envL, dl], blend: 'add', cull: 'back', constants: this.consts, label: 'uw-jelly' });
-      this.jellyMesh = ctx.mesh.upload(ctx.mesh.lathe([[0.001, -1], [0.35, -0.9], [0.62, -0.5], [0.7, 0], [0.6, 0.55], [0.35, 0.92], [0.001, 1.02]], 24));
+      this.jelly = ctx.pipeline({ module: mod, vs: 'vsJelly', fs: 'fsJelly', buffers: [ctx.mesh.layout], layouts: [this.envL, dl], blend: 'add', cull: 'none', constants: this.consts, label: 'uw-jelly' });
+      const jp = []; for (let i = 0; i <= 20; i++) { const y = i / 10 - 1; jp.push([0.001 + 0.68 * Math.sin(Math.PI * i / 20) ** 0.62 * (1 - 0.14 * y), y]); }
+      this.jellyMesh = ctx.mesh.upload(ctx.mesh.lathe(jp, 48));
     }
     await progress(0.7);
     // --- god rays + particles
-    this.nShafts = [24, 40, 56][ctx.q.level];
+    this.nShafts = [44, 80, 110][ctx.q.level];
     this.shafts = ctx.pipeline({ code: COMMON + SHAFTS, layouts: [this.envL], blend: 'add', cull: 'none', topology: 'triangle-strip', constants: this.consts, label: 'uw-shafts' });
     {
       const NM = this.nMotes = [2048, 4096, 8192][ctx.q.level], rng = ctx.math.makeRng(5), md = new Float32Array(NM * 8);
@@ -333,19 +365,20 @@ fn colShadow(wp: vec3f) -> f32 {
 
   update(ctx, dt, t, cam) {
     const y = cam.eye[1], d = Math.max(-y, 0);
-    const kelp = ss(14, 22, d) * (1 - ss(38, 55, d)), deep = ss(36, 95, d);
-    const e = ctx.env, L = lightAt(this.L, y);
-    e.params[0] = mix(mix(0.015, 0.027, kelp), 0.02, deep);   // fog density
-    e.params[1] = mix(mix(105, 85, kelp), 75, deep);           // fog max distance
+    const z = cam.eye[2], kelp = ss(8, -22, z) * (1 - ss(-138, -168, z)) * (1 - ss(38, 56, d)) * mix(0.55, 1, ss(7, 17, d)), deep = ss(36, 95, d);
+    const e = ctx.env, L = lightAt(this.L, y), kf = kelp * (1 - ss(30, 52, d));
+    e.params[0] = mix(mix(0.018, 0.021, kelp), 0.02, deep);   // fog density
+    e.params[1] = mix(mix(88, 80, kelp), 75, deep);           // fog max distance
     e.params[2] = deep; e.params[3] = kelp;
     // door / core lighting follows the water
     e.fogDensity = e.params[0];
     for (let i = 0; i < 3; i++) {
-      const w = L[i] * WCOL[i];
+      const w = L[i] * mix(WCOL[i], KCOL[i], kf);
       e.fogColor[i] = w; ctx.clearColor[i] = w;
       e.sunColor[i] = L[i] * 0.5; e.ambientSky[i] = w * 2.0; e.ambientGround[i] = w * 0.7;
     }
-    ctx.post.exposure = mix(0.95, 2.6, ss(25, 105, d));
+    ctx.post.exposure = mix(0.74, 2.6, ss(25, 105, d));
+    ctx.post.bloom = mix(0.1, 0.3, deep); ctx.post.bloomThreshold = mix(1.0, 0.55, deep);
     if (ctx.audio && this.zones && (ctx.frame & 15) === 0) {
       const g0 = 1 - ss(12, 24, d), g2 = ss(38, 70, d), g1 = Math.max(0, 1 - g0 - g2);
       if (Math.abs(g0 - this.zoneG[0]) + Math.abs(g1 - this.zoneG[1]) + Math.abs(g2 - this.zoneG[2]) > 0.02) {
@@ -386,7 +419,7 @@ fn colShadow(wp: vec3f) -> f32 {
     pass.setPipeline(this.shafts); pass.draw(22, this.nShafts);
     if (ctx.camera.eye[1] < -22) {
       pass.setBindGroup(2, this.deepBG);
-      pass.setPipeline(this.chain); pass.draw(12, 5 * 70);
+      pass.setPipeline(this.chain); pass.draw(18, 5 * 70);
       pass.setPipeline(this.jelly); this.jellyMesh.draw(pass, this.nJel);
     }
     pass.setPipeline(this.moteDraw); pass.setBindGroup(2, this.moteDrawBG); pass.draw(6, this.nMotes + 12 * 18);

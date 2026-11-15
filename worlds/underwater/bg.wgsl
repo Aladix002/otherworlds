@@ -3,7 +3,7 @@
 struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 @vertex fn vs(@builtin(vertex_index) vi: u32) -> VO { var o: VO; o.pos = fsPos(vi); o.uv = fsUV(vi); return o; }
 
-const SUNAIR = vec3f(0.36, 0.84, -0.45);
+const SUNAIR = vec3f(0.559, 0.776, 0.293);
 
 @fragment fn fs(in: VO) -> @location(0) vec4f {
   let rd = viewRay(in.uv);
@@ -12,7 +12,8 @@ const SUNAIR = vec3f(0.36, 0.84, -0.45);
   // far light streaks radiating from the refracted sun
   let mu = dot(rd, SUN);
   let pr = rd - SUN * mu;
-  let ang = atan2(dot(pr, vec3f(0.0, 0.3121, 0.95)), dot(pr, vec3f(0.97, -0.2425, 0.0)));
+  let e1 = normalize(cross(SUN, vec3f(0.0, 0.0, 1.0)));
+  let ang = atan2(dot(pr, cross(SUN, e1)), dot(pr, e1));
   let st = textureSampleLevel(tNoise, sRep, vec2f(ang * (5.0 / TAU), G.time * 0.004), 1.0).b;
   let sh = 1.0 - G.params.z;
   c += lightAt(cy) * vec3f(0.06, 0.2, 0.2) * smoothstep(0.45, 0.85, st) * pow(max(mu, 0.0), 3.0) * sh * (1.0 - uss(0.97, 1.0, mu));
@@ -30,15 +31,16 @@ const SUNAIR = vec3f(0.36, 0.84, -0.45);
       let ci = dot(rd, n);
       let k = 1.0 - 1.769 * (1.0 - ci * ci);
       let rr = normalize(refract(rd, -n, 1.33) + vec3f(0.0, 1e-4, 0.0));
-      let sky = mix(vec3f(1.5, 2.1, 2.3), vec3f(0.7, 1.4, 2.4), clamp(rr.y, 0.0, 1.0));
       let sd = max(dot(rr, SUNAIR), 0.0);
-      var win = sky * 1.5 + vec3f(3.0, 2.8, 2.2) * (pow(sd, 60.0) * 6.0 + pow(sd, 8.0) * 0.6);
+      // Snell's window: bright turquoise-white sky with a soft sun glow, rolled off so it never clips flat
+      var win = mix(vec3f(0.55, 1.05, 1.2), vec3f(0.4, 0.85, 1.25), clamp(rr.y, 0.0, 1.0)) * 1.25
+              + vec3f(1.5, 1.35, 1.0) * (pow(sd, 90.0) * 2.5 + pow(sd, 10.0) * 0.9 + pow(sd, 2.5) * 0.3);
       // total internal reflection: mirror of the water below
       let tir = waterAt(cy) * vec3f(0.9, 1.1, 1.1) * (0.6 + 0.6 * (a.y - 0.3));
-      var s = mix(tir, win * lightAt(-0.5) * 0.45, smoothstep(-0.02, 0.2, k));
-      // caustic-like bright wave crests
       let cw = textureSampleLevel(tCaus, sRep, q * 0.09 + g * 0.3 + vec2f(t * 0.01, 0.0), lod + 1.5).g;
-      s *= 0.8 + 0.9 * cw * (1.0 - uss(10.0, 60.0, tt));
+      win *= 0.8 + 0.55 * cw * (1.0 - uss(10.0, 60.0, tt));
+      win = win / (1.0 + 0.2 * luminance(win));
+      var s = mix(tir * (0.85 + 0.5 * cw * (1.0 - uss(10.0, 60.0, tt))), win * exp(cy * vec3f(0.03, 0.012, 0.01)), smoothstep(-0.06, 0.3, k));
       c = mix(s, c, fogF(tt * 0.85));
     }
   }

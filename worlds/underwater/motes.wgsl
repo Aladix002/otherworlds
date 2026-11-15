@@ -30,21 +30,21 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
     let h = hash1u(u32(m.p.w));
     let depth = -m.p.y;
     let glow = uss(38.0, 75.0, depth);
-    let sz = mix(0.011 + 0.012 * h, 0.022 + 0.03 * h * h, glow) + 0.0012 * d;
+    let sz = min(mix(0.011 + 0.012 * h, 0.03 + 0.05 * h * h, glow) + 0.0012 * d, d * 0.014);
     o.pos = G.viewProj * vec4f(billboard(m.p.xyz, c, vec2f(sz)), 1.0);
-    let fade = uss(0.4, 2.0, d) * (1.0 - uss(BOX * 0.32, BOX * 0.5, d));
+    let fade = uss(0.8, 3.5, d) * (1.0 - uss(BOX * 0.32, BOX * 0.5, d));
     let snow = lightAt(m.p.y) * vec3f(0.5, 0.55, 0.5) * (1.0 - glow) * 0.22;
     let hue = fract(h * 3.7);
     let bio = select(select(vec3f(0.1, 0.9, 1.0), vec3f(0.3, 1.0, 0.45), hue > 0.55), vec3f(0.65, 0.35, 1.0), hue > 0.8);
     let tw = pow(0.5 + 0.5 * sin(G.time * (0.3 + h * 0.8) + h * 60.0), 3.0);
-    o.col = (snow + bio * glow * tw * 0.5 * step(0.55, fract(h * 13.1))) * fade / (1.0 + d * d * 0.004);
+    o.col = (snow + bio * glow * (0.12 + tw) * 0.5 * step(0.5, fract(h * 13.1))) * fade / (1.0 + d * d * 0.004);
     o.kind = 0.0;
   } else {
     // bubbles rising from a few vents around the temple and gateway
     let j = ii - NM;
     let s = j / BPS; let k = j % BPS;
     let hs = hash3u(vec3u(s, 3u, 9u));
-    let base = vec3f(mix(-14.0, 14.0, hs.x), 0.0, mix(30.0, 100.0, hs.y));
+    let base = vec3f(mix(-14.0, 14.0, hs.x), 0.0, mix(30.0, 108.0, hs.y));
     let rate = 0.12 + 0.06 * hs.z;
     let age = fract(G.time * rate + f32(k) / f32(BPS) + hash1u(j * 17u) * 0.03);
     let top = -0.6;
@@ -64,7 +64,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let r2 = dot(in.c, in.c);
   if (r2 > 1.0) { discard; }
   var a: f32;
-  if (in.kind < 0.5) { a = exp(-r2 * 3.5); }
+  if (in.kind < 0.5) { a = (exp(-r2 * 4.0) - 0.018) * 0.6 + exp(-r2 * 40.0) * 0.6; }
   else { let r = sqrt(r2); a = smoothstep(0.65, 0.95, r) * (1.0 - smoothstep(0.95, 1.0, r)) * 0.8 + exp(-dot(in.c - vec2f(-0.35, 0.4), in.c - vec2f(-0.35, 0.4)) * 30.0) * 0.9; }
   return vec4f(in.col * a, 0.0);
 }

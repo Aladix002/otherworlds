@@ -21,29 +21,37 @@ export function scatter(H, N, rng, q, padTest, keep) {
     if (padTest(x, z) < 6 || !free(x, z, s)) continue;
     rock(x, z, s, false); i++;
   }
+  // boulders along the shore behind the door, so the sand does not end in a bare horizon
+  for (let i = 0, tries = 0; i < 16 && tries < 2000; tries++) {
+    const x = rng() * 110 - 45, z = 117 + rng() * 16, s = 1.4 + rng() * 2.8;
+    if (!free(x, z, s)) continue;
+    rock(x, z, s, false); i++;
+  }
   const blade = (x, y, z, yaw, h, w, ty) => blades.push(x, y, z, yaw, h, w, ty, rng() * 6.283);
-  // seagrass meadows in the shallows
+  // seagrass: clumps of varied size gathered into meadows, bare sand between them
+  const near = (x, z, r) => keep.some((k) => Math.hypot(k[0] - x, k[2] - z) < r);
   const ng = [5000, 11000, 18000][q];
-  for (let i = 0, tries = 0; i < ng && tries < ng * 8; tries++) {
+  for (let i = 0, tries = 0; i < ng && tries < ng * 6; tries++) {
     const x = rng() * 150 - 75, z = 4 + rng() * 128;
-    const m = N.fbm2(x * 0.04 + 3.3, z * 0.04 - 1.1, 3);
-    if (m < 0.08 + rng() * 0.12 || padTest(x, z) < 1.5 || !free(x, z, 0.3)) continue;
-    const k = Math.min(1, (m - 0.05) * 3), y = H(x, z) - 0.03;
-    for (let j = 0; j < 7; j++, i++) {
-      const a = rng() * 6.283, r = rng() * 0.12;
-      blade(x + Math.cos(a) * r, y, z + Math.sin(a) * r, a + (rng() - 0.5), 0.3 + (0.25 + rng() * 0.45) * k, 0.02 + rng() * 0.012, 0);
+    const m = N.fbm2(x * 0.065 + 3.3, z * 0.065 - 1.1, 3) + 0.25 * N.fbm2(x * 0.3, z * 0.3 + 5, 1);
+    if (m < 0.16 + rng() * 0.06 || padTest(x, z) < 1.2 || !free(x, z, 0.3) || near(x, z, 2.6)) continue;
+    const k = Math.min(1, (m - 0.12) * 2.4) * (0.35 + 0.65 * rng()), y = H(x, z) - 0.03, nb = 3 + Math.floor(rng() * (4 + 12 * k));
+    const hh = 0.22 + 0.95 * k * k;
+    for (let j = 0; j < nb; j++, i++) {
+      const a = rng() * 6.283, r = rng() * (0.06 + 0.28 * k);
+      blade(x + Math.cos(a) * r, y, z + Math.sin(a) * r, a + (rng() - 0.5) * 2, hh * (0.55 + 0.7 * rng()), 0.016 + 0.02 * k * rng(), 0);
     }
   }
-  // anemones: rings of tentacles (shallows, temple steps area, gateway)
-  const na = [18, 34, 48][q];
+  // anemones: a ring of long curling tentacles around shorter upright ones (shallows, temple steps area, gateway)
+  const na = [16, 30, 42][q];
   for (let i = 0, tries = 0; i < na && tries < 3000; tries++) {
     const x = rng() * 60 - 30, z = 22 + rng() * 90;
     const d = padTest(x, z);
-    if (d < 0.5 || d > 14 || !free(x, z, 0.3)) continue;
-    const y = H(x, z), nt = 22 + Math.floor(rng() * 10), s = 0.7 + rng() * 0.6;
-    for (let k = 0; k < nt; k++) {
-      const a = (k / nt) * 6.283 + rng() * 0.2, r = 0.05 * s;
-      blade(x + Math.cos(a) * r, y - 0.02, z + Math.sin(a) * r, a, (0.18 + rng() * 0.1) * s, 0.018 * s, 1);
+    if (d < 0.5 || d > 14 || !free(x, z, 0.3) || near(x, z, 2.2)) continue;
+    const y = H(x, z), nt = 26 + Math.floor(rng() * 10), s = 0.9 + rng() * 0.9, pa = rng() * 6.283;
+    for (let k = 0; k < nt + 12; k++) {
+      const inner = k >= nt, a = (k / (inner ? 12 : nt)) * 6.283 + rng() * 0.25, r = (inner ? 0.02 : 0.06) * s;
+      blades.push(x + Math.cos(a) * r, y - 0.02, z + Math.sin(a) * r, a, (inner ? 0.14 : 0.2 + rng() * 0.1) * s, (inner ? 0.02 : 0.016) * s, 1, pa + rng() * 0.004);
     }
     i++;
   }
@@ -55,12 +63,12 @@ export function scatter(H, N, rng, q, padTest, keep) {
       blade(x, H(x, z) - 0.05, z, rng() * 6.283, 0.4 + rng() * 0.8, 0.025, 2);
     }
   }
-  const np = [250, 500, 800][q];
+  const np = [200, 380, 600][q];
   for (let i = 0; i < np; i++) {
-    const cx = (rng() - 0.5) * 120, cz = -200 - rng() * 105;
-    for (let k = 0; k < 4; k++) {
-      const x = cx + (rng() - 0.5) * 3, z = cz + (rng() - 0.5) * 3;
-      blade(x, H(x, z) - 0.05, z, rng() * 6.283, 0.35 + rng() * 0.5, 0.04, 3);
+    const cx = (rng() - 0.5) * 120, cz = -196 - rng() * 112;
+    for (let k = 0; k < 5; k++) {
+      const x = cx + (rng() - 0.5) * 1.4, z = cz + (rng() - 0.5) * 1.4;
+      blade(x, H(x, z) - 0.05, z, rng() * 6.283, 0.3 + rng() * 0.45, 0.075, 3);
     }
   }
   return { rocks: new Float32Array(rocks), blades: new Float32Array(blades), colliders: R };

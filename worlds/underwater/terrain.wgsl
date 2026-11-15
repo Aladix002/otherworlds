@@ -33,18 +33,18 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let nf = textureSample(tNoise, sRep, wp.xz * 0.37);
   let caus = causticsAt(wp);
   // sand ripples (normal only), faded before they alias
-  let dir = normalize(vec2f(0.8, 0.6) + (nb.xy - 0.5) * 0.8);
-  let freq = 3.6;
-  let ph = dot(wp.xz, dir) * freq + nb.z * 10.0;
+  let dir = normalize(vec2f(0.8, 0.6) + (nb.xy - 0.5) * 0.5);
+  let freq = 4.4;
+  let ph = dot(wp.xz, dir) * freq + nb.z * 5.0;
   let fw = length(fwidth(wp.xz)) * freq;
   let rip = (1.0 - uss(0.5, 1.6, fw)) * (1.0 - 0.7 * kelp) * (1.0 - deep) * smoothstep(0.6, 0.9, n.y);
   let s = sin(ph); let rs = sign(s) * pow(abs(s), 0.6);
-  n = normalize(n + vec3f(dir.x, 0.0, dir.y) * rs * 0.3 * rip + vec3f(nf.x - 0.5, 0.0, nf.y - 0.5) * 0.25 * (1.0 - uss(0.4, 1.2, fw * 0.3)));
+  n = normalize(n + vec3f(dir.x, 0.0, dir.y) * rs * 0.42 * rip + vec3f(nf.x - 0.5, 0.0, nf.y - 0.5) * 0.25 * (1.0 - uss(0.4, 1.2, fw * 0.3)));
   // materials: white sand -> golden kelp sand with pebbles -> dark silt
   let m = nb.w;
-  var alb = mix(vec3f(0.74, 0.7, 0.6), vec3f(0.86, 0.81, 0.69), smoothstep(0.35, 0.7, m));
-  alb *= 0.9 + 0.2 * nf.z;
-  let kel = mix(vec3f(0.66, 0.48, 0.28), vec3f(0.5, 0.38, 0.26), smoothstep(0.4, 0.7, nf.w + m * 0.4));
+  var alb = mix(vec3f(0.66, 0.61, 0.5), vec3f(0.8, 0.75, 0.63), smoothstep(0.35, 0.7, m));
+  alb *= (0.9 + 0.2 * nf.z) * (1.0 - 0.1 * rip * (0.5 - 0.5 * s));
+  let kel = mix(vec3f(0.56, 0.4, 0.22), vec3f(0.42, 0.31, 0.2), smoothstep(0.4, 0.7, nf.w + m * 0.4));
   alb = mix(alb, kel, kelp);
   alb = mix(alb, vec3f(0.26, 0.28, 0.32) * (0.8 + 0.4 * nf.z), deep);
   let rock = smoothstep(0.55, 0.35, n.y);
@@ -54,6 +54,9 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   // kelp canopy dapple
   let dap = mix(1.0, 0.45 + 1.1 * textureSample(tNoise, sRep, wp.xz * 0.045 + G.time * vec2f(0.004, 0.002)).r, kelp);
   let sh = colShadow(wp);
-  var c = uwLit(alb, n, wp, caus * dap * sh, dap * mix(0.55, 1.0, sh));
+  let sa = sandAO(wp.xz) * sh.y;
+  // deep floor: soft patches of faint blue-green glow instead of bare silt
+  var c = uwLit(alb * mix(0.72, 1.0, sa), n, wp, caus * dap * sh.x, dap * mix(0.5, 1.0, sh.x) * sa);
+  c += vec3f(0.02, 0.1, 0.12) * smoothstep(0.55, 0.85, nb.r) * deep * (1.0 - fogF(distance(wp, G.camPos))) * 0.35;
   return vec4f(c, 1.0);
 }

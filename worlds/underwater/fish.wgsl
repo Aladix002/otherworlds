@@ -20,7 +20,8 @@ fn anchor(S: School, t: f32) -> vec3f {
   let S = schools[u32(F.p.w)];
   let p = F.p.xyz; let v = F.v.xyz;
   let sp = S.c.w; let size = S.r.w;
-  let A = anchor(S, G.time + f32(i % 7u) * 0.3);
+  let sard = step(3.5, S.m.z) * step(S.m.z, 4.5);
+  let A = anchor(S, G.time + f32(i % 7u) * mix(2.5, 0.3, sard));
   var sep = vec3f(0.0); var ali = vec3f(0.0); var coh = vec3f(0.0); var n = 0.0;
   let st = u32(S.m.x); let cnt = u32(S.m.y);
   for (var j = st; j < st + cnt; j++) {
@@ -33,8 +34,8 @@ fn anchor(S: School, t: f32) -> vec3f {
   }
   let ta = A - p;
   var des = ta / max(length(ta), 1e-3) * sp * min(1.0, length(ta) / 5.0 + 0.25);
-  if (n > 0.0) { des += (ali / n) * 0.55 + (coh / n - p) * 0.35; }
-  des += sep * 1.4 + curl3(p * 0.12 + vec3f(0.0, G.time * 0.03, f32(u32(F.p.w)) * 3.0)) * sp * 0.4;
+  if (n > 0.0) { des += (ali / n) * mix(0.1, 0.55, sard) + (coh / n - p) * mix(0.12, 0.35, sard); }
+  des += sep * 1.4 + curl3(p * 0.12 + vec3f(0.0, G.time * 0.03, f32(u32(F.p.w)) * 3.0 + f32(i) * 0.37 * (1.0 - sard))) * sp * mix(1.1, 0.4, sard);
   // obstacles: seabed, surface, temple footprint, columns, the swimmer
   var floor = terrainH(p.xz) + 0.9;
   let inT = step(abs(p.x), 8.4) * step(abs(p.z - 44.0), 13.4);
@@ -63,11 +64,12 @@ fn anchor(S: School, t: f32) -> vec3f {
 // ---- draw ----
 @group(2) @binding(0) var<storage, read> fishR: array<Fish>;
 @group(2) @binding(1) var<storage, read> schoolsR: array<School>;
-struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) lp: vec3f, @location(3) @interpolate(flat) sp: f32 };
+struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) lp: vec3f, @location(3) @interpolate(flat) sp: vec2f };
 @vertex fn vs(@location(0) p: vec3f, @location(1) nn: vec3f, @location(2) uv: vec2f, @builtin(instance_index) ii: u32) -> VO {
   let F = fishR[ii];
   let S = schoolsR[u32(F.p.w)];
-  let size = S.r.w; let spc = S.m.z;
+  let hv = hash1u(ii * 13u + 5u);
+  let size = S.r.w * (0.7 + 0.65 * hv); let spc = S.m.z;
   var lp = p;
   var shape = vec3f(1.0);
   if (spc < 0.5) { shape = vec3f(1.0, 1.35, 1.0); }
@@ -82,7 +84,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   var o: VO;
   o.w = F.p.xyz + (rt * lp.x + up * lp.y + fw * lp.z) * size;
   o.n = normalize(rt * nn.x / shape.x + up * nn.y / shape.y + fw * nn.z / shape.z);
-  o.lp = vec3f(p.xy, p.z); o.sp = spc + uv.y * 10.0;
+  o.lp = vec3f(p.xy, p.z); o.sp = vec2f(spc + uv.y * 10.0, hv);
   o.pos = G.viewProj * vec4f(o.w, 1.0);
   return o;
 }
@@ -90,8 +92,9 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   var n = normalize(in.n);
   let v = normalize(in.w - G.camPos);
   if (dot(n, v) > 0.0) { n = -n; }
-  let fin = step(5.0, in.sp);
-  let spc = in.sp - fin * 10.0;
+  let fin = step(5.0, in.sp.x);
+  let spc = in.sp.x - fin * 10.0;
+  let hv = in.sp.y;
   let z = in.lp.z; let y = in.lp.y;
   var alb = vec3f(0.8);
   var spec = 0.2;
@@ -99,14 +102,15 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
     alb = mix(vec3f(0.04, 0.16, 0.85), vec3f(1.0, 0.8, 0.05), max(fin * step(z, -0.25), smoothstep(-0.3, -0.36, z)));
     alb = mix(alb, vec3f(0.02, 0.03, 0.12), smoothstep(0.02, 0.0, abs(y - 0.05 - 0.15 * sin(z * 4.0)) - 0.025) * 0.8);
   } else if (spc < 1.5) {     // yellow butterflyfish
-    alb = vec3f(1.0, 0.78, 0.06);
+    alb = mix(vec3f(1.0, 0.8, 0.08), vec3f(1.0, 0.55, 0.05), hv);
     alb = mix(alb, vec3f(0.05), smoothstep(0.03, 0.0, abs(z - 0.3) - 0.03));
     alb = mix(alb, vec3f(1.0, 1.0, 0.9), step(y, -0.06) * 0.6);
   } else if (spc < 2.5) {     // anthias
-    alb = mix(vec3f(1.0, 0.38, 0.42), vec3f(1.0, 0.65, 0.15), fin);
+    alb = mix(mix(vec3f(1.0, 0.3, 0.4), vec3f(1.0, 0.5, 0.12), hv), vec3f(1.0, 0.75, 0.2), fin);
   } else if (spc < 3.5) {     // sergeant major
-    alb = mix(vec3f(0.85, 0.9, 0.8), vec3f(1.0, 0.85, 0.3), smoothstep(0.0, 0.12, y));
-    alb = mix(alb, vec3f(0.04, 0.05, 0.06), step(0.62, fract(z * 5.0 + 0.2)) * step(z, 0.3));
+    alb = mix(vec3f(1.0, 0.42, 0.08), vec3f(1.0, 0.25, 0.12), hv);   // clownfish-like: coral orange, white bands
+    let bd = smoothstep(0.045, 0.03, min(abs(z - 0.2), abs(z + 0.12)));
+    alb = mix(alb, vec3f(1.0, 0.97, 0.92), bd * (1.0 - fin));
   } else if (spc < 4.5) {     // sardine
     alb = mix(vec3f(0.85, 0.9, 0.95), vec3f(0.08, 0.25, 0.38), smoothstep(-0.02, 0.06, y));
     spec = 1.4;

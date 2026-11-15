@@ -2,33 +2,46 @@
 
 One continuous dive along -Z: turquoise shallows with a sunken Doric temple (z ≈ 30…130, 6–14 m) → golden kelp
 shelf (z ≈ -10…-140, 20–36 m) → a shelf drop-off wall (z ≈ -140…-170) → the bioluminescent deep floor (≈ -110 m).
-Water surface is y = 0. Spawn (2, -6.5, 80) faces the temple; the jungle door stands between two broken gateway
-columns at (-3, seabed, 104), behind the spawn.
+Water surface is y = 0. Spawn (2, -6.5, 80) faces the temple; the jungle door stands in a ruined gateway (two
+columns on plinths, flagstones, wall stubs, rubble, amphorae) at (14, seabed, 104), behind the spawn, and looks
+back toward the temple. A boulder shore rises to the surface behind it (z > 106).
 
 ## Files
-- `world.js` — config, terrain CPU twin (`rawH`, must match `terrainH` in common.wgsl), init, per-frame env/exposure,
-  kelp CPU culling, audio.
+- `world.js` — config, terrain CPU twin (`rawH`, must match `terrainH` in common.wgsl), init, per-frame env/exposure/bloom,
+  kelp placement + CPU culling, generated WGSL for the analytic column / entablature shadows and sand contact shade
+  (`colShadow`, `sandAO`), audio.
 - `common.wgsl` — prepended to every scene shader: terrain function, depth light model (`lightAt`, `waterAt`,
-  `causAmt`), fog (`uwFog`, uses `G.params` = density, max distance, deepness, kelpness), caustics, `uwLit`.
+  `causAmt`), fog (`uwFog`, `fogF`; `G.params` = density, max distance, deepness, kelpness), caustics, `uwLit`
+  (warm sun + cool water ambient from above + sand bounce from below). `SUN` points toward +x/+z so the temple is side-lit.
 - `gen.wgsl` — load-time tileable caustic (rgb chromatic) and fbm noise textures + mip chain (compute).
-- `bg.wgsl` — open water, Snell's window surface with ripples, far light streaks. Drawn last among opaques at z = 0.
-- `terrain.wgsl` — GPU-generated 256×384 grid; sand ripples (fwidth-faded), zone materials, kelp dapple.
-- `temple.js` / `temple.wgsl` — merged static mesh: stylobate, fluted columns (some broken), entablature, pediment,
-  cella walls, fallen drums/blocks, statues, amphorae, gateway ruins. Colliders for `sdf` and fish.
-- `kelp.wgsl` — parameter mesh (stipe + 2 blades per node) instanced per stipe, swayed in VS, pixel-width clamped.
-- `scatter.js` / `flora.wgsl` / `rock.wgsl` — rocks, seagrass tufts, anemones, sea whips, glowing sea pens.
-- `fish.wgsl` — boid schools (ping-pong compute) with seabed/temple/column/camera avoidance; 6 species.
-- `critters.js` / `critter.wgsl` — turtles, stingray (settles on sand every ~70 s), manta pair loops, whale shark.
-- `deep.wgsl` — siphonophore chains (beads trail their head's path) and comb jellies with rainbow comb rows.
-- `shafts.wgsl` — god-ray impostors wrapped around the camera; `motes.wgsl` — marine snow / bioluminescent plankton
-  (compute) + bubble streams.
-- `postcard.wgsl` — spawn view: water gradient, surface, sand caustics, temple facade silhouette.
+- `bg.wgsl` — open water, Snell's window surface with ripples (rolled off, never clips), far light streaks.
+- `terrain.wgsl` — GPU-generated 256×440 grid; sand ripples (fwidth-faded), zone materials, kelp dapple, contact shade.
+- `temple.js` / `temple.wgsl` — one merged static mesh: stylobate, 160-segment fluted columns (chunky fractures on the
+  broken ones), entablature with a painted Greek-key band (procedural, material 2), triglyphs, pediment with relief
+  medallion / rosettes / acroteria, cella walls, fallen drums and blocks, a kore statue on a pedestal + a fallen one,
+  amphorae, starfish, the gateway. Vertex AO is baked from the colliders into `uv.x` (material + ao * 0.9), `uv.y` =
+  height above the seabed (algae-stained base band).
+- `kelp.wgsl` — parameter mesh (stipe + 1 ruffled 3-wide blade per node) instanced per stipe; S-bent stipes, plants
+  longer than the water column trail under the surface as a canopy; translucent backlit blades with midrib / veins;
+  sub-pixel parts fade into the fog instead of aliasing.
+- `scatter.js` / `flora.wgsl` / `rock.wgsl` — rocks, clumped seagrass, anemones, sea whips, glowing sea pens.
+- `fish.wgsl` — boid schools (ping-pong compute); per-fish size / hue variation, loose reef schools vs tight sardines.
+- `critters.js` / `critter.wgsl` — turtles (one passes the hero view), stingray gliding by the temple steps, manta pair
+  (swept wings from `wing()`, countershading, rim), a whale and calf circling between the drop-off and the deep.
+- `deep.wgsl` — siphonophore chains (bells, beads with halos, tentacle curtain, running pulse) and comb jellies
+  (glassy fresnel body, rainbow waves travelling along the comb rows).
+- `shafts.wgsl` — many thin god-ray blades wrapped around the camera; `motes.wgsl` — marine snow / plankton + bubbles.
+- `postcard.wgsl` — spawn view as a soft impression (water, surface, sand caustics, a pale hazy hint of the temple).
 
 ## Tunables
-- Light/fog by depth: `lightAt` / `waterAt` in common.wgsl (+ JS twin `lightAt`, `WCOL`), fog in `update()`.
-- Exposure by depth: `update()` (0.95 shallow → 2.6 deep).
+- Light/fog by depth: `lightAt` / `waterAt` in common.wgsl (+ JS twins `lightAt`, `WCOL`, `KCOL`), fog in `update()`.
+  Kelpness (amber-green water) depends on camera z and depth.
+- Exposure / bloom by depth: `update()` (0.74 shallow → 2.6 deep; bloom 0.1 → 0.3).
 - Counts per quality: kelp clusters, seagrass, rocks, fish schools (`SC`), motes, shafts in `init`.
+- Creature paths and timing: `animate()` in critters.js. Poses 3–5 use their own `t` so the manta / whales are in frame;
+  the fly-through tail is tuned so 82 % lands in the deep creature cluster.
 
 ## Known issues / ideas
-- No real shadows (temple columns don't shadow the sand); kelp canopy uses a moving noise dapple instead.
-- Kelp blades are flat ribbons; very close up they read as low-poly.
+- Shadows are analytic (columns + front entablature only); statues and blocks get contact shade but cast no shadow.
+- Turtles are still simple ellipsoid builds; the statue has no facial features.
+- Bundle is ~166 KB (over the 150 KB soft budget, quality first).

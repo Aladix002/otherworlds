@@ -24,7 +24,6 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let col = select(select(vec3f(1.0, 0.4, 0.12), vec3f(0.95, 0.3, 0.45), pal > 0.4), vec3f(1.0, 0.75, 0.15), pal > 0.75);
   alb = mix(alb, col, smoothstep(0.66, 0.7, nz.g * 0.6 + nf.r * 0.6) * up * (1.0 - deep) * 0.9);
   alb = mix(alb, vec3f(0.45, 0.5, 0.25), smoothstep(0.55, 0.7, nz.b) * up * 0.35 * (1.0 - deep));
-  alb = mix(alb, vec3f(0.85, 0.45, 0.55), smoothstep(0.7, 0.75, nf.w) * 0.6 * (1.0 - deep));
   var c = uwLit(alb, n, wp, caus, mix(0.5, 1.0, up));
   // bioluminescent speckles in the deep
   let sp = smoothstep(0.82, 0.9, nf.g) * deep;
