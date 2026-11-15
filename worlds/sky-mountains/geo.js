@@ -130,7 +130,7 @@ function cluster(R, c, ang, r, lod, parts) {
   const nb = [4, 3, 2, 1][lod], k = [1, 1.05, 1.15, 1.45][lod];
   for (let i = 0; i < nb; i++) {
     const a = ang + i * 2.2 + R() * 1.2, d = i ? r * (0.45 + 0.3 * R()) : 0, rr = (i ? r * (0.42 + 0.25 * R()) : r * 0.72) * k;
-    parts.push(pad(R, [c[0] + Math.cos(a) * d, c[1] + (i ? (R() - 0.4) * 0.3 : 0), c[2] + Math.sin(a) * d], a, rr, rr * (0.36 + 0.2 * R()), rr * (0.62 + 0.25 * R()), lod || i > 1 ? 1 : 2, lod ? 0 : 34));
+    parts.push(pad(R, [c[0] + Math.cos(a) * d, c[1] + (i ? (R() - 0.4) * 0.3 : 0), c[2] + Math.sin(a) * d], a, rr, rr * (0.36 + 0.2 * R()), rr * (0.62 + 0.25 * R()), lod || i > 1 ? 1 : 2, lod ? 0 : 26));
   }
 }
 export function pine(sd, lod) {

@@ -57,7 +57,7 @@ struct PO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) w
   let n = textureSample(NT, NS, in.c * 0.11 + vec2f(in.k.y * 0.37, G.time * 0.004 + in.k.y)).a;
   let f = 1.0 - r;
   var a = f * f * smoothstep(0.25, 0.85, n + 0.45 * f) * in.k.x;
-  a *= (1.0 - smoothstep(700.0, 1300.0, distance(in.w, G.camPos))) * smoothstep(2.0, 12.0, distance(in.w, G.camPos));
+  a *= (1.0 - smoothstep(700.0, 1300.0, distance(in.w, G.camPos))) * smoothstep(8.0, 34.0, distance(in.w, G.camPos));
   return vec4f(fallLight(in.w, n) * a, a);
 }
 

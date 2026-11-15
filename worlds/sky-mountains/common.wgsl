@@ -25,6 +25,10 @@ fn cloudHG(p: vec2f) -> vec3f {
   return cloudMix(textureSampleLevel(NT, NS, cloudUV(p, 0), 0.0), textureSampleLevel(NT, NS, cloudUV(p, 1), 0.0), textureSampleLevel(NT, NS, cloudUV(p, 2), 0.0));
 }
 
+// the two large scales only (cheap shadow taps)
+fn cloudH2(p: vec2f) -> f32 {
+  return 34.0 * (textureSampleLevel(NT, NS, cloudUV(p, 0), 1.0).r - 0.5) + 50.0 * (textureSampleLevel(NT, NS, cloudUV(p, 2), 0.0).r - 0.5);
+}
 // haze colour in a view direction: lavender-blue away from the sun, peach-gold toward it
 fn hazeCol(rd: vec3f) -> vec3f {
   let s = dot(normalize(vec3f(rd.x, rd.y * 0.6, rd.z)), G.sunDir) * 0.5 + 0.5;

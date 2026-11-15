@@ -31,8 +31,8 @@ Draw order: rock, vegetation, birds, cloud sea, sky (last, depth-tested) → doo
 counts per quality: pillars (`buildLayout`), trees per pillar (init), tufts/flowers (`heroCover`), shells, motes.
 
 ## Perf (Medium, 1920×1080, RADV Renoir)
-Quiet GPU: avg ≈ 6.3 ms, p50 ≈ 5.3 ms, scale 1.0; probe at scale 1: 5.3–7.9 ms along the fly-through. Under contention from other
-jobs single frames spike to 20–40 ms, so p99 varies between runs (12.8–25 ms seen).
+Quiet GPU: avg 5.5 ms, p50 5.4, p99 7.7, scale 1.0; probe at scale 1: 5.7–8.1 ms (heaviest near the door). When other jobs share
+the GPU the whole run scales up (avg ≈ 8.9, p99 ≈ 15.6) and single frames spike to 30 ms at random places.
 
 ## Known issues / next
 No real shadows off the hero island (AO + soft wrap only). Cloud sea is a height field: flying into a tall billow is prevented by

@@ -103,7 +103,7 @@ const nearDoor = (x, z) => Math.abs(x) < 0.42 && Math.abs(z - DOOR[2]) < 1.6 || 
 
 export function heroCover(q, R) {
   const tufts = [], flowers = [], I = HERO;
-  const NT = [2600, 5200, 8000][q], NF = [200, 380, 560][q];
+  const NT = [2400, 3800, 8000][q], NF = [200, 380, 560][q];
   const clear = (x, z, m) => { for (const s of HERO_STONES) if (Math.hypot(x - s[0], z - s[1]) < s[2] * 0.9 + m) return 0; return !nearDoor(x, z); };
   for (let i = 0, t = 0; i < NT && t < NT * 6; t++) {
     let x = (R() * 2 - 1) * I.rx * 1.3, z = (R() * 2 - 1) * I.rz * 1.3;

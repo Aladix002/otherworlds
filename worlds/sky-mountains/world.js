@@ -196,8 +196,8 @@ export default {
     this.rockB.push(add([up(stone(5, 3)), up(stone(5, 2))], frags.slice(0, half), { d: [60, 700], ck: 0, rk: 2.2 }));
     this.rockB.push(add([up(stone(8, 3)), up(stone(8, 2))], frags.slice(half), { d: [60, 700], ck: 0, rk: 2.2 }));
     await progress(0.62);
-    for (let v = 0; v < 3; v++) { this.vegB.push(add(lods((l) => pine(v + 1, l), 4), trees[v], { d: [22, 75, 210, 560], ck: 3, rk: 5.5 })); await progress(0.65 + v * 0.04); }
-    this.vegB.push(add([up(tuft(11, 11)), up(tuft(12, 5))], cover.tufts, { d: [22, 48], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 100] }));
+    for (let v = 0; v < 3; v++) { this.vegB.push(add(lods((l) => pine(v + 1, l), 4), trees[v], { d: [[16, 18, 24][q], [60, 66, 80][q], 200, 540], ck: 3, rk: 5.5 })); await progress(0.65 + v * 0.04); }
+    this.vegB.push(add([up(tuft(11, 11)), up(tuft(12, 5))], cover.tufts, { d: [14, 48], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 100] }));
     this.vegB.push(add([up(flower(4))], cover.flowers, { d: [48], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 100] }));
     // cloud grid: polar, rings grow geometrically
     const NA = 128, NR = 84, cv = new Float32Array((NA * NR + 1) * 2), ci = new Uint32Array(NA * 3 + (NR - 1) * NA * 6);
@@ -209,7 +209,7 @@ export default {
       ci[n++] = p; ci[n++] = p1; ci[n++] = c; ci[n++] = p1; ci[n++] = c1; ci[n++] = c;
     }
     this.cloudV = ctx.buffer(cv, 'vertex'); this.cloudI = ctx.buffer(ci, 'index'); this.cloudN = ci.length;
-    this.shellN = NA * 3 + 60 * NA * 6; this.shells = [2, 4, 6][q];
+    this.shellN = NA * 3 + 60 * NA * 6; this.shells = [2, 3, 6][q];
     // birds
     const bi = [];
     for (const [cx, cy, cz, rad, cnt, size] of LOOPS) for (let i = 0; i < cnt; i++) {

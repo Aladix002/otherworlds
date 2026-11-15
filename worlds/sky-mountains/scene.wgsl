@@ -36,7 +36,7 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
   // mist where things sink into the cloud sea
   if (wp.y < 70.0) {
     let hg = cloudHG(wp.xz);
-    let m = smoothstep(hg.x + 30.0, hg.x + 3.0, wp.y);
+    let m = 1.0 - smoothstep(hg.x + 3.0, hg.x + 30.0, wp.y);
     let crest = smoothstep(-22.0, 20.0, hg.x);
     let cl = smoothstep(-0.1, 0.5, dot(normalize(vec3f(-hg.y, 1.0, -hg.z)), G.sunDir)) * 0.55;
     c = mix(c, cloudShade(cl * (0.3 + 0.7 * crest), 0.28 + 0.72 * crest), m * m);
@@ -55,7 +55,8 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
   let strata = nl(vec2f((wp.x + wp.z) * 0.07 + sd * 31.0, sy), 0.04, d);
   let st = mix(nl(vec2f(wp.x * 9.0 + sd * 50.0, wp.y), 0.0065, d * 9.0), nl(vec2f(wp.z * 9.0 + sd * 50.0, wp.y), 0.0065, d * 9.0), wx);
   let fine = mix(mix(nl(wp.xy, 0.16, d), nl(wp.zy, 0.16, d), wx), nl(wp.xz, 0.21, d), wy);
-  let mic = nl(wp.xz + wp.y * vec2f(0.7, -0.6), 0.55, d);
+  var mic = vec4f(0.5);
+  if (d < 140.0) { mic = mix(mic, nl(wp.xz + wp.y * vec2f(0.7, -0.6), 0.55, d), 1.0 - smoothstep(90.0, 140.0, d)); }
   let up = smoothstep(0.32, 0.66, n.y + (top.a - 0.5) * 0.3);
   // warm sandstone, gentle contrast; vertical cracks and stains only on the walls
   var alb = mix(vec3f(0.34, 0.285, 0.26), vec3f(0.55, 0.43, 0.33), smoothstep(0.25, 0.75, mix(strata.a, fine.a, wy)));
@@ -157,9 +158,8 @@ fn cloudCol(wp: vec3f, k: f32) -> vec4f {
   let n = normalize(vec3f(-hg.y, 1.0, -hg.z) + vec3f(w1.g - 0.5, 0.0, w1.b - 0.5) * 0.35);
   // shadow from the billows toward the low sun (horizon taps)
   let sd = normalize(G.sunDir.xz); let tn = G.sunDir.y / length(G.sunDir.xz);
-  var hz = cloudHG(p + sd * 50.0).x - hg.x - 50.0 * tn;
-  if (k == 0.0) { hz = max(hz, cloudHG(p + sd * 150.0).x - hg.x - 150.0 * tn); }
-  let shd = 1.0 - smoothstep(-16.0, 14.0, hz);
+  var shd = 0.72;                                   // shells skip the taps
+  if (k == 0.0) { shd = 1.0 - smoothstep(-16.0, 14.0, max(cloudH2(p + sd * 50.0), cloudH2(p + sd * 150.0) - 100.0 * tn) - hg.x + 13.0 * (b.r - 0.5) - 50.0 * tn); }
   let lit = smoothstep(-0.2, 0.6, dot(n, G.sunDir) + k * 0.03) * (0.35 + 0.65 * shd);
   let crest = smoothstep(-22.0, 20.0, hg.x + det * 6.0 - 3.0 + k * 2.0);
   let v = normalize(wp - G.camPos);
