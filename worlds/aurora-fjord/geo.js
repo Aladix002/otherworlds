@@ -1,6 +1,6 @@
 // Procedural meshes for aurora-fjord. uv.x = free parameter, uv.y = material id + fraction (see scene.wgsl):
 // 0 painted boards, 1 white trim, 2 snow, 3 window, 4 dark wood, 5 stone, 6 door, 7 lamp, 8 boat hull, 10 spruce, 11 bark.
-import { box, sphere, cylinder, merge, transform, computeNormals } from '../../core/src/mesh.js';
+import { box, cylinder, rock, merge, transform, computeNormals } from '../../core/src/mesh.js';
 import { snoise2, pcg, u2f } from '../../core/src/noise.js';
 
 const mk = (nv, ni) => ({ pos: new Float32Array(nv * 3), nrm: new Float32Array(nv * 3), uv: new Float32Array(nv * 2), idx: new Uint32Array(ni) });
@@ -140,11 +140,14 @@ function boat(len = 5.4, B = 0.82) {
   const fill = grid(xs, [-1, -0.6, 0, 0.6, 1], (x, j) => { const [, ys] = sec(x); return ys - 0.1 + 0.13 * Math.cos(j * 1.5) * (1 + 0.4 * snoise2(x * 1.3, j)); });
   for (let v = 0; v < fill.pos.length / 3; v++) fill.pos[v * 3 + 2] *= sec(fill.pos[v * 3])[0];
   computeNormals(fill);
-  return merge([hull, fill, bx(0.09, 0.5, 0.12, 4, len / 2 - 0.02, 0.6), bx(0.09, 0.5, 0.12, 4, -len / 2 + 0.02, 0.6)]);
+  const T = [hull, fill, bx(0.09, 0.5, 0.12, 4, len / 2 - 0.02, 0.6), bx(0.09, 0.5, 0.12, 4, -len / 2 + 0.02, 0.6)];
+  for (const x of [-len * 0.24, 0, len * 0.24]) { const [b, ys] = sec(x); T.push(bx(0.16, 0.04, b * 2 + 0.04, 4, x, ys - 0.01, 0, 1)); }
+  return merge(T);
 }
 
 // ---- static village dressing in world space: pier, lamp posts, boats, drying rack, snow drifts at the door ----
-export function village(pier, lamps, hAt, door, dyaw) {
+const ss = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
+export function village(pier, lamps, hAt, door, dyaw, posts) {
   const P = [], [px, z1, z0, ph] = pier, len = z1 - z0, zc = (z0 + z1) / 2, bulbs = [];
   P.push(bx(2.5, 0.16, len, 4, px, ph - 0.16, zc, 1), mv(blanket(2.16, len - 0.1, 0.11, 0.13, 3), px - 1.08, ph - 0.01, zc));
   for (const sx of [1, -1]) {
@@ -154,10 +157,12 @@ export function village(pier, lamps, hAt, door, dyaw) {
   }
   for (const [x, y, z] of lamps) {
     const a = Math.atan2(-x, -(z + 12));
-    P.push(ry(merge([bx(0.13, 3.3, 0.13, 4), bx(0.07, 0.07, 0.55, 4, 0, 3.2, -0.27), bx(0.24, 0.28, 0.24, 7, 0, 2.86, -0.5), bx(0.36, 0.05, 0.36, 4, 0, 3.14, -0.5), cap(0.4, 0.4, 0.1, 0, 3.18, -0.5, 2)]), a, x, y, z));
+    const lt = [bx(0.1, 3.35, 0.1, 4), bx(0.16, 0.5, 0.16, 4), bx(0.05, 0.05, 0.6, 4, 0, 3.24, -0.28), bx(0.03, 0.14, 0.03, 4, 0, 3.12, -0.5), bx(0.15, 0.2, 0.15, 7, 0, 2.86, -0.5), bx(0.24, 0.035, 0.24, 4, 0, 2.82, -0.5), bx(0.3, 0.04, 0.3, 4, 0, 3.08, -0.5), cap(0.34, 0.34, 0.09, 0, 3.11, -0.5, 2)];
+    for (const [cx, cz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) lt.push(bx(0.022, 0.24, 0.022, 4, cx * 0.105, 2.85, -0.5 + cz * 0.105));
+    P.push(ry(merge(lt), a, x, y, z));
     bulbs.push(x - Math.sin(a) * 0.5, y + 3.0, z - Math.cos(a) * 0.5);
   }
-  const b = boat();
+  const b = boat(4.3, 0.74);
   P.push(ry(boat(), 1.5, px - 2.35, -0.14, -7), ry(boat(5.0, 0.78), 1.62, px + 2.3, -0.13, -11.5), ry(rx(b, 0.3), 0.6, -8.5, hAt(-8.5, 10.5) - 0.05, 10.5));
   // drying rack (hjell): A-frames + rails, snow on the top rails
   const R = [];
@@ -165,31 +170,34 @@ export function village(pier, lamps, hAt, door, dyaw) {
   for (const [x, y] of [[0, 5.75], [0.75, 3.9], [-0.75, 3.9], [1.42, 2.15], [-1.42, 2.15]]) R.push(bx(0.14, 0.14, 12.4, 4, x, y, 0), mv(blanket(0.2, 12.4, 0.09, 0.09, x, 0, 1.3), x - 0.1, y + 0.13, 0));
   P.push(ry(merge(R), 0.25, -16, hAt(-16, 24) - 0.6, 24));
   // snow drifted against the door frame
-  for (const sg of [1, -1]) {
-    const xs = [], zs = [];
-    for (let i = 0; i <= 12; i++) { xs.push(sg * (0.46 + i * 0.17)); zs.push((i / 6 - 1) * 1.5); }
-    P.push(ry(grid(xs, zs, (x, z) => { const u = Math.abs(x) - 0.78, k = 1 + 0.3 * snoise2(x * 2.1, z * 2.1 + sg); return 0.24 * k * Math.exp(-u * u / (u < 0 ? 0.07 : 0.4) - z * z / 0.3) + 0.012; }), dyaw, door[0], door[1], door[2]));
-    if (sg < 0) { const g = P[P.length - 1]; for (let i = 0; i < g.idx.length; i += 3) { const t = g.idx[i + 1]; g.idx[i + 1] = g.idx[i + 2]; g.idx[i + 2] = t; } computeNormals(g); }
-  }
+  const ax = []; for (let i = -15; i <= 15; i++) ax.push(i * 0.16);
+  P.push(ry(grid(ax, ax, (x, z) => {
+    const r = Math.hypot(x, z), u = Math.abs(x) - 0.84, k = 1 + 0.25 * snoise2(x * 1.9, z * 1.9);
+    return ss(2.4, 1.1, r) * (0.3 * k * Math.exp(-u * u / (u < 0 ? 0.035 : 0.3) - z * z / 0.22) * ss(0.52, 0.74, Math.abs(x)) + 0.05 * (1 + snoise2(x * 0.8 + 3, z * 0.8)) * ss(0.4, 1.3, r)) + 0.012;
+  }), dyaw, door[0], door[1], door[2]));
+  for (const [x, y, z] of posts) P.push(bx(0.11, 1.15, 0.11, 4, x, y - 0.15, z), cap(0.2, 0.2, 0.08, x, y + 0.99, z, x));
   return { geo: merge(P), bulbs };
 }
 
 // ---- spruce: drooping tiers heavy with snow. uv.x = snow weight, height 9 at scale 1 ----
 export function spruce(lod, seed) {
-  const tiers = [8, 5, 3][lod], segs = [14, 9, 6][lod], H = 9, P = [setMat(cylinder(0.19, 0.05, H * 0.95, [6, 5, 4][lod], 1), 11, 0)];
+  const tiers = [9, 6, 3][lod], segs = [16, 10, 6][lod], nr = [6, 5, 3][lod], H = 9, P = [setMat(cylinder(0.19, 0.05, H * 0.95, [6, 5, 4][lod], 1), 11, 0)];
   for (let k = 0; k < tiers; k++) {
-    const f = k / (tiers - 1), y0 = 1.25 + f * (H - 3.1), r = 2.25 * Math.pow(1 - f, 0.8) + 0.4, th = (H - 1.2) / tiers * 1.8 + 0.5;
-    const rings = [[0.03, y0 + th, 0.95], [r * 0.5, y0 + th * 0.4, 0.8], [r, y0 - 0.22 * r, 0.42]];
-    if (lod < 2) rings.push([r * 0.3, y0 + 0.15, 0]);
-    const nr = rings.length, g = mk(nr * segs, (nr - 1) * segs * 6), a0 = h1(seed * 31 + k) * 6;
+    const f = k / (tiers - 1), y0 = 1.25 + f * (H - 3.1), R = 2.3 * Math.pow(1 - f, 0.8) + 0.4, th = (H - 1.2) / tiers * 1.8 + 0.5;
+    const g = mk(nr * segs, (nr - 1) * segs * 6), a0 = h1(seed * 31 + k) * 6;
     let n = 0;
     for (let j = 0; j < nr; j++) for (let i = 0; i < segs; i++) {
-      const v = j * segs + i, a = a0 + i / segs * 6.2832, jt = j === 2 ? 0.74 + 0.5 * h1(seed * 977 + k * 37 + i) : 1, rr = rings[j][0] * jt;
-      g.pos[v * 3] = Math.cos(a) * rr; g.pos[v * 3 + 1] = rings[j][1] - (j === 2 ? (jt - 1) * 0.5 * r : 0); g.pos[v * 3 + 2] = Math.sin(a) * rr;
-      g.uv[v * 2] = rings[j][2] + (j === 2 ? (jt - 1) * 0.5 : 0); g.uv[v * 2 + 1] = 10.5;
+      // rings run from the tip of the tier out along the bough, the last one closes the underside
+      const under = lod < 2 && j === nr - 1, q = under ? 0.32 : j / (nr - (lod < 2 ? 2 : 1)), v = j * segs + i;
+      const jr = 0.72 + 0.5 * h1(seed * 977 + k * 37 + i), jd = 0.4 + 1.2 * h1(seed * 613 + k * 91 + i);
+      const a = a0 + (i + (h1(seed * 211 + k * 17 + i) - 0.5) * 0.5 * q) / segs * 6.2832, rr = Math.max(R * Math.pow(q, 0.85) * (1 + (jr - 1) * q * q), 0.03);
+      g.pos[v * 3] = Math.cos(a) * rr; g.pos[v * 3 + 2] = Math.sin(a) * rr;
+      g.pos[v * 3 + 1] = under ? y0 + 0.12 : y0 + th * Math.pow(1 - q, 1.5) - 0.3 * R * q * q * q * jd;
+      g.uv[v * 2] = under ? 0 : 1 - 0.7 * q; g.uv[v * 2 + 1] = 10.5;
       if (j < nr - 1) { const b = j * segs + (i + 1) % segs; g.idx[n++] = v; g.idx[n++] = b; g.idx[n++] = v + segs; g.idx[n++] = b; g.idx[n++] = b + segs; g.idx[n++] = v + segs; }
     }
     P.push(computeNormals(g));
   }
   return merge(P);
 }
+export const boulder = (seed) => setMat(rock(seed, 2, 0.4), 9, 0);

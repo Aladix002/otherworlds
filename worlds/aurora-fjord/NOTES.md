@@ -31,6 +31,11 @@ swaying snowy spruce forest on the slopes, jagged peaks, folding aurora curtains
 `HS` (houses), `LAMPS`, `PATHS`, `HERO_TREES`, `MOON`, tree counts `NT` (terrain.js); `nSnow`, `nRib`, reflection size `RW`
 (world.js); aurora shape in `aurP` / `fsAur`; palette in `paint()`.
 
+## Critic round 1 changes
+Lower/pulled-back peaks with altitude snow and triplanar rock, irregular drooping spruce tiers with normal-based snow, round power-law
+stars, softer bluish flakes, pink hem + violet tops and per-band fold scales on the aurora (faded edge-on/overhead), sky now drawn
+in the mirror pass (it was culled), radial snow mound at the door, boulders + marker posts, wind ridges in the snow normal.
+
 ## Known issues
 - The water position is reconstructed from the view ray (interpolating the 80 km quad gave 0.5 m steps).
 - Objects have no moon shadow on each other; house/tree shadows on the ground are baked per terrain vertex (1 m).

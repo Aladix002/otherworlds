@@ -1,7 +1,7 @@
 // Aurora over a winter fjord. See NOTES.md.
 import { pcg, u2f } from '../../core/src/noise.js';
 import { ss, DOOR, DOOR_YAW, PIER, SPAWN, MOON, VN, buildLayout, buildTerrain, buildMap, heightAt, makeSdf } from './terrain.js';
-import { HOUSE, village, spruce } from './geo.js';
+import { HOUSE, village, spruce, boulder } from './geo.js';
 import COMMON from './common.wgsl';
 import SCENE from './scene.wgsl';
 import FX from './fx.wgsl';
@@ -53,7 +53,7 @@ export default {
   poses: [
     pose(-1.5, 1.7, 21, -1, 5, -60, 12),                 // village around the cove, aurora mirrored in the fjord
     pose(1.4, 1.75, -16.5, -70, 170, -420, 31),            // peaks with aurora curtains, from the pier head
-    pose(-57, 1.7, -85, -170, 40, -175, 22),                  // forest slope swaying
+    pose(-70, 2.1, -93, -175, 66, -168, 22),                  // forest slope swaying
     pose(-8.5, 1.6, 9.5, -15.5, 3.0, -1.5, 17),            // close house: warm window, snow on the roof
     pose(-3, 1.6, 30, -3.5, 60, 14, 44),                 // looking up into the aurora
     pose(10.2, 1.55, 42.6, DOOR[0], DY + 1.25, DOOR[2], 27),   // the door on the snowy shore
@@ -121,10 +121,11 @@ export default {
     await progress(0.55);
 
     // ---------- meshes + instances ----------
-    const V = village(PIER, L.lamps, heightAt, [DOOR[0], DY, DOOR[2]], DOOR_YAW);
+    const V = village(PIER, L.lamps, heightAt, [DOOR[0], DY, DOOR[2]], DOOR_YAW, L.posts);
     const inst = (a) => ctx.buffer(Float32Array.from(a), 'vertex');
     this.objs = [{ m: M.upload(V.geo), i: inst([0, 0, 0, 1, 0, 0.5, 1, 0]), n: 1 }];
     this.glows = [];
+    this.objs.push({ m: M.upload(boulder(5)), i: inst(L.rocks), n: L.rocks.length / 8 });
     HOUSE.forEach((H, v) => {
       const n = L.houses[v].length / 8; if (!n) return;
       const ib = inst(L.houses[v]);
@@ -144,7 +145,7 @@ export default {
     for (let i = 0; i < L.prints.length / 3; i++) { const x = L.prints[i * 3], z = L.prints[i * 3 + 1]; pr.set([x, heightAt(x, z), z, L.prints[i * 3 + 2]], (NPRINT + i) * 4); }
     for (let i = 0; i < NPRINT; i++) pr[i * 4 + 1] = -99;
     this.printI = ctx.buffer(pr, 'vertex'); this.nPrint = pr.length / 4; this.pr = pr.subarray(0, NPRINT * 4); this.pk = 0; this.walked = 0; this.side = 1;
-    this.nSnow = [2200, 4200, 6500][q]; this.nRib = 5;
+    this.nSnow = [1800, 3200, 5000][q]; this.nRib = 5;
     await progress(0.75);
 
     // ---------- reflection target + bind groups ----------
@@ -165,7 +166,7 @@ export default {
     const P = (d) => ctx.pipelineAsync({ module: sc, layouts: [cL], ...d }), mir = { MIR: -1 };
     const defs = [
       { vs: 'vsTer', fs: 'fsTer', buffers: [M.layout] }, { buffers: [M.layout, IL] }, { vs: 'vsTree', fs: 'fsTree', buffers: [M.layout, IL], cull: 'none' },
-      { fs: 'fsGlow', buffers: [M.layout, IL], blend: 'add' }, { vs: 'vsSky', fs: 'fsSky', depthWrite: false }, { vs: 'vsAur', fs: 'fsAur', blend: 'add', cull: 'none' },
+      { fs: 'fsGlow', buffers: [M.layout, IL], blend: 'add' }, { vs: 'vsSky', fs: 'fsSky', depthWrite: false, cull: 'none' }, { vs: 'vsAur', fs: 'fsAur', blend: 'add', cull: 'none' },
       { module: fx, vs: 'vsLamp', fs: 'fsLamp', buffers: [I4], blend: 'add', cull: 'none' },
     ];
     const all = await Promise.all([

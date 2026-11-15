@@ -12,15 +12,20 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let m = vmap(wp.xz);
   // rock on steep faces, broken up by noise
   let big = nl(vec2f(wp.x + wp.z * 0.3, wp.y * 2.0 + wp.z * 0.5), 0.0035, d);
-  let rk = smoothstep(0.84, 0.56, n.y + (big.a - 0.5) * 0.45 + (a.a - 0.5) * 0.2 + (b.a - 0.5) * 0.1) * smoothstep(6.0, 30.0, wp.y);
+  let big2 = nl(wp.xz, 0.0011, d);
+  let rk = smoothstep(0.74, 0.5, n.y + (big.a - 0.5) * 0.5 + (big2.a - 0.5) * 0.5 + (a.a - 0.5) * 0.2 + (b.a - 0.5) * 0.1 + 0.3 * smoothstep(180.0, 520.0, wp.y)) * smoothstep(6.0, 30.0, wp.y);
   let dn = drift(n, wp, d, m.b); n = dn.xyz;
-  var col = snow(n, wp, in.m.x, dn.w, m) * (1.0 - 0.16 * m.b);
-  let strata = nl(vec2f(wp.x + wp.z, wp.y * 3.0), 0.02, d);
-  col = mix(col, vec3f(0.05, 0.055, 0.07) * (0.3 + strata.a + 0.6 * big.r + 0.5 * b.a) * light(n, in.m.x, 1.0, 0.0, 0.0), rk);
+  var col = snow(n, wp, in.m.x, dn.w, m) * (1.0 - 0.28 * m.b);
+  // rock: triplanar grain + cracks, lifted by sky and aurora fill so the walls are not flat navy
+  let g0 = in.n * in.n; let tw = g0 / (g0.x + g0.y + g0.z);
+  let rt = nl(wp.zy, 0.011, d) * tw.x + nl(wp.xz, 0.011, d) * tw.y + nl(wp.xy, 0.011, d) * tw.z;
+  let rf = nl(wp.zy, 0.07, d) * tw.x + nl(wp.xz, 0.07, d) * tw.y + nl(wp.xy, 0.07, d) * tw.z;
+  let rn = normalize(n + (vec3f(rt.g, rt.a, rt.b) - 0.5) * 0.7 + (vec3f(rf.g, rf.a, rf.b) - 0.5) * 0.35 * (1.0 - smoothstep(60.0, 400.0, d)));
+  let rock = vec3f(0.1, 0.105, 0.125) * (0.45 + 0.8 * rt.a + 0.4 * rf.a) * mix(0.55, 1.0, smoothstep(0.3, 0.55, rt.r));
+  col = mix(col, rock * (light(rn, in.m.x, 1.0, 0.0, 0.0) + G.ambientSky * 0.6), rk);
   // far forest, painted where the tree meshes are culled
   let fo = in.m.y * smoothstep(420.0, 850.0, d) * smoothstep(0.3, 0.55, b.a + a.a * 0.4) * (1.0 - rk);
   col = mix(col, vec3f(0.005, 0.011, 0.011) + col * 0.22, fo * 0.85);
-  col = mix(col, col * vec3f(0.42, 0.52, 0.68), smoothstep(0.17, 0.03, wp.y));
   return vec4f(fogged(col, wp), 1.0);
 }
 
@@ -82,11 +87,12 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
     var alb = vec3f(0.68, 0.68, 0.63); var ao = 1.0;                       // 1: trim
     if (mat == 0.0) {
       let bd = u / 0.16; let g = abs(fract(bd) - 0.5);
-      alb = paint(ci) * (0.5 + 0.5 * smoothstep(0.5, 0.42, g)) * (0.85 + 0.3 * hash11(floor(bd) + ci * 7.0)) * (0.85 + 0.3 * nz.a);
+      alb = paint(ci) * mix(0.5 + 0.5 * smoothstep(0.5, 0.42, g), 0.93, smoothstep(14.0, 45.0, d)) * (0.85 + 0.3 * hash11(floor(bd) + ci * 7.0)) * (0.85 + 0.3 * nz.a);
       alb *= 0.7 + 0.3 * smoothstep(0.0, 0.09, fv);
     } else if (mat == 4.0) {
       alb = vec3f(0.075, 0.055, 0.04) * (0.5 + nz.a) * (0.55 + 0.45 * smoothstep(0.5, 0.4, abs(fract(u / 0.21) - 0.5)));
       ao = mix(0.35, 1.0, smoothstep(-0.9, -0.1, in.l.y));
+      alb *= 1.0 + 2.5 * smoothstep(-0.2, -0.8, n.y) * step(1.0, in.l.y);
     } else if (mat == 5.0) {
       let row = fv * 12.0 / 0.22;
       let br = min(abs(fract(row) - 0.5), abs(fract(u / 0.45 + floor(row) * 0.5) - 0.5) * 2.0);
@@ -95,6 +101,12 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
     } else if (mat == 6.0) {
       let g = abs(fract(u / 0.19) - 0.5);
       alb = mix(vec3f(0.1, 0.17, 0.15), vec3f(0.33, 0.2, 0.09), step(0.5, rnd)) * (0.55 + 0.45 * smoothstep(0.5, 0.4, g)) * (0.7 + 0.6 * nz.a);
+    } else if (mat == 9.0) {
+      alb = vec3f(0.12, 0.12, 0.13) * (0.5 + 0.9 * nz.a);
+      let cap = smoothstep(0.25, 0.6, n.y + (nz.r - 0.5) * 0.5);
+      let dn = drift(n, wp, d, 0.0);
+      col = mix(alb * light(n, 1.0, 0.8, m.r, 0.0), snow(dn.xyz, wp, 1.0, dn.w, m), cap);
+      return vec4f(fogged(col, wp), 1.0);
     } else if (mat == 8.0) {
       let st = fv / 0.98;
       alb = mix(vec3f(0.07, 0.045, 0.03) * (0.6 + 0.4 * smoothstep(0.5, 0.38, abs(fract(st * 5.0) - 0.5))), mix(vec3f(0.5, 0.07, 0.04), vec3f(0.6, 0.6, 0.55), step(0.86, st)), step(0.72, st)) * (0.7 + 0.6 * nz.a);
@@ -138,11 +150,11 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
   let nz = nl(vec2f(atan2(in.l.z, in.l.x) * 2.3 + in.k.x * 9.0, length(in.l.xz) * 0.1 + in.l.y * 0.35), 0.16, d * 0.3);
   let m = vmap(wp.xz);
   n = normalize(n + vec3f(nz.g - 0.5, 0.0, nz.b - 0.5) * 0.6);
-  let ao = mix(0.4, 1.0, clamp(length(in.l.xz) / (2.5 * (1.0 - in.l.y / 9.0) + 0.5), 0.0, 1.0));
+  let ao = mix(0.62, 1.0, clamp(length(in.l.xz) / (2.5 * (1.0 - in.l.y / 9.0) + 0.5), 0.0, 1.0));
   var col = vec3f(0.05, 0.035, 0.028) * (0.5 + nz.a) * light(n, in.k.y, 0.6, m.r, 0.0);
   if (in.m.y < 11.0) {
-    let sn = smoothstep(0.36, 0.6, in.m.x + (nz.a - 0.5) * 0.75 + n.y * 0.1 - 0.22 * smoothstep(50.0, 260.0, d));
-    col = mix(vec3f(0.016, 0.042, 0.028) * (0.5 + nz.r) * light(n, in.k.y, ao, m.r, 0.0), snow(n, wp, in.k.y, ao, vec4f(m.r * 0.5, 1.0, 0.0, 0.0)), sn);
+    let sn = smoothstep(0.3, 0.72, n.y * 0.75 + in.m.x * 0.45 + (nz.a - 0.5) * 0.55 - 0.2 * smoothstep(50.0, 260.0, d));
+    col = mix(vec3f(0.022, 0.05, 0.034) * (0.5 + nz.r) * (0.75 + 0.5 * fract(in.k.x * 7.3)) * (light(n, in.k.y, ao, m.r, 0.0) + G.ambientSky * 0.5), snow(n, wp, in.k.y, ao, vec4f(m.r * 0.5, 1.0, 0.0, 0.0)), sn);
   }
   return vec4f(fogged(col, wp), 1.0);
 }
@@ -176,7 +188,8 @@ struct WO { @builtin(position) pos: vec4f, @location(0) w: vec3f };
     let dust = smoothstep(0.3, 0.75, ic.r * 0.8 + ic2.r * 0.3 + 0.5 * smoothstep(-2.5, 0.0, s));
     let nI = normalize(vec3f((ic.g - 0.5) * 0.3, 1.0, (ic.b - 0.5) * 0.3));
     let bare = vec3f(0.1, 0.15, 0.2) * light(nI, 1.0, 1.0, m.r * 2.0, 0.0) + refl * 0.3;
-    col = mix(col, mix(bare, snow(nI, wp, 1.0, 1.0, m), dust), ice);
+    let dn = drift(vec3f(0.0, 1.0, 0.0), wp, d, 0.0);
+    col = mix(col, mix(bare, snow(dn.xyz, wp, 1.0, dn.w, m), dust), ice);
   }
   return vec4f(fogged(col, wp), 1.0);
 }
@@ -188,8 +201,10 @@ fn stars(rd: vec3f, K: f32, px: f32) -> vec3f {
   let p = rd * K; let ip = floor(p);
   let h = hash33(ip); let h2 = hash33(ip + 31.7);
   let q = p - (ip + 0.3 + 0.4 * h);
-  let r = max(K * px * (0.8 + 0.5 * h2.y), 0.03);
-  let b = pow(h2.x, 30.0) * (0.75 + 0.25 * sin(G.time * (0.7 + 1.6 * h2.y) + h2.z * 40.0));
+  // power-law brightness: most cells are empty, a few stars are bright and a little larger
+  let m = max(h2.x - 0.9, 0.0) * 10.0; let b0 = m * m;
+  let r = max(K * px * (2.0 + 1.6 * b0), 0.03);
+  let b = b0 * (0.8 + 0.2 * sin(G.time * (0.7 + 1.6 * h2.y) + h2.z * 40.0));
   return mix(vec3f(0.7, 0.8, 1.0), vec3f(1.0, 0.85, 0.7), h2.z * h2.z) * (exp(-dot(q, q) / (r * r)) * b);
 }
 @fragment fn fsSky(in: SO) -> @location(0) vec4f {
@@ -200,10 +215,10 @@ fn stars(rd: vec3f, K: f32, px: f32) -> vec3f {
   // milky way: a soft band of unresolved light
   let mw = exp(-pow(dot(rd, normalize(vec3f(0.6, 0.35, 0.72))) * 3.2, 2.0)) * textureSampleLevel(NT, NS, rd.xz * 1.3 + rd.y, 2.0).a;
   c += vec3f(0.02, 0.024, 0.036) * mw * ext;
-  c += (stars(rd, 50.0, px) * 10.0 + stars(rd, 110.0, px) * 6.0 * (1.0 + mw)) * ext;
+  c += (stars(rd, 36.0, px) * 2.4 + stars(rd, 80.0, px) * 0.8 * (1.0 + mw)) * ext;
   let mr = length(rd - G.sunDir);
   let mare = textureSampleLevel(NT, NS, (rd.xy - G.sunDir.xy) * 9.0 + 0.3, 1.0).a;
-  c += vec3f(0.85, 0.92, 1.0) * ((1.0 - smoothstep(0.017, 0.017 + px * 2.0, mr)) * (1.3 + 1.4 * mare) + 0.05 * exp(-mr * 22.0) + 0.012 * exp(-mr * 5.0));
+  c += vec3f(0.85, 0.92, 1.0) * ((1.0 - smoothstep(0.016, 0.016 + px * 3.0, mr)) * (1.5 + 0.9 * mare) + 0.05 * exp(-mr * 22.0) + 0.012 * exp(-mr * 5.0));
   return vec4f(c, 1.0);
 }
 
@@ -212,10 +227,11 @@ struct AO { @builtin(position) pos: vec4f, @location(0) q: vec3f, @location(1) @
 fn aurP(u: f32, r: f32) -> vec3f {
   let t = G.time;
   let x = 17000.0 * (0.3 * u + 0.7 * u * u * u); let xk = x * 0.001;
-  let env = 0.65 + 0.35 * sin(xk * 0.31 + r * 1.9 + t * 0.011);
-  let a2 = xk * 2.6 - t * 0.043 + r * 4.3;
-  let z = 900.0 - 1900.0 * pow(r, 1.5) - 0.00002 * x * x + 700.0 * sin(xk * 0.85 + t * 0.019 + r * 2.1) + 280.0 * env * sin(a2) + 70.0 * sin(xk * 7.3 + t * 0.08 + r);
-  return vec3f(x + 340.0 * env * cos(a2), 3200.0 + 350.0 * sin(xk * 0.6 + r * 5.0 + t * 0.027), z);
+  let k = 1.0 + 0.27 * r - 0.11 * r * r * 0.5;                     // every band folds at its own scale
+  let env = 0.65 + 0.35 * sin(xk * 0.31 * k + r * 1.9 + t * 0.011);
+  let a2 = xk * 2.6 * k - t * 0.043 + r * 4.3;
+  let z = 900.0 - 1900.0 * pow(r, 1.5) - 0.00002 * x * x + 700.0 * sin(xk * 0.85 / k + t * 0.019 + r * 2.7) + 280.0 * env * sin(a2) + 70.0 * sin(xk * 7.3 * k + t * 0.08 + r * 1.3);
+  return vec3f(x + 190.0 * env * cos(a2), 3200.0 + 350.0 * sin(xk * 0.6 + r * 5.0 + t * 0.027), z);
 }
 @vertex fn vsAur(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> AO {
   let c = vi % 6u; let cx = f32(c == 1u || c == 4u || c == 5u); let cy = f32(c == 2u || c == 3u || c == 5u);
@@ -229,7 +245,10 @@ fn aurP(u: f32, r: f32) -> vec3f {
   var o: AO;
   o.pos = clip(w);
   // sheets seen edge-on are brighter (longer path through the glow); fade toward the ribbon ends
-  o.q = vec3f(p.x * 0.001, cy, min(1.0 / max(abs(vh.x * tg.y - vh.y * tg.x), 0.16), 6.0) * 0.22 * (1.0 - pow(abs(u), 6.0)));
+  // ...but fade where a sheet is exactly edge-on or right overhead, so no crease shows
+  let sn = abs(vh.x * tg.y - vh.y * tg.x);
+  let up = normalize(w - G.camPos).y;
+  o.q = vec3f(p.x * 0.001 * (1.0 + 0.19 * r), cy, min(1.0 / max(sn, 0.3), 3.3) * 0.3 * smoothstep(0.03, 0.3, sn) * (1.0 - 0.75 * smoothstep(0.8, 0.98, up)) * (1.0 - pow(abs(u), 6.0)));
   o.r = r;
   return o;
 }
@@ -239,12 +258,12 @@ fn aurP(u: f32, r: f32) -> vec3f {
   let fine = textureSample(NT, NS, vec2f(xk * 3.1 - t * 0.011, r * 0.61 + v * 0.02)).a;
   let env = textureSample(NT, NS, vec2f(xk * 0.045 + t * 0.0016 + r * 0.21, r * 0.13 + t * 0.0006)).r;
   let rays = ray * 0.65 + fine * 0.35;
-  let vb = v - 0.05 * rays - 0.01;
-  let prof = smoothstep(0.0, 0.06, vb) * (exp(-vb * 4.5) + 0.12) * pow(1.0 - v, 0.7);
+  let vb = v - 0.035 * ray - 0.01;
+  let prof = smoothstep(0.0, 0.06, vb) * (exp(-vb * 4.5) + 0.22 * (1.0 - v)) * pow(1.0 - v, 0.6);
   let pulse = 0.8 + 0.2 * sin(t * 0.07 + r * 2.4 + xk * 0.2);
   var I = smoothstep(0.33, 0.78, env) * (0.25 + 1.1 * rays * rays) * prof * in.q.z * G.params.x * pulse * 2.4;
   I = 2.4 * (1.0 - exp(-I / 2.4));
-  var col = mix(mix(AUR, vec3f(1.0, 0.2, 0.6), 0.55 * fine), AUR, smoothstep(0.0, 0.1, vb));
-  col = mix(col, vec3f(0.22, 0.25, 0.95), smoothstep(0.2, 0.85, v) * 0.85);
+  var col = mix(AUR, vec3f(1.0, 0.18, 0.52) * 1.15, (1.0 - smoothstep(0.01, 0.1, vb)) * (0.35 + 0.65 * fine));
+  col = mix(col, vec3f(0.5, 0.2, 1.0) * 1.3, smoothstep(0.16, 0.7, v));
   return vec4f(col * I, 0.0);
 }

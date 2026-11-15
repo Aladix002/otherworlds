@@ -16,10 +16,10 @@ const cxAt = (z) => { const u = Math.max(0, -(z + 40)), w = u * u / (u + 200); r
 // distance-like shore function (m): > 0 land, < 0 water. Twin: shoreD() in common.wgsl
 export function shore(x, z) { const xx = x - cxAt(z), g = 2 * xx / KP; return (z - ZH + xx * xx / KP) / Math.sqrt(1 + g * g); }
 function mtn(x, z, s) {
-  const r = ss(18, 430, s), b = fbm2(x * 0.0004 + 9, z * 0.0004 + 4, 2) * 0.5 + 0.5;
+  const r = ss(18, 640, s), b = fbm2(x * 0.0004 + 9, z * 0.0004 + 4, 2) * 0.5 + 0.5;
   const a = ridge2(x * 0.00095 + 3.1, z * 0.00095 - 1.7, 3);
   const e = (x + 60) / 330, val = 1 - 0.8 * Math.exp(-e * e) * ss(-200, 100, z);
-  return Math.pow(r, 1.3) * val * (Math.pow(a, 1.6) * (430 + 640 * b) + 70 * b + 30 * fbm2(x * 0.007, z * 0.007, 3) * (0.25 + a));
+  return Math.pow(r, 1.5) * val * (Math.pow(a, 1.6) * (330 + 500 * b) + 70 * b + 30 * fbm2(x * 0.007, z * 0.007, 3) * (0.25 + a));
 }
 export function height(x, z) {
   const s = shore(x, z);
@@ -32,7 +32,7 @@ export function height(x, z) {
 const slopeAt = (x, z) => Math.hypot(height(x + 3, z) - height(x - 3, z), height(x, z + 3) - height(x, z - 3)) / 6;
 // forest density 0..1 (also painted on far slopes by the terrain shader)
 export function forest(x, z, s, h) {
-  return ss(24, 60, s) * ss(250, 150, h + 60 * fbm2(x * 0.004, z * 0.004, 2)) * ss(-0.35, 0.1, fbm2(x * 0.0065 + 2, z * 0.0065, 2));
+  return ss(24, 60, s) * ss(250, 150, h + 60 * fbm2(x * 0.004, z * 0.004, 2)) * ss(-0.08, 0.16, fbm2(x * 0.011 + 2, z * 0.011, 2));
 }
 
 // ---- village ----
@@ -51,10 +51,10 @@ const PATHS = [
   [[SPAWN[0], SPAWN[2]], [-9, 15], [-20, 5], [-29, -12], [-37, -32], [-44, -55], [-50, -74]],
   [[1.5, 16], [11, 13], [22, 3], [31, -14], [39, -34], [46, -56], [52, -76]],
 ];
-const HERO_TREES = [[18, 33, 1.25], [21.5, 38.5, 1.0], [-3.5, 44, 1.35], [15, 47, 1.1], [-11, 37, 0.95], [-16, 43, 1.3], [3, 52, 1.2], [27, 44, 1.4], [-27, 14, 1.0], [30, 12, 1.15], [-30, 34, 1.3], [33, 27, 0.9]];
+const HERO_TREES = [[25, 32, 1.25], [29, 39, 1.0], [-9, 48, 1.35], [17, 50, 1.1], [-11, 37, 0.95], [-16, 43, 1.3], [3, 52, 1.2], [27, 44, 1.4], [-27, 14, 1.0], [30, 12, 1.15], [-30, 34, 1.3], [33, 27, 0.9]];
 
 export function buildLayout(q) {
-  const R = makeRng(4242), L = { houses: [[], [], [], []], chim: [], col: [], wins: [], foot: [], shad: [], trees: [], lamps: [], prints: [], paths: PATHS, puffs: [] };
+  const R = makeRng(4242), L = { houses: [[], [], [], []], chim: [], col: [], wins: [], foot: [], rocks: [], posts: [], shad: [], trees: [], lamps: [], prints: [], paths: PATHS, puffs: [] };
   const cot = Math.hypot(MOON[0], MOON[2]) / MOON[1], ml = Math.hypot(MOON[0], MOON[2]), mx = -MOON[0] / ml, mz = -MOON[2] / ml;
   for (const [zz, sg, off, v, ci, mask] of HS) {
     const sx = sg ? cxAt(zz) + sg * Math.sqrt(KP * (ZH - zz)) : off;
@@ -83,6 +83,15 @@ export function buildLayout(q) {
     if (Math.hypot(x, z + 20) < 110) { L.col.push(x, z, 0.4 * sc, 0.4 * sc, 1, 0); L.shad.push([x, z, x + mx * 8 * sc * cot, z + mz * 8 * sc * cot, 0.5 * sc, 1.9 * sc, 1.4, 0.6]); L.puffs.push([x, height(x, z) + 6.5 * sc, z]); }
   };
   for (const [x, z, sc] of HERO_TREES) tree(x, z, sc);
+  // half-buried boulders and a few marker posts along the paths give the snow foreground something to hold on to
+  for (let i = 0, t = 0; i < 70 && t < 4000; t++) {
+    const a = R() * TAU, rad = 6 + 70 * R(), x = Math.cos(a) * rad, z = Math.sin(a) * rad + 8, s = shore(x, z);
+    if (s < 0.5 || !clear(x, z, 0.8)) continue;
+    const sc = 0.22 + 0.75 * R() * R();
+    L.rocks.push(x, height(x, z) - 0.3 * sc, z, sc, R() * TAU, R(), 1, 0); i++;
+    if (sc > 0.6) L.col.push(x, z, sc * 0.6, sc * 0.6, 1, 0);
+  }
+  for (const [x, z] of [[4.5, 19], [5.6, 27.5], [-0.6, 26.5], [-12, 13], [14, 11.5], [-23, 1], [25, -2], [9.5, 31]]) { L.posts.push([x, height(x, z), z]); L.col.push(x, z, 0.12, 0.12, 1, 0); }
   const NT = [2200, 4000, 5500][q];
   for (let i = 0, t = 0; i < NT && t < 60000; t++) {
     const a = R() * TAU, rad = 34 + 950 * Math.pow(R(), 1.5), x = Math.cos(a) * rad, z = Math.sin(a) * rad - 15, s = shore(x, z);
@@ -152,12 +161,13 @@ export function buildTerrain(L) {
       nrm[v * 3] = -gx / nl; nrm[v * 3 + 1] = 1 / nl; nrm[v * 3 + 2] = -gz / nl;
       let oc = 0;
       if (y > -0.5) for (let s = 0, t = 14; s < 20; s++, t *= 1.32) oc = Math.max(oc, (hs(x + mx * t, z + mz * t) - y - tan * t) / (0.06 * t + 2));
-      let sh = 1 - ss(0, 1, oc);
+      const sm = 1 - ss(0, 1, oc); let sh = sm;
       if (l < 2) for (const [ax, az, bx, bz, r0, r1, soft, dark] of L.shad) {
         const vx = bx - ax, vz = bz - az, h = Math.min(1, Math.max(0, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
         const d = Math.hypot(x - ax - vx * h, z - az - vz * h) - (r0 + (r1 - r0) * h), sf = soft * (0.4 + 0.6 * h) + c * 0.5;
         if (d < sf) sh *= 1 - dark * (1 - ss(-sf, sf, d));
       }
+      sh = sm + (sh - sm) * ss(3.5, 8, Math.hypot(x - DOOR[0], z - DOOR[2]));
       uv[v * 2] = sh; uv[v * 2 + 1] = forest(x, z, shore(x, z), y);
     }
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {

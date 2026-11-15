@@ -10,6 +10,7 @@
 override MIR: f32 = 1.0;                 // -1 in the reflection pass (scene mirrored about y = 0)
 const WARM = vec3f(1.0, 0.56, 0.2);
 const AUR = vec3f(0.08, 1.0, 0.42);
+const AURL = vec3f(0.3, 0.85, 0.62);     // aurora as a light source: less saturated than the curtains
 
 fn nl(p: vec2f, f: f32, d: f32) -> vec4f { return textureSampleLevel(NT, NS, p * f, log2(max(d * f * 0.55, 1.0))); }
 fn clip(w: vec3f) -> vec4f { return G.viewProj * vec4f(w.x, w.y * MIR, w.z, 1.0); }
@@ -36,7 +37,7 @@ fn vmap(p: vec2f) -> vec4f {
 // light arriving at a surface: moon (shadowed), sky, aurora from above/north, warm pools
 fn light(n: vec3f, sh: f32, ao: f32, pool: f32, spill: f32) -> vec3f {
   let moon = G.sunColor * (sh * max((dot(n, G.sunDir) + 0.25) / 1.25, 0.0));
-  let aur = AUR * (G.params.x * 0.11 * max(dot(n, vec3f(0.0, 0.8, -0.6)) * 0.6 + 0.4, 0.0));
+  let aur = AURL * (G.params.x * 0.075 * max(dot(n, vec3f(0.0, 0.8, -0.6)) * 0.6 + 0.4, 0.0));
   return moon + (hemi(n, G.ambientSky, G.ambientGround) + aur) * ao + WARM * (pool * (0.45 + 0.55 * ao)) + vec3f(1.0, 0.72, 0.42) * (spill * G.params.z * 0.9);
 }
 // snow: bluish, soft, with a little forward-scatter rim so drifts read at night
@@ -51,8 +52,12 @@ fn snow(n: vec3f, w: vec3f, sh: f32, ao: f32, m: vec4f) -> vec3f {
 fn drift(n0: vec3f, wp: vec3f, d: f32, path: f32) -> vec4f {
   let a = nl(wp.xz, 0.019, d); let b = nl(wp.xz, 0.16, d); let c = nl(wp.zx, 1.1, d);
   let near = 1.0 - smoothstep(30.0, 140.0, d);
-  let n = normalize(n0 + vec3f(a.g - 0.5, 0.0, a.b - 0.5) * 0.4 + vec3f(b.g - 0.5, 0.0, b.b - 0.5) * (0.75 * near * (1.0 - 0.7 * path) + 0.12)
-    + vec3f(c.g - 0.5, 0.0, c.b - 0.5) * (0.45 * near * (1.0 + 1.5 * path)));
+  // wind-sculpted ridges: noise stretched along the wind
+  let q = vec2f(wp.x * 0.8 + wp.z * 0.6, (wp.z * 0.8 - wp.x * 0.6) * 0.2);
+  let w = nl(q, 0.4, d).gb - 0.5;
+  let n = normalize(n0 + vec3f(a.g - 0.5, 0.0, a.b - 0.5) * 0.4 + vec3f(b.g - 0.5, 0.0, b.b - 0.5) * (0.6 * near * (1.0 - 0.7 * path) + 0.12)
+    + vec3f(c.g - 0.5, 0.0, c.b - 0.5) * (0.5 * near * (1.0 + 1.5 * path))
+    + vec3f(w.x * 0.8 - w.y * 0.12, 0.0, w.x * 0.6 + w.y * 0.16) * (0.9 * near * (1.0 - path)));
   return vec4f(n, 0.72 + 0.28 * b.a);
 }
 // shore function twin of terrain.js shore(): > 0 land, < 0 water (m)

@@ -12,19 +12,19 @@ fn corner(vi: u32) -> vec2f {
   var p = h * B + vec3f(0.22, -0.5 - 0.45 * h2.x, 0.13) * t + vec3f(sin(t * 0.31 + h2.y * 40.0), 0.0, cos(t * 0.27 + h2.z * 40.0)) * (0.3 + 0.4 * h2.x);
   p -= B * round((p - G.camPos) / B);
   let d = distance(p, G.camPos);
-  let sz = 0.009 + 0.014 * h2.z * h2.z + 0.012 * far;
-  let k = max(d * G.tanHalfFov / G.resolution.y * 2.8 / sz, 1.0);
+  let sz = 0.014 + 0.018 * h2.z * h2.z + 0.02 * far;
+  let k = max(d * G.tanHalfFov / G.resolution.y * 4.4 / sz, 1.0);
   let c = corner(vi);
   var o: PO;
   o.pos = G.viewProj * vec4f(billboard(p, c, vec2f(sz * k)), 1.0);
   o.c = c;
-  let a = smoothstep(0.7, 2.6, d) * (1.0 - smoothstep(B * 0.36, B * 0.5, d)) * smoothstep(h2.y - 0.06, h2.y + 0.06, G.params.y) * (0.35 + 0.65 * h.z) / (k * k);
-  o.a = vec4f(vec3f(0.5, 0.6, 0.8) * (0.55 + 0.25 * G.params.x) + WARM * vmap(p.xz).r * 1.2, a);
+  let a = smoothstep(0.7, 2.6, d) * (1.0 - smoothstep(B * 0.36, B * 0.5, d)) * smoothstep(h2.y - 0.06, h2.y + 0.06, G.params.y) * (0.35 + 0.65 * h.z) * mix(1.0, 0.5, far) / k;
+  o.a = vec4f(vec3f(0.36, 0.5, 0.82) * (0.5 + 0.2 * G.params.x) + WARM * vmap(p.xz).r * 1.2, a);
   return o;
 }
 @fragment fn fsSnow(in: PO) -> @location(0) vec4f {
-  let g = smoothstep(1.0, 0.0, dot(in.c, in.c));
-  return vec4f(in.a.rgb * (g * g * in.a.a), 0.0);
+  let r2 = dot(in.c, in.c);
+  return vec4f(in.a.rgb * (exp(-r2 * 3.2) * max(1.0 - r2, 0.0) * in.a.a), 0.0);
 }
 // ---- smoke (kind 0) and powder falling from a bough (kind 1). instance: (pos, kind + seed) ----
 @vertex fn vsSmoke(@builtin(vertex_index) vi: u32, @location(3) a: vec4f) -> PO {

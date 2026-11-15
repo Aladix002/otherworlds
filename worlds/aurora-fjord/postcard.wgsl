@@ -36,12 +36,6 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
     let rock = mix(vec3f(0.012, 0.016, 0.024), vec3f(0.07, 0.1, 0.16), sn);
     c = mix(c, mix(vec3f(0.02, 0.04, 0.07), rock, 0.55 + 0.45 * fi), m);
   }
-  // small warm windows far along both shores
-  let cell = floor(az * 22.0);
-  let side = abs(az) - 0.17;
-  let wy = 0.012 + 0.008 * hash11(cell);
-  let w = exp(-pow((fract(az * 22.0) - 0.5) * 12.0, 2.0) - pow((r.y - wy) * 260.0, 2.0)) * step(0.0, side) * step(side, 0.2) * step(hash11(cell + 9.0), 0.7);
-  c += vec3f(1.0, 0.56, 0.2) * w * 2.2;
   if (wet) { c = c * 0.6 + vec3f(0.002, 0.005, 0.011); }
   // snowy foreground shore below the water band
   let az0 = atan2(rd.x, -rd.z);
@@ -52,13 +46,13 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
   for (var i = 0; i < 2; i++) {
     let s = f32(i) * 2.0 - 1.0;
     let a = (az0 * s - mix(0.56, 0.64, f32(i))) / mix(0.14, 0.15, f32(i));
-    let inx = smoothstep(1.0, 0.97, abs(a));
-    let wall = inx * smoothstep(-0.115, -0.11, rd.y) * smoothstep(0.03, 0.025, rd.y);
-    let roof = smoothstep(1.12, 1.08, abs(a)) * smoothstep(0.02, 0.025, rd.y) * smoothstep(0.135, 0.13, rd.y + 0.02 * a * s);
-    c = mix(c, mix(vec3f(0.09, 0.014, 0.01), vec3f(0.13, 0.085, 0.02), f32(i)) * (1.0 + 0.4 * sin(a * 60.0)), wall);
+    let inx = smoothstep(1.06, 0.92, abs(a));
+    let wall = inx * smoothstep(-0.125, -0.1, rd.y) * smoothstep(0.035, 0.02, rd.y);
+    let roof = smoothstep(1.18, 1.02, abs(a)) * smoothstep(0.015, 0.03, rd.y) * smoothstep(0.14, 0.115, rd.y + 0.02 * a * s);
+    c = mix(c, mix(vec3f(0.09, 0.014, 0.01), vec3f(0.13, 0.085, 0.02), f32(i)), wall);
     c = mix(c, vec3f(0.11, 0.15, 0.21), roof);
     let q = vec2f((a + 0.53 * f32(i)) * 8.0, (rd.y + 0.012) * 48.0);
-    c = mix(c, vec3f(1.0, 0.6, 0.25) * (1.4 + 1.6 * exp(-dot(q, q) * 2.0)), smoothstep(1.0, 0.9, max(abs(q.x), abs(q.y))) * wall);
+    c = mix(c, vec3f(1.0, 0.6, 0.25) * (1.4 + 1.6 * exp(-dot(q, q) * 2.0)), smoothstep(1.1, 0.7, max(abs(q.x), abs(q.y))) * wall);
     c += vec3f(1.0, 0.56, 0.2) * 0.12 * exp(-dot(q, q) * 0.12) * wall;
   }
   return c;
