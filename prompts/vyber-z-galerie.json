@@ -1,0 +1,736 @@
+[
+ {
+  "world": "01-astralny-ocean-velryby",
+  "title": "Astrálny oceán s veľrybami",
+  "verdict": "yes",
+  "note": "mozu tam byt aj ine morske bytosti co sa tam hodia napr meduzy alebo svetielkujuce rybicky a nech to je pomale a take realne a tak sa to vlni ty budes vediet ako to spravit relaxacne ",
+  "liked": [
+   {
+    "file": "01-astralny-ocean-velryby/d1444edde190.jpg",
+    "title": "the space whale ✨",
+    "query": "space whale"
+   },
+   {
+    "file": "01-astralny-ocean-velryby/ceee2d4d9233.jpg",
+    "title": "Orion Nebula - Hubble 2006 mosaic 18000",
+    "query": "nebula Hubble"
+   },
+   {
+    "file": "01-astralny-ocean-velryby/97f1cccf0a4f.jpg",
+    "title": "Cosmic Galaxy Whale",
+    "query": "cosmic whale"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "02-podmorsky-svet",
+  "title": "Podmorský svet",
+  "verdict": "yes",
+  "note": "ano a sem tiez nech su tam aj nejake zive veci pod vodou necham na teba nemusi to byt preplnene ale nieco co tak pokojne tadial plava ",
+  "liked": [
+   {
+    "file": "02-podmorsky-svet/0c81deaaafd1.jpg",
+    "title": "Underwater Kelp Forest Golden Light Digital Artwork",
+    "query": "underwater kelp forest"
+   },
+   {
+    "file": "02-podmorsky-svet/030770e2a34b.jpg",
+    "title": "NBS Kelp Forest Restoration",
+    "query": "kelp forest"
+   },
+   {
+    "file": "02-podmorsky-svet/52f94b28f884.jpg",
+    "title": "Underwater, towards the surface",
+    "query": "underwater fantasy"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "03-psychedelicka-dzungla",
+  "title": "Psychedelická džungľa",
+  "verdict": "yes",
+  "note": "ano, mozes sa aj avatarom nejak inspirovat ",
+  "liked": [
+   {
+    "file": "03-psychedelicka-dzungla/ccfba5ea8320.jpg",
+    "title": "Enchanted Waterfall Pool in Bioluminescent Jungle 00005",
+    "query": "bioluminescent jungle"
+   }
+  ],
+  "rejected": [
+   "03-psychedelicka-dzungla/20b015f9a04b.jpg",
+   "03-psychedelicka-dzungla/066be89f567f.jpg"
+  ]
+ },
+ {
+  "world": "04-lietajuce-ostrovy",
+  "title": "Lietajúce ostrovy nad oblakmi",
+  "verdict": "yes",
+  "note": "toto je super to moze byt tiez sa mozes trocha avatar filmom inspirovat ",
+  "liked": [
+   {
+    "file": "04-lietajuce-ostrovy/bc0a8673544a.jpg",
+    "title": "Floating Islands Above Cloud Sea",
+    "query": "floating islands"
+   },
+   {
+    "file": "04-lietajuce-ostrovy/0037db3a4994.jpg",
+    "title": "Karst peaks with sea of clouds at sunrise, South view from the top of Mount Nam Xay, Vang Vieng, Laos",
+    "query": "sea of clouds"
+   },
+   {
+    "file": "04-lietajuce-ostrovy/f6b0e4c5bce1.jpg",
+    "title": "Sky Islands",
+    "query": "sky islands waterfall"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "05-mesacny-ocean",
+  "title": "Obrovský mesiac nad tichým morom",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "05-mesacny-ocean/996cc7506393.jpg",
+    "title": "Caspar David Friedrich - Mondaufgang am Meer - Google Art Project",
+    "query": "moonrise over sea"
+   },
+   {
+    "file": "05-mesacny-ocean/c42ff1753ec3.jpg",
+    "title": "Huge full moon over calm water with magical light",
+    "query": "huge moon over sea"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "06-kozmicke-zrkadlo",
+  "title": "Zrkadlová pláň s galaxiou",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "06-kozmicke-zrkadlo/0b01c88bd1b7.jpg",
+    "title": "MIKAZOART - Mirror World",
+    "query": "mirror world sky reflection"
+   },
+   {
+    "file": "06-kozmicke-zrkadlo/3adc708ddc54.jpg",
+    "title": "Where the Sky Ends",
+    "query": "walking on stars reflection"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "07-svietiaca-plaz",
+  "title": "Svietiaca pláž v noci",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "07-svietiaca-plaz/ee62c5f27c1a.jpg",
+    "title": "Bioluminescent Beach Under Milky Way",
+    "query": "bioluminescent beach"
+   },
+   {
+    "file": "07-svietiaca-plaz/0019f2ff1ac2.jpg",
+    "title": "Milky way beach",
+    "query": "beach night Milky Way"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "08-kristalova-jaskyna",
+  "title": "Kryštálová jaskyňa",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "08-kristalova-jaskyna/1d77004c9013.jpg",
+    "title": "[1$] Dark Fantasy Crystal Cave - DnD Background",
+    "query": "crystal cave fantasy"
+   },
+   {
+    "file": "08-kristalova-jaskyna/097452c21d77.jpg",
+    "title": "Cristales cueva de Naica",
+    "query": "Cave of the Crystals Naica"
+   },
+   {
+    "file": "08-kristalova-jaskyna/76af5fb3ce0f.jpg",
+    "title": "Amethyst-geode 020 7765",
+    "query": "geode amethyst"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "09-jaskyna-svetielok",
+  "title": "Jaskyňa so svietiacimi červíkmi",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "10-cenote",
+  "title": "Cenote – lúč svetla v podzemnom jazere",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "11-polarna-ziara",
+  "title": "Polárna noc s polárnou žiarou",
+  "verdict": "yes",
+  "note": "ano toto nadherne a moze byt v dialke kludne lesy ako sa vlnia alebo nieco neviem a moze kludne jemne sezit napr necham na teba ",
+  "liked": [
+   {
+    "file": "11-polarna-ziara/67fcfd256da7.jpg",
+    "title": "Aurora borealis over Eielson Air Force Base, Alaska",
+    "query": "aurora borealis snow"
+   },
+   {
+    "file": "11-polarna-ziara/18fb9e4f8403.jpg",
+    "title": "Aurora Borealis over Harvey's Lake, Pennsylvania",
+    "query": "aurora borealis reflection lake"
+   },
+   {
+    "file": "11-polarna-ziara/22ebd38c7c7b.jpg",
+    "title": "Lofoten, Norway (Unsplash)",
+    "query": "aurora Lofoten"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "12-ladovcova-laguna",
+  "title": "Ľadovcová lagúna",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "13-svetluskovy-les",
+  "title": "Nočný les so svetluškami a hubami",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "13-svetluskovy-les/3543f761d8f5.jpg",
+    "title": "Fireflies and Star Trails - PGL57 - Tyler Savitski",
+    "query": "fireflies forest long exposure"
+   },
+   {
+    "file": "13-svetluskovy-les/f30d254975f1.jpg",
+    "title": "Foxfire bioluminescent fungi cc bruce mcadams",
+    "query": "bioluminescent fungi"
+   },
+   {
+    "file": "13-svetluskovy-les/596db7576a6e.jpg",
+    "title": "Herbe Zwergknäueling Panellus stipticus",
+    "query": "bioluminescent fungi"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "14-duchovny-les",
+  "title": "Les duchov a strážcov",
+  "verdict": "yes",
+  "note": "v dialke mozu byt svetielka co su trosku duchovia mierne spooky ale zaroven priatelske a prijemne to spravit, tie bytosti su dobri napad ",
+  "liked": [
+   {
+    "file": "14-duchovny-les/a4661ce07de9.jpg",
+    "title": "Fanal (Madeira, Portugal), Lorbeerwald -- 2025 -- 1532",
+    "query": "moss forest fog"
+   },
+   {
+    "file": "14-duchovny-les/b6a9cd905e83.jpg",
+    "title": "Fanal (Madeira, Portugal), Lorbeerwald -- 2025 -- 1546",
+    "query": "moss forest fog"
+   },
+   {
+    "file": "14-duchovny-les/eb518917fbb7.jpg",
+    "title": "Yakushima moss trail (52931599465)",
+    "query": "Yakushima moss forest"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "15-obrie-stromy",
+  "title": "Les obrích stromov",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "16-strom-sveta",
+  "title": "Strom sveta",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "17-ostrov-osamely-strom",
+  "title": "Ostrovček s jedným stromom v nekonečnom oceáne",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "18-levanduloveho-luky",
+  "title": "Levanduľové a kvetinové lúky",
+  "verdict": null,
+  "note": "ano ale musis to spravit nejake magicke nie obycajne ze luky musi to byt fakt farebne a rozne tvary a mozu akoby aj rast okolo noh ked tam prechadzam napr a tak ",
+  "liked": [
+   {
+    "file": "18-levanduloveho-luky/6198b24adc98.jpg",
+    "title": "Lavender Field Provence France 021",
+    "query": "lavender field Provence"
+   },
+   {
+    "file": "18-levanduloveho-luky/2faabf75185e.jpg",
+    "title": "Poppy field, Wendfeld",
+    "query": "poppy field"
+   }
+  ],
+  "rejected": [
+   "18-levanduloveho-luky/336e8520275f.jpg"
+  ]
+ },
+ {
+  "world": "19-hmlisté-hory",
+  "title": "Hmlisté krasové hory",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "19-hmlisté-hory/d48edc614f71.jpg",
+    "title": "1 zhangjiajie huangshizhai wulingyuan panorama 2012",
+    "query": "Zhangjiajie"
+   },
+   {
+    "file": "19-hmlisté-hory/d678a4cf5cc5.jpg",
+    "title": "Sea of clouds viewed from the top of Huangshan",
+    "query": "Huangshan sea of clouds"
+   },
+   {
+    "file": "19-hmlisté-hory/af4231a3cba3.jpg",
+    "title": "Li River 8 hills in mist near Guilin",
+    "query": "Guilin karst mist"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "20-ryzove-terasy",
+  "title": "Ryžové terasy v hmle",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "21-zarastene-ruiny",
+  "title": "Zarastené ruiny prastarej civilizácie",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "22-potopene-mesto",
+  "title": "Potopené mesto – Atlantída",
+  "verdict": "yes",
+  "note": "viac sa antickym gresckom inspiruj a vela tyrkysovej ale jo moze byt ",
+  "liked": [
+   {
+    "file": "22-potopene-mesto/5b86beb15376.jpg",
+    "title": "Musan Underwater Sculpture Museum; Cyprus; Aiya Napa",
+    "query": "underwater sculpture museum"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "23-meduzove-nebo",
+  "title": "Nebo plné lietajúcich medúz",
+  "verdict": "yes",
+  "note": "toto sprav ako nocnu oblohu alebo tiez trocha ako vesmir ",
+  "liked": [
+   {
+    "file": "23-meduzove-nebo/ab1dc55daa9f.jpg",
+    "title": "Aurelia aurita (Cnidaria) Luc Viatour",
+    "query": "moon jellyfish"
+   },
+   {
+    "file": "23-meduzove-nebo/2c37a6020b69.jpg",
+    "title": "Jellyfish Lake Palau",
+    "query": "jellyfish lake Palau"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "24-lampiony",
+  "title": "Plávajúce lampióny nad jazerom",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "24-lampiony/cc304d9dd48a.jpg",
+    "title": "Yi Peng lanterns in Chiang Mai (11067469754)",
+    "query": "Yi Peng lanterns"
+   },
+   {
+    "file": "24-lampiony/2e02d1a65f28.jpg",
+    "title": "2015-07-31Minazuki-Festival Kokuryo,Tamba,Hyogo-Japan 国領水無月祭り 8765",
+    "query": "floating lanterns water"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "25-lekna-laguna",
+  "title": "Lagúna obrích lekien",
+  "verdict": "yes",
+  "note": "ano a mozu pocas toho aj plavat a rozkvitat a podobne veci robit zaujimave mozu tam byt rybky a zabky mozno alebo niecp",
+  "liked": [
+   {
+    "file": "25-lekna-laguna/98b3bdb34771.jpg",
+    "title": "Victoria amazonica 03",
+    "query": "Victoria amazonica"
+   },
+   {
+    "file": "25-lekna-laguna/711749e0bb29.jpg",
+    "title": "Sacred Lotus in a Pond 2",
+    "query": "lotus pond"
+   },
+   {
+    "file": "25-lekna-laguna/e1326bfdfc48.jpg",
+    "title": "Detail of \"The Water-Lily Pond\" by Claude Monet 02",
+    "query": "water lilies pond"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "26-mimozemska-planeta",
+  "title": "Mimozemská planéta s prstencami na oblohe",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "27-pust-hviezdy",
+  "title": "Púšť pod hviezdami",
+  "verdict": "yes",
+  "note": "a mozu tam byt nejake psychadelicke hady jastery a podobne veci mozno tiez svetielkujuce alebo nieco pododobne necham na teba nech je to magicke ",
+  "liked": [
+   {
+    "file": "27-pust-hviezdy/293dacab9e3d.jpg",
+    "title": "Milky Way over dunes in Great Sand Dunes National Park, Colorado, United States",
+    "query": "sand dunes Milky Way"
+   },
+   {
+    "file": "27-pust-hviezdy/358fa7084b7c.jpg",
+    "title": "Utah Dunes Landscape - West Desert District",
+    "query": "Sahara dunes"
+   },
+   {
+    "file": "27-pust-hviezdy/7fc0417de583.jpg",
+    "title": "Namib-Naukluft Sand Dunes (2011)",
+    "query": "Namib dunes"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "28-oaza-fatamorgana",
+  "title": "Oáza a fata morgana",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "29-svetelny-kanon",
+  "title": "Kaňon so svetelnými lúčmi",
+  "verdict": "yes",
+  "note": "a nech je to farebne nemusi to byt realisticky aj ten prach co pada moze v roznych tvaroch tam tancovat ",
+  "liked": [
+   {
+    "file": "29-svetelny-kanon/9f0b0c0f1d4a.jpg",
+    "title": "Upper antelope canyon light beam page arizona - Flickr - Mferbfriske",
+    "query": "Antelope Canyon light beam"
+   },
+   {
+    "file": "29-svetelny-kanon/24356bcc002d.jpg",
+    "title": "Slot Canyon at Danxiashan",
+    "query": "slot canyon"
+   },
+   {
+    "file": "29-svetelny-kanon/e71b4979fa6e.jpg",
+    "title": "USA Antelope-Canyon",
+    "query": "Antelope Canyon"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "30-travertiny",
+  "title": "Travertínové terasy a horúce pramene",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "31-katedrala-svetla",
+  "title": "Katedrála svetla",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "31-katedrala-svetla/1b10f0670eee.jpg",
+    "title": "Nasir-al molk -1",
+    "query": "Nasir al-Mulk Mosque"
+   },
+   {
+    "file": "31-katedrala-svetla/1cbf2493552e.jpg",
+    "title": "Sagrada Familia March 2015-1a",
+    "query": "Sagrada Familia stained glass"
+   }
+  ],
+  "rejected": [
+   "31-katedrala-svetla/bd2903fe4450.jpg"
+  ]
+ },
+ {
+  "world": "32-nekonecna-kniznica",
+  "title": "Nekonečná knižnica medzi hviezdami",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "32-nekonecna-kniznica/8602387ef3be.jpg",
+    "title": "Austria - Admont Abbey Library - 1277",
+    "query": "Admont Abbey library"
+   },
+   {
+    "file": "32-nekonecna-kniznica/0fde668ffef9.jpg",
+    "title": "Long Room Interior, Trinity College Dublin, Ireland - Diliff",
+    "query": "Trinity College Library Long Room"
+   },
+   {
+    "file": "32-nekonecna-kniznica/82d429ae8013.jpg",
+    "title": "Austria - Admont Abbey Library - 1307",
+    "query": "Admont Abbey library"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "33-pastelove-oblaky",
+  "title": "Nekonečné pastelové oblaky",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "34-snovy-pastel",
+  "title": "Snový pastelový svet",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "35-snezny-les",
+  "title": "Tichý zasnežený les",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "36-jesenny-les",
+  "title": "Zlatý jesenný les v hmle",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "36-jesenny-les/e248fcab13ac.jpg",
+    "title": "Morning fog over Keravanjoki river in Vantaa, Finland, 2021 October",
+    "query": "autumn forest fog"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "37-zen-zahrada",
+  "title": "Zen záhrada – sakury a koi",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "38-kvetinove-tunely",
+  "title": "Kvetinové tunely a skleníky",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "39-fjord",
+  "title": "Severský fjord za úsvitu",
+  "verdict": null,
+  "note": "kludne a vela farebnych domcekov a tak ",
+  "liked": [
+   {
+    "file": "39-fjord/ff1c908c2df9.jpg",
+    "title": "Reine i Lofoten LC0148",
+    "query": "Lofoten Reine"
+   },
+   {
+    "file": "39-fjord/719c810474d5.jpg",
+    "title": "Geirangerfjord LC0188",
+    "query": "Geirangerfjord"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "40-mangrovy-tyrkys",
+  "title": "Plytké tyrkysové more a mangrovy",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "41-korytnaci-ostrov",
+  "title": "Ostrov na chrbte obrej korytnačky",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "41-korytnaci-ostrov/0c7318dc17df.jpg",
+    "title": "Snapping Turtle-TSF 0009",
+    "query": "World Turtle illustration"
+   },
+   {
+    "file": "41-korytnaci-ostrov/43faf4087f8a.jpg",
+    "title": "Guishan Island, Yilan",
+    "query": "turtle island Taiwan Guishan"
+   },
+   {
+    "file": "41-korytnaci-ostrov/f0a9b8f04ac5.jpg",
+    "title": "龜山戴帽-攝影者吳裕隆",
+    "query": "turtle island Taiwan Guishan"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "42-lesne-svetielka-vrba",
+  "title": "Svetelné vŕby a vznášajúce sa semienka",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "42-lesne-svetielka-vrba/39e9b3d902cb.jpg",
+    "title": "Underneath the weeping willow",
+    "query": "weeping willow night"
+   },
+   {
+    "file": "42-lesne-svetielka-vrba/364dcde42ddb.jpg",
+    "title": "Mycena chlorophos",
+    "query": "Mycena chlorophos"
+   },
+   {
+    "file": "42-lesne-svetielka-vrba/deafde4fbbb7.jpg",
+    "title": "Lupines and Fireflies No. 4 (14505155544)",
+    "query": "fireflies long exposure"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "43-sopecny-ostrov",
+  "title": "Sopečný ostrov za súmraku",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "43-sopecny-ostrov/83dd32277616.jpg",
+    "title": "Reynisfjara, Suðurland, Islandia, 2014-08-17, DD 164",
+    "query": "Reynisfjara"
+   },
+   {
+    "file": "43-sopecny-ostrov/0622fa0e9c2a.jpg",
+    "title": "Lava Into the Sea at Night, Big Island of Hawaii",
+    "query": "volcano lava night"
+   },
+   {
+    "file": "43-sopecny-ostrov/9884ad77b671.jpg",
+    "title": "Mount Bromo at sunrise, showing its volcanoes and Mount Semeru (background)",
+    "query": "Bromo sunrise"
+   }
+  ],
+  "rejected": []
+ },
+ {
+  "world": "44-hlbokomorska-temnota",
+  "title": "Hlbokomorská tma s bioluminiscenciou",
+  "verdict": "yes",
+  "note": "",
+  "liked": [
+   {
+    "file": "44-hlbokomorska-temnota/4453cb583704.jpg",
+    "title": "2018 NYEC in Dalian (Self-participation; Deep Sea Legend following Fireworks)",
+    "query": "deep sea jellyfish"
+   },
+   {
+    "file": "44-hlbokomorska-temnota/fc041ab23e40.jpg",
+    "title": "Photographs of living siphonophores",
+    "query": "siphonophore"
+   }
+  ],
+  "rejected": [
+   "44-hlbokomorska-temnota/b36d7f96c201.jpg"
+  ]
+ },
+ {
+  "world": "45-papierovy-svet",
+  "title": "Papierový / origami svet",
+  "verdict": "no",
+  "note": "",
+  "liked": [],
+  "rejected": []
+ },
+ {
+  "world": "46-portaly-dvere",
+  "title": "Dvere / portály medzi svetmi",
+  "verdict": "yes",
+  "note": "aby to boli obycajne drevene dvere v strede ktore sa otvoria a na druhej strane je uz dalsi svet ",
+  "liked": [],
+  "rejected": []
+ }
+]

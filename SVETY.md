@@ -2,7 +2,7 @@
 
 Pokojné, otvorené, magické svety. Medzi nimi sa chodí cez **obyčajné drevené dvere** stojace v krajine – otvoria sa a na druhej strane je už ďalší svet.
 
-Čísla v zátvorke = pôvodné návrhy z `moodboard/`, ktoré sa spojili.
+Čísla v zátvorke = pôvodné návrhy z galérie, ktoré sa spojili (tvoj výber a poznámky: `prompts/vyber-z-galerie.json`).
 
 ## 1. Astrálny oceán (01 + 23)
 Hmlovina ako more. Pomaly preplávajú obrie priesvitné veľryby, okolo sa vlnia medúzy a kŕdle svietiacich rybičiek. Všetko pomalé, „reálne“, vlniace sa.
