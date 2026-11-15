@@ -36,7 +36,7 @@ fn vmap(p: vec2f) -> vec4f {
 // light arriving at a surface: moon (shadowed), sky, aurora from above/north, warm pools
 fn light(n: vec3f, sh: f32, ao: f32, pool: f32, spill: f32) -> vec3f {
   let moon = G.sunColor * (sh * max((dot(n, G.sunDir) + 0.25) / 1.25, 0.0));
-  let aur = AUR * (G.params.x * 0.085 * max(dot(n, vec3f(0.0, 0.8, -0.6)) * 0.6 + 0.4, 0.0));
+  let aur = AUR * (G.params.x * 0.11 * max(dot(n, vec3f(0.0, 0.8, -0.6)) * 0.6 + 0.4, 0.0));
   return moon + (hemi(n, G.ambientSky, G.ambientGround) + aur) * ao + WARM * (pool * (0.45 + 0.55 * ao)) + vec3f(1.0, 0.72, 0.42) * (spill * G.params.z * 0.9);
 }
 // snow: bluish, soft, with a little forward-scatter rim so drifts read at night
@@ -46,6 +46,14 @@ fn snow(n: vec3f, w: vec3f, sh: f32, ao: f32, m: vec4f) -> vec3f {
   let h = normalize(G.sunDir + v);
   c += G.sunColor * (pow(max(dot(n, h), 0.0), 40.0) * 0.5 * sh + pow(1.0 - max(dot(n, v), 0.0), 4.0) * 0.12 * (0.3 + 0.7 * sh));
   return c;
+}
+// ground snow detail shared by the terrain and low snow meshes: returns the bumped normal + ao in w
+fn drift(n0: vec3f, wp: vec3f, d: f32, path: f32) -> vec4f {
+  let a = nl(wp.xz, 0.019, d); let b = nl(wp.xz, 0.16, d); let c = nl(wp.zx, 1.1, d);
+  let near = 1.0 - smoothstep(30.0, 140.0, d);
+  let n = normalize(n0 + vec3f(a.g - 0.5, 0.0, a.b - 0.5) * 0.4 + vec3f(b.g - 0.5, 0.0, b.b - 0.5) * (0.75 * near * (1.0 - 0.7 * path) + 0.12)
+    + vec3f(c.g - 0.5, 0.0, c.b - 0.5) * (0.45 * near * (1.0 + 1.5 * path)));
+  return vec4f(n, 0.72 + 0.28 * b.a);
 }
 // shore function twin of terrain.js shore(): > 0 land, < 0 water (m)
 fn shoreD(p: vec2f) -> f32 {

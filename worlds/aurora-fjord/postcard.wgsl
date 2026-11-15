@@ -36,15 +36,30 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
     let rock = mix(vec3f(0.012, 0.016, 0.024), vec3f(0.07, 0.1, 0.16), sn);
     c = mix(c, mix(vec3f(0.02, 0.04, 0.07), rock, 0.55 + 0.45 * fi), m);
   }
-  // warm windows along both shores
-  let side = abs(az) - 0.42;
-  let cell = floor(az * 16.0);
-  let wy = 0.02 + 0.012 * hash11(cell);
-  let w = exp(-pow((fract(az * 16.0) - 0.5) * 9.0, 2.0) - pow((r.y - wy) * 130.0, 2.0)) * step(0.0, side) * step(side, 0.75) * step(hash11(cell + 9.0), 0.75);
-  c += vec3f(1.0, 0.56, 0.2) * w * 3.0;
-  if (wet) { c = c * 0.75 + vec3f(0.002, 0.005, 0.011); }
+  // small warm windows far along both shores
+  let cell = floor(az * 22.0);
+  let side = abs(az) - 0.17;
+  let wy = 0.012 + 0.008 * hash11(cell);
+  let w = exp(-pow((fract(az * 22.0) - 0.5) * 12.0, 2.0) - pow((r.y - wy) * 260.0, 2.0)) * step(0.0, side) * step(side, 0.2) * step(hash11(cell + 9.0), 0.7);
+  c += vec3f(1.0, 0.56, 0.2) * w * 2.2;
+  if (wet) { c = c * 0.6 + vec3f(0.002, 0.005, 0.011); }
   // snowy foreground shore below the water band
-  let shore = smoothstep(-0.16, -0.22, rd.y + 0.03 * cos(az * 1.5));
-  c = mix(c, vec3f(0.085, 0.115, 0.17) * (0.8 + 0.2 * vnoise2(rd.xz * 14.0 / (0.2 - rd.y))), shore);
+  let az0 = atan2(rd.x, -rd.z);
+  let shore = smoothstep(-0.13, -0.17, rd.y + 0.035 * cos(az0 * 1.6));
+  let snow = vec3f(0.085, 0.115, 0.17) * (0.85 + 0.15 * vnoise2(rd.xz * 14.0 / (0.2 - rd.y)));
+  c = mix(c, snow, max(shore, smoothstep(0.3, 0.42, abs(az0)) * smoothstep(0.0, -0.03, rd.y)));
+  // the two nearest houses: red on the left, ochre on the right, snow on the roofs, one lit window each
+  for (var i = 0; i < 2; i++) {
+    let s = f32(i) * 2.0 - 1.0;
+    let a = (az0 * s - mix(0.56, 0.64, f32(i))) / mix(0.14, 0.15, f32(i));
+    let inx = smoothstep(1.0, 0.97, abs(a));
+    let wall = inx * smoothstep(-0.115, -0.11, rd.y) * smoothstep(0.03, 0.025, rd.y);
+    let roof = smoothstep(1.12, 1.08, abs(a)) * smoothstep(0.02, 0.025, rd.y) * smoothstep(0.135, 0.13, rd.y + 0.02 * a * s);
+    c = mix(c, mix(vec3f(0.09, 0.014, 0.01), vec3f(0.13, 0.085, 0.02), f32(i)) * (1.0 + 0.4 * sin(a * 60.0)), wall);
+    c = mix(c, vec3f(0.11, 0.15, 0.21), roof);
+    let q = vec2f((a + 0.53 * f32(i)) * 8.0, (rd.y + 0.012) * 48.0);
+    c = mix(c, vec3f(1.0, 0.6, 0.25) * (1.4 + 1.6 * exp(-dot(q, q) * 2.0)), smoothstep(1.0, 0.9, max(abs(q.x), abs(q.y))) * wall);
+    c += vec3f(1.0, 0.56, 0.2) * 0.12 * exp(-dot(q, q) * 0.12) * wall;
+  }
   return c;
 }

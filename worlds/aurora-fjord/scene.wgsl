@@ -8,15 +8,13 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   if (MIR < 0.0 && wp.y < 0.0) { discard; }
   let d = distance(wp, G.camPos);
   var n = normalize(in.n);
-  let a = nl(wp.xz, 0.019, d); let b = nl(wp.xz, 0.16, d); let c = nl(wp.zx, 1.1, d);
+  let a = nl(wp.xz, 0.019, d); let b = nl(wp.xz, 0.16, d);
   let m = vmap(wp.xz);
   // rock on steep faces, broken up by noise
   let big = nl(vec2f(wp.x + wp.z * 0.3, wp.y * 2.0 + wp.z * 0.5), 0.0035, d);
   let rk = smoothstep(0.84, 0.56, n.y + (big.a - 0.5) * 0.45 + (a.a - 0.5) * 0.2 + (b.a - 0.5) * 0.1) * smoothstep(6.0, 30.0, wp.y);
-  let near = 1.0 - smoothstep(30.0, 140.0, d);
-  n = normalize(n + vec3f(a.g - 0.5, 0.0, a.b - 0.5) * 0.4 + vec3f(b.g - 0.5, 0.0, b.b - 0.5) * (0.75 * near * (1.0 - 0.7 * m.b) + 0.12)
-    + vec3f(c.g - 0.5, 0.0, c.b - 0.5) * (0.45 * near * (1.0 + 1.5 * m.b)));
-  var col = snow(n, wp, in.m.x, 0.72 + 0.28 * b.a, m) * (1.0 - 0.16 * m.b);
+  let dn = drift(n, wp, d, m.b); n = dn.xyz;
+  var col = snow(n, wp, in.m.x, dn.w, m) * (1.0 - 0.16 * m.b);
   let strata = nl(vec2f(wp.x + wp.z, wp.y * 3.0), 0.02, d);
   col = mix(col, vec3f(0.05, 0.055, 0.07) * (0.3 + strata.a + 0.6 * big.r + 0.5 * b.a) * light(n, in.m.x, 1.0, 0.0, 0.0), rk);
   // far forest, painted where the tree meshes are culled
@@ -58,9 +56,9 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
   let nz = nl(wp.xz + wp.y * vec2f(0.37, 0.61), 0.5, d);
   var col: vec3f;
   if (mat == 2.0) {
-    n = normalize(n + vec3f(nz.g - 0.5, 0.0, nz.b - 0.5) * 0.3);
     let low = smoothstep(5.0, 3.2, wp.y);
-    col = snow(n, wp, 1.0, 0.8 + 0.2 * nz.a, vec4f(m.r * mix(0.5, 1.0, low), mix(1.0, m.g, low), 0.0, m.a * low));
+    let dn = drift(n, wp, d, m.b * low);
+    col = (1.0 - 0.16 * m.b * low) * snow(dn.xyz, wp, 1.0, dn.w, vec4f(m.r * mix(0.5, 1.0, low), mix(1.0, m.g, low), 0.0, m.a * low));
   } else if (mat == 3.0) {
     let id = floor(u / 4.0 + 0.01); let uu = u - id * 4.0; let vv = fv / 0.98;
     let h = hash22(vec2f(id + 1.0, floor(rnd * 997.0)));
@@ -190,7 +188,7 @@ fn stars(rd: vec3f, K: f32, px: f32) -> vec3f {
   let p = rd * K; let ip = floor(p);
   let h = hash33(ip); let h2 = hash33(ip + 31.7);
   let q = p - (ip + 0.3 + 0.4 * h);
-  let r = max(K * px * (1.0 + 0.7 * h2.y), 0.04);
+  let r = max(K * px * (0.8 + 0.5 * h2.y), 0.03);
   let b = pow(h2.x, 30.0) * (0.75 + 0.25 * sin(G.time * (0.7 + 1.6 * h2.y) + h2.z * 40.0));
   return mix(vec3f(0.7, 0.8, 1.0), vec3f(1.0, 0.85, 0.7), h2.z * h2.z) * (exp(-dot(q, q) / (r * r)) * b);
 }

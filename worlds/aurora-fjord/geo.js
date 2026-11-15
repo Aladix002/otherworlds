@@ -62,7 +62,9 @@ const cap = (w, d, t, x, y, z, seed) => mv(blanket(w, d, t, Math.min(w, d) * 0.4
 function house(o, sd) {
   const { w, l, hw, p, sw = 1, rows = 1, deck = 0, chimney = 1, naust = 0 } = o, rh = w / 2 * Math.tan(p), P = [], G = [], wins = [];
   let wid = 0, lamp = null;
-  P.push(bx(w, hw, l, 0), bx(w + 0.08, 0.3, l + 0.08, 4, 0, -0.3));
+  P.push(bx(w, hw, l, 0), bx(w + 0.08, 0.3, l + 0.08, 4, 0, -0.3), bx(w + 0.07, 0.15, l + 0.07, 1, 0, 0), bx(w + 0.05, 0.12, l + 0.05, 1, 0, hw - 0.14));
+  // firewood stacked against the side wall, capped with snow
+  if (!naust) P.push(bx(0.5, 0.95, 1.9, 4, -w / 2 - 0.27, 0, l * 0.22, 1), mv(blanket(0.6, 2.0, 0.1, 0.14, sd + 2, 0, 0.4), -w / 2 - 0.59, 0.94, l * 0.22));
   for (const sg of [1, -1]) {
     const g = mk(3, 3), z = sg * l / 2;
     g.pos.set([-w / 2, hw, z, w / 2, hw, z, 0, hw + rh, z]); g.nrm.set([0, 0, sg, 0, 0, sg, 0, 0, sg]);
@@ -91,7 +93,7 @@ function house(o, sd) {
   };
   const door = (x, z, a, dw = 0.92) => {
     place([bx(dw, 1.98, 0.06, 6, 0, 0, 0.02), bx(dw + 0.22, 0.11, 0.08, 1, 0, 1.98, 0.04), bx(0.11, 1.98, 0.08, 1, dw / 2 + 0.055, 0, 0.04), bx(0.11, 1.98, 0.08, 1, -dw / 2 - 0.055, 0, 0.04),
-      bx(dw + 0.5, 0.18, 0.75, 4, 0, -0.2, 0.42), mv(blanket(dw + 0.5, 0.75, 0.09, 0.14, 3, 0, 0.3), -dw / 2 - 0.25, -0.03, 0.42),
+      bx(dw + 0.5, 0.18, 0.75, 4, 0, -0.2, 0.42), bx(dw + 0.7, 0.2, 0.5, 4, 0, -0.45, 1.0), mv(blanket(dw + 0.7, 0.5, 0.08, 0.12, 5, 0, 0.3), -dw / 2 - 0.35, -0.26, 1.0), mv(blanket(dw + 0.5, 0.75, 0.09, 0.14, 3, 0, 0.3), -dw / 2 - 0.25, -0.03, 0.42),
       bx(0.14, 0.18, 0.14, 7, dw / 2 + 0.34, 1.86, 0.1), bx(0.2, 0.04, 0.2, 4, dw / 2 + 0.34, 2.04, 0.1)], mv(quad(3.4, 3.4, 60, 0, 0.09), dw / 2 + 0.34, 0.25, 0), x, 0, z, a);
     const c = Math.cos(a), s = Math.sin(a), lx = dw / 2 + 0.34;
     lamp = [x + c * lx + s * 0.4, 1.9, z - s * lx + c * 0.4, s, c];
