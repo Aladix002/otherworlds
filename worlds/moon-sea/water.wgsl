@@ -11,7 +11,7 @@ struct VO { @builtin(position) pos: vec4f };
 // expanding ring: slope along the radius
 fn ring(dv: vec2f, rad: f32, amp: f32, k: f32) -> vec2f {
   let d = length(dv) + 1e-4;
-  let x = d - rad;
+  let x = d - rad + 0.035 * snoise2(dv * 2.3 + rad);
   return dv / d * sin(x * k) * exp(-x * x * 26.0) * amp;
 }
 fn boxHit(ro: vec3f, rd: vec3f, c: vec3f, h: vec3f) -> vec4f {   // xyz = normal, w = t (or -1)
@@ -45,7 +45,7 @@ fn doorRefl(p: vec3f, r: vec3f, col: vec3f) -> vec3f {
   // the open doorway glows with the next world
   if (U.door.w > 0.01) {
     let tz = -ro.z / rd.z; let hp = ro + rd * tz;
-    if (tz > 0.0 && tz < best.w && abs(hp.x) < 0.48 && hp.y < 2.05) { c = mix(c, vec3f(0.3, 0.42, 0.5), smoothstep(0.0, 0.3, U.door.w) * 0.8); best.w = min(best.w, 1e8); }
+    if (tz > 0.0 && tz < best.w && abs(hp.x) < 0.48 && hp.y < 2.05) { c = mix(c, mix(vec3f(0.02, 0.05, 0.1), vec3f(0.05, 0.1, 0.14), hp.y * 0.5), smoothstep(0.0, 0.3, U.door.w)); best.w = min(best.w, 1e8); }
   }
   if (best.w < 1e7) {
     let n = vec3f(cy * best.x + sy * best.z, best.y, -sy * best.x + cy * best.z);
@@ -89,7 +89,7 @@ fn doorRefl(p: vec3f, r: vec3f, col: vec3f) -> vec3f {
   for (var i = 0; i < 12; i++) {
     let s = U.steps[i]; let age = t - s.z;
     if (age > 0.0 && age < 9.0) {
-      rs += ring(p - s.xy, 0.12 + age * 0.5, min(0.004, lim * 0.22) * s.w * exp(-age * 0.4) * smoothstep(0.0, 0.25, age), 64.0);
+      rs += ring(p - s.xy, 0.12 + age * 0.5, min(0.003, lim * 0.18) * s.w * exp(-age * 0.55) * smoothstep(0.0, 0.25, age), 64.0);
     }
   }
   // rare soft rings, as if something small touched the surface from below
@@ -110,14 +110,13 @@ fn doorRefl(p: vec3f, r: vec3f, col: vec3f) -> vec3f {
   var contact = 1.0;
   let nearDoor = dot(dq, dq) < 400.0;
   if (nearDoor) {
-    for (var i = 0; i < 2; i++) {
-      let pv = dl - vec2f(select(-0.55, 0.55, i == 1), 0.0);
-      let d = length(pv) + 1e-4;
-      let w = cy * pv.x + sy * pv.y; let w2 = -sy * pv.x + cy * pv.y;
-      rs += vec2f(w, w2) / d * sin(d * 34.0 - t * 2.2 + f32(i) * 2.0) * min(0.0035, lim * 0.45) * exp(-d * 0.8) * smoothstep(0.08, 0.3, d);
-    }
+    // one soft wave train leaves the whole threshold (a single source: no interference plaid)
+    let pv = vec2f(sign(dl.x) * max(abs(dl.x) - 0.62, 0.0), dl.y);
+    let d = length(pv) + 1e-4;
+    let wd = vec2f(cy * pv.x + sy * pv.y, -sy * pv.x + cy * pv.y) / d;
+    rs += wd * sin(d * 30.0 - t * 2.0 + 1.6 * snoise2(p * 1.7)) * min(0.0022, lim * 0.3) * exp(-d * 1.3) * smoothstep(0.03, 0.25, d);
     let bd = max(abs(dl.x) - 0.62, 0.0); let bz = max(abs(dl.y) - 0.1, 0.0);
-    contact = 1.0 - 0.6 * exp(-(bd * bd + bz * bz) * 30.0);
+    contact = (1.0 - 0.45 * exp(-(bd * bd + bz * bz) * 14.0)) * (1.0 - 0.6 * exp(-(bd * bd + bz * bz) * 260.0));
   }
   sl += rs;
   // shore swell: glowing crests roll in
@@ -161,13 +160,13 @@ fn doorRefl(p: vec3f, r: vec3f, col: vec3f) -> vec3f {
   let wv = fbm2(p * 0.21, 2);
   let ph2 = (p.x * 0.78 + p.y * 0.62) * 7.0 + wv * 5.0;
   let nf = 1.0 - smoothstep(6.0, 30.0, dist);
-  var bed = vec3f(0.5, 0.47, 0.42) * 0.36 * (1.0 + 0.22 * sin(ph2) * nf) * (G.sunColor * 0.8 + G.ambientSky + lampLight(vec3f(p.x, 0.0, p.y), vec3f(0.0, 1.0, 0.0)));
+  var bed = vec3f(0.5, 0.47, 0.42) * 0.36 * (1.0 + 0.22 * sin(ph2) * nf) * (G.sunColor * 0.8 + G.ambientSky + 0.25 * lampLight(vec3f(p.x, 0.0, p.y), vec3f(0.0, 1.0, 0.0)));
   let sg = stepGlow(p);
   bed += BIO * sg * 0.5;
   var c = refl * F * vec3f(0.9, 0.95, 1.0) + bed * (1.0 - F);
   c *= contact;
   // moonlight catches the slopes that face the moon: rings and breeze ripples read as thin silver lines
-  c += vec3f(0.42, 0.52, 0.75) * clamp(dot(rs, normalize(U.moon.xz)) * 22.0, -0.015, 0.14) * (1.0 - smoothstep(10.0, 40.0, dist));
+  c += vec3f(0.42, 0.52, 0.75) * clamp(dot(rs, normalize(U.moon.xz)) * 16.0, -0.008, 0.1) * (1.0 - smoothstep(10.0, 40.0, dist));
   // moon glitter on the far, deeper water
   let md = normalize(U.moon.xz);
   let hd = normalize(rd.xz);

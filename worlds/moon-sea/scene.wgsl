@@ -9,22 +9,29 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let V = normalize(eye() - p);
   let dist = distance(p, eye());
   let nf = 1.0 - smoothstep(10.0, 45.0, dist);
-  // sand ripples: warped stripes across the wind, fading with distance and on wet flats
+  let nn = 1.0 - smoothstep(3.0, 14.0, dist);
+  // sand ripples across the wind (two scales) + grain; they fade with distance and on wet flats
   let wv = fbm2(p.xz * 0.21, 2);
   let ph = (p.x * 0.78 + p.z * 0.62) * 7.0 + wv * 5.0;
   let big = fbm2(p.xz * 0.9 + 4.0, 3);
-  let wet = 1.0 - smoothstep(0.015, 0.2, p.y);
-  let ra = (0.17 + 0.1 * big) * nf * (1.0 - 0.6 * wet);
-  var n = normalize(in.n + vec3f(0.78, 0.0, 0.62) * cos(ph) * ra + vec3f(big, 0.0, vnoise2(p.xz * 5.0)) * 0.06 * nf);
-  var alb = mix(vec3f(0.5, 0.47, 0.43), vec3f(0.36, 0.33, 0.3), smoothstep(-0.4, 0.5, wv + 0.3 * big));
-  alb *= 0.9 + 0.1 * sin(ph) * nf;
-  alb *= mix(1.0, 0.36, wet);
-  let nl = wrapDiffuse(n, G.sunDir, 0.3);
-  var c = alb * (G.sunColor * nl + hemi(n, G.ambientSky, G.ambientGround) + lampLight(p, n));
-  // wet sheen: horizon sky + broad moon glint
-  let F = fresnelSchlick(dot(n, V), 0.04);
+  let wet = 1.0 - smoothstep(0.008, 0.075, p.y);
+  let dry = 1.0 - 0.7 * wet;
+  let ph2 = ph * 3.3 + big * 4.0;
+  let gr = vec2f(snoise2(p.xz * 17.0), snoise2(p.xz * 17.0 + 37.0)) * dry;
+  var n = normalize(in.n + vec3f(0.78, 0.0, 0.62) * (cos(ph) * (0.13 + 0.08 * big) * nf + cos(ph2) * 0.08 * nn) * dry
+    + vec3f(big, 0.0, vnoise2(p.xz * 5.0)) * 0.07 * nf + vec3f(gr.x, 0.0, gr.y) * 0.09 * nn);
+  var alb = mix(vec3f(0.5, 0.47, 0.43), vec3f(0.35, 0.32, 0.29), smoothstep(-0.4, 0.5, wv + 0.3 * big));
+  alb *= (0.94 + 0.06 * sin(ph) * nf) * (0.94 + 0.06 * gr.x * nn);
+  alb *= mix(1.0, 0.5, wet);
+  let nl = wrapDiffuse(n, G.sunDir, 0.1);
+  let ndv = max(dot(n, V), 0.0);
+  var c = alb * (G.sunColor * nl * 1.35 + hemi(n, G.ambientSky, G.ambientGround) * 0.8 + lampLight(p, n));
+  // moon rim on the crests, sparse glints of grain, a thin clean sheen on the wet strip
+  c += alb * G.sunColor * pow(1.0 - ndv, 3.0) * 0.7 * max(dot(n, G.sunDir) + 0.4, 0.0);
   let R = reflect(-V, n);
-  c += wet * (F * skyBase(vec3f(R.x, abs(R.y) + 0.02, R.z)) * 0.9 + G.sunColor * specBlinn(n, G.sunDir, V, 90.0) * 0.6);
+  let gl = step(0.995, hash21(floor(p.xz * 85.0))) * pow(max(dot(R, G.sunDir), 0.0), 6.0);
+  c += G.sunColor * gl * 1.6 * (1.0 - smoothstep(2.0, 11.0, dist)) * dry;
+  c += wet * (fresnelSchlick(ndv, 0.04) * G.fogColor * 1.4 + G.sunColor * specBlinn(n, G.sunDir, V, 60.0) * 0.25);
   // bioluminescent swash sliding up and down the beach (s = metres inland of the mean waterline)
   if (in.uv.y > 0.5) {
     let al = snoise2(p.xz * 0.035);
@@ -40,7 +47,7 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
     let tw = pow(0.5 + 0.5 * sin(t * (0.5 + v.z) + v.z * 50.0), 3.0);
     c += BIO * exp(-v.x * v.x * 26.0) * step(0.62, v.z) * tw * smoothstep(4.6, 3.6, s) * smoothstep(-1.0, 0.5, s) * 1.3 * (1.0 - smoothstep(6.0, 30.0, dist));
     // light spill on the dune faces
-    c += alb * BIO * 0.1 * exp(-max(s, 0.0) * 0.07) * (0.6 + 0.4 * sin(t * 0.41 + al * 3.0));
+    c += alb * BIO * (0.16 * exp(-max(s, 0.0) * 0.06) + 0.3 * exp(-max(s - sw, 0.0) * 0.5)) * (0.6 + 0.4 * sin(t * 0.41 + al * 3.0));
   }
   // footsteps wake up the plankton in wet sand
   let sg = stepGlow(p.xz) * wet;
@@ -105,7 +112,9 @@ fn sway(p: vec3f, ph: f32, amt: f32) -> vec3f {
   if (dot(n, V) < 0.0) { n = -n; }
   let alb = mix(vec3f(0.34, 0.3, 0.4), vec3f(0.6, 0.5, 0.58), in.uv.y);
   let back = pow(max(dot(-V, G.sunDir), 0.0), 3.0);
-  var c = alb * (G.sunColor * (abs(dot(n, G.sunDir)) * 0.7 + 0.3 + 1.6 * back) + hemi(n, G.ambientSky, G.ambientGround) * 1.2 + lampLight(p, n) * 1.3);
+  let hg = clamp((p.y - U.misc.y - 1.6) * 0.45, 0.0, 1.0);
+  var c = alb * (0.55 + 0.6 * hg) * (G.sunColor * (abs(dot(n, G.sunDir)) * 0.6 + 0.3 + 2.2 * back) + hemi(n, G.ambientSky, G.ambientGround) * 1.2 + lampLight(p, n) * 1.3);
+  c = mix(c, c * 0.65, smoothstep(14.0, 50.0, distance(p, eye())));
   return vec4f(fogged(c, p), 1.0);
 }
 
@@ -135,11 +144,10 @@ fn lanternScale(c: vec3f, s: f32) -> f32 {
   let ndv = abs(dot(normalize(in.n), V));
   let front = ff == (MIR > 0.0);
   let hot = exp(-v * 3.4);
-  var e = mix(vec3f(1.0, 0.3, 0.055), vec3f(1.0, 0.6, 0.2), hot) * (0.75 + 5.0 * hot * hot);
-  e *= 0.5 + 0.5 * ndv;
+  var e = mix(vec3f(1.0, 0.3, 0.055), vec3f(1.0, 0.62, 0.22), hot) * (0.7 + 6.0 * hot * hot * hot);
+  e *= 0.78 + 0.22 * ndv;
   e *= 1.0 - 0.07 * pow(abs(sin(in.uv.x * TAU * 3.0)), 10.0);          // paper seams
   e *= 1.0 - 0.3 * smoothstep(0.86, 0.97, v);                          // top cap
-  e *= 0.93 + 0.07 * snoise2(vec2f(in.uv.x * 9.0, v * 5.0));            // paper mottling
   if (!front) { e = vec3f(1.0, 0.7, 0.3) * (2.0 + 7.0 * hot); }         // the lit inside, seen from below
   return vec4f(fogged(e * in.fa.x * in.fa.y, in.w), 1.0);
 }
@@ -171,7 +179,7 @@ struct GO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) @
   var o: GO;
   o.pos = G.viewProj * vec4f(L.p.x + cs[vi].x * r, 0.012 + d * 0.0015, L.p.z + cs[vi].y * r, 1.0);
   o.c = cs[vi];
-  o.a = L.fl * L.a / (1.0 + L.p.y * L.p.y * 0.12) * (1.0 - fogAmount(d));
+  o.a = L.fl * L.a / (1.0 + L.p.y * L.p.y * 0.12) * (1.0 - fogAmount(d)) * smoothstep(0.5, 3.0, L.p.y);
   if (o.a < 0.01) { o.pos = vec4f(0.0, 0.0, 2.0, 1.0); }
   return o;
 }
@@ -200,6 +208,6 @@ struct BO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) u
   let alb = mix(vec3f(0.07, 0.09, 0.075), vec3f(0.2, 0.22, 0.17), in.uv.y * (0.6 + 0.4 * in.tint));
   let V = normalize(eye() - in.w);
   let back = pow(max(dot(-V, G.sunDir), 0.0), 3.0);
-  let c = alb * (G.sunColor * (0.55 + 0.45 * in.uv.y + 1.2 * back) + G.ambientSky + BIO * 0.05);
+  let c = alb * (G.sunColor * (0.5 + 0.9 * in.uv.y + 1.6 * back) + G.ambientSky * (0.4 + 0.6 * in.uv.y) + BIO * 0.06);
   return vec4f(fogged(c, in.w), 1.0);
 }

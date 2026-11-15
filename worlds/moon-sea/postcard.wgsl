@@ -10,24 +10,27 @@ fn pcMoon_up(d: vec3f, t: f32) -> vec3f {
   let ha = max(ang - 0.165, 0.0);
   c += vec3f(0.36, 0.47, 0.72) * (0.3 * exp(-ha * 13.0) + 0.09 * exp(-ha * 3.6) + 0.012 * exp(-ha * 1.1));
   // Milky Way climbing to the upper left
-  let P = vec3f(0.7697, 0.5729, 0.2802);
+  let P = vec3f(0.529, 0.5729, 0.626);
   let b = dot(d, P);
   let mw = exp(-b * b / 0.03) * (0.5 + 0.5 * fbm2(vec2f(az * 3.0, el * 5.0), 3));
   c += vec3f(0.6, 0.7, 1.0) * mw * 0.045 * smoothstep(0.0, 0.3, d.y);
   // stars: soft round dots, power-law brightness, dimmed by the moon glow
   let sq = d.xz / (1.0 + d.y) * 64.0;
   let sv = voronoi2(sq);
-  let sb = (pow(sv.z, 14.0) * 3.0 + 0.07) * step(0.5, sv.z);
-  c += mix(vec3f(1.0, 0.86, 0.7), vec3f(0.75, 0.86, 1.0), fract(sv.z * 17.0)) * exp(-sv.x * sv.x * 210.0) * sb
+  let sb = (pow(sv.z, 16.0) * 3.0 + 0.05) * step(0.6, sv.z);
+  c += mix(vec3f(1.0, 0.86, 0.7), vec3f(0.75, 0.86, 1.0), fract(sv.z * 17.0)) * exp(-sv.x * sv.x * 260.0) * sb
      * smoothstep(0.17, 0.5, ang) * smoothstep(0.0, 0.12, d.y) * (0.85 + 0.15 * sin(t * (0.5 + sv.z) + sv.z * 60.0));
   // the moon
   if (ang < 0.17) {
     let r = normalize(cross(md, vec3f(0.0, 1.0, 0.0))); let u = cross(r, md);
     let q = vec2f(dot(d, r), dot(d, u)) / 0.1643;
-    let m = fbm2(q * 1.5 + vec2f(3.1, 0.7), 4);
-    let mar = smoothstep(-0.05, 0.3, m + 0.12 * q.y - 0.1 * q.x);
-    let alb = mix(0.62, 0.25, mar) * (0.9 + 0.12 * fbm2(q * 9.0, 2)) * mix(0.55, 1.0, pow(max(1.0 - dot(q, q), 0.0), 0.25));
-    c = mix(c, mix(vec3f(1.0, 0.96, 0.9), vec3f(0.82, 0.9, 1.0), mar) * alb * 1.25, smoothstep(1.0, 0.97, length(q)));
+    let m = fbm2(q * 1.4 + vec2f(3.1, 0.7), 5);
+    let mar = smoothstep(0.0, 0.18, m + 0.12 * q.y - 0.1 * q.x);
+    let cv = voronoi2(q * 6.0 + 2.0);
+    let cd = cv.x / (0.16 + 0.3 * cv.z);
+    let cra = step(0.45, cv.z) * (0.22 * exp(-pow((cd - 1.0) * 5.0, 2.0)) - 0.12 * smoothstep(1.0, 0.4, cd));
+    let alb = (mix(0.74, 0.25, mar) * (0.88 + 0.14 * fbm2(q * 8.0, 3)) + cra * mix(1.0, 0.5, mar)) * mix(0.28, 1.0, pow(max(1.0 - dot(q, q), 0.0), 0.3));
+    c = mix(c, mix(vec3f(1.0, 0.95, 0.87), vec3f(0.76, 0.87, 1.0), mar) * alb * 1.3, smoothstep(1.0, 0.97, length(q)));
   }
   // lanterns: a slow sparse stream right of the moon
   for (var i = 0; i < 9; i++) {

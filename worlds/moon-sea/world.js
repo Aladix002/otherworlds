@@ -17,9 +17,9 @@ const yawTo = (x, z, tx, tz) => Math.atan2(-(tx - x), -(tz - z));
 // ---- layout (metres). Spawn at the origin looking toward -Z, where the moon hangs. ----
 const MOON_EL = 0.31, MOON_R = 0.165;
 const MOON = [0, Math.sin(MOON_EL), -Math.cos(MOON_EL)];
-const MW_POLE = norm([Math.sin(1.92) * Math.cos(0.61), Math.sin(0.61), -Math.cos(1.92) * Math.cos(0.61)]);   // Milky Way pole
+const MW_POLE = norm([Math.sin(2.44) * Math.cos(0.61), Math.sin(0.61), -Math.cos(2.44) * Math.cos(0.61)]);   // Milky Way pole
 const ISX = 291.3, ISZ = -106.0, ISR = 235;          // dune island (keep in sync with common.wgsl)
-const HM = [40, -10, 400], HN = 512;                 // height map centre, size, resolution (common.wgsl HMAP)
+const HM = [40, -10, 400], HN = 768;                 // height map centre, size, resolution (common.wgsl HMAP)
 const DOOR = [6, 24];
 const TREE = [-16.6, -34.3];
 const LAUNCH = [17, -47, 32];                        // lantern launch area: centre, radius
@@ -94,7 +94,7 @@ function makeTree(M, R) {
       q = [q[0] + dir[0] * len / n, q[1] + dir[1] * len / n, q[2] + dir[2] * len / n]; path.push(q);
     }
     wood.push(M.tube(path, (t) => Math.max(rad * (1 - 0.4 * t), 0.016), depth < 2 ? 7 : 5));
-    if (depth === 3) { for (let i = 1; i <= n; i++) tuft(path[i], 17, 0.27); return; }
+    if (depth === 3) { for (let i = 1; i <= n; i++) tuft(path[i], 26, 0.29); return; }
     const kids = depth === 0 ? 4 : 3;
     for (let k = 0; k < kids; k++) {
       const at = k === 0 ? n : n - 1 - (k % 2) - (depth === 0 ? (k >> 1) : 0), a = R() * TAU, sp = k === 0 ? 0.45 : 1;
@@ -144,7 +144,7 @@ export default {
   post: { exposure: 1.3, bloom: 0.22, bloomThreshold: 1.7, bloomKnee: 0.7, bloomRadius: 1, vignette: 0.3, saturation: 1.08, contrast: 1.04 },
   clearColor: [0.01, 0.016, 0.03],
   doorLight: [0.11, 0.085, 0.06],
-  fov: 62,
+  fov: 58,
 
   heightAt(x, z) { return walkH(x, z); },
   sdf(x, y, z) { return Math.hypot(x - TREE[0], z - TREE[1]) - 0.3; },
@@ -204,7 +204,7 @@ export default {
     // ---------- rocks ----------
     const rk = [];
     const rock = (x, z, s, sink = 0.2) => rk.push(x, terrain(x, z) + s * (0.3 - sink), z, s, R() * TAU, R(), 0.5 + R() * 0.4, 0);
-    for (const [lx, lz, s] of [[1.25, 0.5, 0.2], [1.7, -0.35, 0.34], [2.5, 0.3, 0.16], [-1.3, -0.45, 0.26], [-1.75, -0.9, 0.42], [-2.7, -0.2, 0.15], [-1.15, 1.0, 0.13], [1.55, 1.3, 0.24]]) rock(DOOR[0] - lx, DOOR[1] - lz, s, 0.1);
+    for (const [lx, lz, s] of [[1.25, 0.5, 0.2], [1.7, -0.35, 0.34], [2.5, 0.3, 0.16], [-1.3, -0.45, 0.26], [-1.75, -0.9, 0.42], [-2.7, -0.2, 0.15], [-1.15, 1.0, 0.13], [1.55, 1.3, 0.24], [0.8, 0.02, 0.24], [-0.82, -0.03, 0.27]]) rock(DOOR[0] - lx, DOOR[1] - lz, s, 0.1);
     for (const [x, z, s] of [[-9.5, -31, 0.7], [-11.5, -29.5, 0.32], [-22.5, -37.5, 0.85], [-20.5, -31.2, 0.4], [-13.5, -37.6, 0.5], [-18.8, -36.8, 0.28], [-12.3, -32.6, 0.22], [-24, -35.2, 0.3]]) rock(x, z, s);
     for (const [x, z, s] of [[5.5, -11.6, 0.45], [9.4, -13.6, 0.3], [7.2, -14.3, 0.2], [10.6, -11.9, 0.16], [-3.4, -7.2, 0.24], [-4.3, -8, 0.13], [2.6, 5.2, 0.17], [-7, 10.6, 0.22], [-5.1, 7.4, 0.12]]) rock(x, z, s);
     for (let i = 0; i < 14; i++) { const a = R() * TAU, r = 14 + R() * 42, x = Math.cos(a) * r, z = Math.sin(a) * r - 8; if (Math.hypot(x - DOOR[0], z - DOOR[1]) > 5) rock(x, z, 0.12 + R() * R() * 0.5); }
@@ -217,21 +217,25 @@ export default {
 
     // ---------- dune grass ----------
     const gp = [], gn = [], gu = [], gi = [];
-    for (let b = 0; b < 9; b++) {
-      const a = R() * TAU, h = 0.4 + R() * 0.55, lean = 0.2 + R() * 0.5, r0 = R() * 0.07, k = gp.length / 3, ca = Math.cos(a), sa = Math.sin(a);
+    for (let b = 0; b < 13; b++) {
+      const a = R() * TAU, h = 0.25 + R() * 0.7, lean = 0.15 + R() * 0.55, r0 = R() * 0.1, k = gp.length / 3, ca = Math.cos(a), sa = Math.sin(a);
       for (let j = 0; j <= 4; j++) {
-        const t = j / 4, r = r0 + lean * t * t * h, w = 0.013 * (1 - 0.92 * t);
+        const t = j / 4, r = r0 + lean * t * t * h, w = 0.017 * (1 - 0.92 * t);
         for (const s of [-1, 1]) { gp.push(ca * r - sa * w * s, h * t, sa * r + ca * w * s); gn.push(ca * 0.3, 0.95, sa * 0.3); gu.push(s, t); }
         if (j < 4) { const o = k + j * 2; gi.push(o, o + 1, o + 2, o + 1, o + 3, o + 2); }
       }
     }
     this.grass = M.upload({ pos: new Float32Array(gp), nrm: new Float32Array(gn), uv: new Float32Array(gu), idx: new Uint32Array(gi) });
-    const gd = [], nG = [1200, 2200, 3400][q];
-    for (let tries = 0; gd.length < nG * 8 && tries < 60000; tries++) {
-      const th = th0 + (R() - 0.5) * 1.5, r = ISR - 7 - R() * 75, x = ISX + Math.cos(th) * r, z = ISZ + Math.sin(th) * r;
-      const s = shoreS(x, z);
-      if (s < 7 || fbm2(x * 0.06 + 11, z * 0.06, 2) + 0.25 * ss(10, 40, s) < 0.12 + 0.5 * R()) continue;
-      gd.push(x, terrain(x, z) - 0.03, z, 1.1 + R() * 1.3, R() * TAU, R(), 0, 0);
+    const gd = [], nG = [1500, 2800, 4200][q];
+    for (let tries = 0; gd.length < nG * 8 && tries < 60000; tries++) {   // clumps: a few big tufts ringed by small ones
+      const th = th0 + (R() - 0.5) * 1.5, r = ISR - 7 - R() * 75, cx = ISX + Math.cos(th) * r, cz = ISZ + Math.sin(th) * r;
+      const s = shoreS(cx, cz);
+      if (s < 8 || fbm2(cx * 0.05 + 11, cz * 0.05, 2) + 0.3 * ss(10, 40, s) < 0.1 + 0.45 * R()) continue;
+      const n = 3 + Math.floor(R() * 9), cs = 0.6 + R() * 0.9;
+      for (let i = 0; i < n; i++) {
+        const g = R.gauss() * cs, g2 = R.gauss() * cs, x = cx + g, z = cz + g2, f = Math.exp(-(g * g + g2 * g2) / (2 * cs * cs));
+        gd.push(x, terrain(x, z) - 0.03, z, (0.5 + 1.9 * f) * (0.7 + R() * 0.6), R() * TAU, R(), 0, 0);
+      }
     }
     this.grassInst = ctx.buffer(new Float32Array(gd), 'vertex'); this.nGrass = gd.length / 8;
 
@@ -259,7 +263,7 @@ export default {
     pts.forEach(([x, z], i) => ld.push(x, z, ((i * 0.6180339887) % 1), R(), 0, 0, 0.9 + R() * 0.25, 1));
     this.nLant = ld.length / 8;
     this.lantInst = ctx.buffer(new Float32Array(ld), 'vertex');
-    this.lantMesh = M.upload(M.lathe([[0.165, 0], [0.21, 0.11], [0.265, 0.34], [0.275, 0.48], [0.245, 0.6], [0.16, 0.668], [0.001, 0.69]], 18));
+    this.lantMesh = M.upload(M.lathe([[0.14, 0], [0.165, 0.08], [0.2, 0.2], [0.235, 0.34], [0.255, 0.47], [0.255, 0.56], [0.225, 0.64], [0.15, 0.682], [0.001, 0.69]], 26));
 
     // ---------- stars: dir, brightness | colour, phase ----------
     const nS = [3000, 5200, 8000][q], sd = new Float32Array(nS * 8);
@@ -313,7 +317,7 @@ export default {
     this.si = 0; this.acc = 0; this.side = 1; this.lx = ctx.camera.pos[0]; this.lz = ctx.camera.pos[2];
     for (let i = 0; i < 12; i++) this.U[28 + i * 4 + 2] = -100;
     // a short trail behind the "look down" pose, so the still shows how the water answers to steps
-    this.U.set([-6.85, 9.05, 18.7, 1, -7.45, 9.6, 17.5, 1, -7.0, 8.3, 16.2, 1], 28 + 36);
+    this.U.set([-6.8, 9.1, 18.6, 1, -7.6, 9.75, 17.2, 1], 28 + 40);
     this.spl = { dur: 0.34, f0: 420, f1: 1500, q: 0.8, gain: 0.02, peak: 0.18, bus: null };
     await progress(1);
   },

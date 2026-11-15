@@ -54,13 +54,19 @@ fn meteor(rd: vec3f) -> vec3f {
 fn sky(rd0: vec3f) -> vec3f {
   let rd = vec3f(rd0.x, abs(rd0.y), rd0.z);
   var c = skyBase(rd) + meteor(rd);
-  let md = U.moon.xyz;
-  let cr = sqrt(1.0 - U.moon.w * U.moon.w);
-  if (dot(rd, md) > cr - 0.002) {
-    let r = normalize(cross(md, vec3f(0.0, 1.0, 0.0))); let up = cross(r, md);
-    let q = vec2f(dot(rd, r), dot(rd, up)) / U.moon.w;
-    let tx = textureSampleLevel(moonT, sLin, vec2f(0.5 + q.x * 0.49, 0.5 - q.y * 0.49), 0.0);
-    c = mix(c, tx.rgb * 1.2, tx.a);
+  // the moon is drawn as a disc that stays round on screen (a true angular disc turns into an egg off-axis)
+  let fl = select(1.0, -1.0, rd0.y < 0.0);
+  let md = vec3f(U.moon.x, U.moon.y * fl, U.moon.z);
+  let mz = dot(md, G.camFwd); let rz = dot(rd0, G.camFwd);
+  if (mz > 0.15 && rz > 0.02) {
+    let pm = vec2f(dot(md, G.camRight), dot(md, G.camUp)) / mz;
+    let pr = vec2f(dot(rd0, G.camRight), dot(rd0, G.camUp)) / rz;
+    var q = (pr - pm) * mz * sqrt(1.0 - U.moon.w * U.moon.w) / U.moon.w;
+    if (dot(q, q) < 1.06) {
+      q.y *= fl;
+      let tx = textureSampleLevel(moonT, sLin, vec2f(0.5 + q.x * 0.49, 0.5 - q.y * 0.49), 0.0);
+      c = mix(c, tx.rgb * 1.3, tx.a);
+    }
   }
   return c;
 }
