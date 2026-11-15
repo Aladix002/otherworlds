@@ -75,8 +75,9 @@ const TAU = Math.PI * 2;
 export function tree(seed, lod) {
   const R = makeRng(seed * 7919 + 13), g = new Geo();
   const H = 19 + R() * 9, R0 = 0.85 + R() * 0.4, A = 1.2 + R() * 2.2, p1 = R() * TAU, p2 = R() * TAU;
-  const C = (t) => [A * Math.sin(t * 2.2 + p1) * t, H * t - 0.4, A * Math.cos(t * 1.8 + p2) * t - A * t * Math.cos(p2)];
-  const rad = (t) => R0 * (1 - 0.6 * t) + R0 * 1.1 * Math.exp(-t * 12);
+  const lx = (R() - 0.5) * 7, lz = (R() - 0.5) * 7, gn = 0.35 + R() * 0.45;
+  const C = (t) => [A * Math.sin(t * 2.2 + p1) * t + lx * t * t + gn * Math.sin(t * 9 + p2) * t, H * t - 0.4, A * Math.cos(t * 1.8 + p2) * t - A * t * Math.cos(p2) + lz * t * t + gn * Math.cos(t * 7.3 + p1) * t];
+  const rad = (t) => (R0 * (1 - 0.6 * t) + R0 * 1.1 * Math.exp(-t * 12)) * (1 + 0.1 * Math.sin(t * 21 + p1) * Math.min(1, t * 6));
   const L0 = lod === 0;
   g.tube(L0 ? 20 : 8, L0 ? 30 : 10, C, (t, th) => rad(t) * (1 + 0.11 * Math.sin(5 * th + 9 * t + p1) + 0.05 * Math.sin(11 * th - 6 * t)),
     (t) => [0, t, 0, R()], [2 * Math.PI * R0, H]);
@@ -86,8 +87,8 @@ export function tree(seed, lod) {
     const phi = (k / K) * TAU + R() * 0.5, D = 2.6 + R() * 2.4, hf = 2.4 + R() * 2.2, ph = R() * TAU;
     const dx = Math.cos(phi), dz = Math.sin(phi);
     g.surf(L0 ? 10 : 6, L0 ? 14 : 6, (w, s) => {
-      const d = R0 * 0.5 + s * D, lat = 0.5 * Math.sin(s * 3.5 + ph) * s;
-      const yT = hf * Math.pow(1 - s, 1.6) + 0.08, yB = -0.5, th = 0.32 * Math.pow(1 - s, 1.1) + 0.05;
+      const d = R0 * 0.5 + s * D, lat = 1.0 * Math.sin(s * 3.2 + ph) * s;
+      const yT = hf * Math.pow(1 - s, 2.4) + 0.1 + 0.12 * Math.sin(s * 9 + ph) * (1 - s), yB = -0.5, th = 0.5 * Math.pow(1 - s, 1.2) + 0.09;
       const ang = w * TAU, xl = th * Math.cos(ang), y = yB + (yT - yB) * (0.5 + 0.5 * Math.sin(ang));
       return [dx * d - dz * (lat + xl), y, dz * d + dx * (lat + xl), w * 2, s * D + y, 0, Math.max(y, 0) / H, 1, k / K];
     }, true);
@@ -98,21 +99,22 @@ export function tree(seed, lod) {
   for (let b = 0; b < NB; b++) {
     const low = b === 0, t0 = low ? 0.4 + R() * 0.1 : 0.55 + R() * 0.3, c0 = C(t0), psi = (b / NB) * TAU + R(), L = (low ? 3.5 : 5) + R() * 4, rise = 0.35 + R() * 0.4;
     const dx = Math.cos(psi), dz = Math.sin(psi);
-    const path = (s) => [c0[0] + dx * L * s, c0[1] + L * (rise * s + 0.15 * s - 0.25 * s * s), c0[2] + dz * L * s];
+    const cv = (R() - 0.5) * 0.9, bp = R() * TAU;
+    const path = (s) => { const w = L * (cv * s * s + 0.07 * Math.sin(s * 8 + bp) * s); return [c0[0] + dx * L * s - dz * w, c0[1] + L * (rise * s + 0.15 * s - 0.25 * s * s + 0.05 * Math.sin(s * 6.5 + bp) * s), c0[2] + dz * L * s + dx * w]; };
     const r0 = rad(t0) * 0.55;
-    g.tube(L0 ? 8 : 5, L0 ? 8 : 4, path, (s) => r0 * (1 - 0.7 * s), (s) => [0, (c0[1] + s * L * 0.3) / H, 0, R()], [1, L]);
+    g.tube(L0 ? 8 : 5, L0 ? 12 : 5, path, (s) => r0 * (1 - 0.96 * Math.pow(s, 0.8)) + 0.012, (s) => [0, (c0[1] + s * L * 0.3) / H, 0, R()], [1, L]);
     const e = path(1); clusters.push([e[0], e[1] + 0.3, e[2], low ? 2.2 + R() : 3 + R() * 1.4]);
     for (let v = 0; v < 3; v++) { const s = 0.3 + R() * 0.7; vines.push(path(s)); }
   }
   for (const [cx, cy, cz, cr] of clusters) {
-    const n = (L0 ? 34 : 20) * (cr < 3 ? 0.6 : 1) | 0;
+    const n = (L0 ? 50 : 28) * (cr < 3 ? 0.6 : 1) | 0;
     for (let l = 0; l < n; l++) {
       let dx = R() * 2 - 1, dy = R() * 1.2 - 0.25, dz = R() * 2 - 1; const dl = Math.hypot(dx, dy, dz) || 1; dx /= dl; dy /= dl; dz /= dl;
-      const bx = cx + dx * cr * 0.45, by = cy + dy * cr * 0.35, bz = cz + dz * cr * 0.45;
-      const big = R(), len = 1.1 + big * big * 2.6, wid = len * (0.2 + R() * 0.1), droop = 0.3 + R() * 0.5, lr = R();
+      const sp = 0.25 + R() * 0.5; const bx = cx + dx * cr * sp, by = cy + dy * cr * sp * 0.7, bz = cz + dz * cr * sp;
+      const big = R(), len = (0.8 + big * big * 1.7) * (L0 ? 1 : 1.5), wid = len * (0.2 + R() * 0.1), droop = 0.3 + R() * 0.5, lr = R();
       let sx = -dz, sz = dx; const sl = Math.hypot(sx, sz) || 1; sx /= sl; sz /= sl;
       const ex = dx * 0.9, ey = dy * 0.4 + 0.15, ez = dz * 0.9;
-      g.surf(3, L0 ? 6 : 3, (u, v) => {
+      g.surf(3, L0 ? 5 : 3, (u, v) => {
         const x = u * 2 - 1, w = wid * Math.pow(Math.sin(Math.PI * Math.pow(v, 0.7)), 0.8) * x;
         const fold = Math.abs(x) * wid * 0.3;
         return [bx + ex * len * v + sx * w, by + ey * len * v - droop * len * v * v + fold, bz + ez * len * v + sz * w, x, v, 1, v, x, lr];
@@ -197,9 +199,10 @@ export function fish() {
     const r = 0.12 * sm(t) * Math.sqrt(Math.max(1 - (t > 0.6 ? ((t - 0.6) / 0.4) ** 2 : 0), 0)) + 0.012;
     return r * (1 - 0.3 * Math.cos(th) ** 2);
   }, (t) => [0, t, 0, 0]);
-  g.surf(9, 6, (u, v) => { const x = u * 2 - 1, l = 0.36 * (0.7 + 0.3 * Math.abs(x)); return [0.02 * Math.sin(x * 3) * v, x * 0.12 * Math.pow(v, 0.8), -0.48 - v * l, x, v, 1, -0.25 * v, v, x]; });
-  g.surf(7, 3, (u, v) => [0, 0.1 + v * 0.045 * Math.sin(Math.PI * Math.min(1, u * 1.2)), 0.25 - u * 0.4 - v * 0.05, u, v, 1, 0.75 - u * 0.4, v, u * 2 - 1]);
-  for (const s of [-1, 1]) g.surf(5, 4, (u, v) => { const x = u * 2 - 1; return [s * (0.07 + v * 0.2), -0.05 - v * 0.05, 0.2 - v * 0.12 + x * 0.07 * v, u, v, 1, 0.7, v, x]; });
+  g.surf(9, 10, (u, v) => { const x = u * 2 - 1, l = 0.56 * (0.6 + 0.4 * Math.abs(x)); return [0.03 * Math.sin(x * 3) * v, x * (0.03 + 0.13 * Math.pow(v, 0.7)), -0.44 - v * l, x, v, 1, -0.7 * v, v, x]; });
+  g.surf(9, 4, (u, v) => [0, 0.095 + v * 0.085 * Math.sin(Math.PI * Math.min(1, u * 1.15)), 0.28 - u * 0.5 - v * 0.08, u, v, 1, 0.75 - u * 0.4, v, u * 2 - 1]);
+  for (const s of [-1, 1]) g.surf(5, 4, (u, v) => { const x = u * 2 - 1; return [s * (0.07 + v * 0.27), -0.05 - v * 0.06, 0.2 - v * 0.16 + x * 0.09 * v, u, v, 1, 0.7, v, x]; });
+  for (const s of [-1, 1]) g.surf(7, 5, (u, v) => { const a = u * TAU, b = v * Math.PI; return [s * 0.07 + Math.cos(a) * Math.sin(b) * 0.016, 0.035 - Math.cos(b) * 0.016, 0.37 + Math.sin(a) * Math.sin(b) * 0.016, u, v, 2, 0.9, 0, 0]; }, true);
   return g.build();
 }
 
@@ -257,9 +260,9 @@ export function rosette(seed) {
   const g = new Geo(), R = makeRng(seed), N = 7;
   for (let k = 0; k < N; k++) {
     const a = (k / N) * TAU + R() * 0.5, L = 0.65 + R() * 0.5, W = L * (0.3 + R() * 0.1), up = 0.6 + R() * 0.5, c = Math.cos(a), s = Math.sin(a), lr = R();
-    g.surf(7, 10, (u, v) => {
+    g.surf(9, 12, (u, v) => {
       const x = u * 2 - 1, w = W * Math.pow(Math.sin(Math.PI * Math.pow(v, 0.55)), 0.7) * x, r = L * v * (1 - 0.15 * v);
-      const y = L * (up * v - 0.75 * up * v * v) + Math.abs(x) * W * 0.3 * Math.sin(Math.PI * v) + 0.025 * Math.sin(v * 17 + k) * Math.abs(x);
+      const y = L * (up * v - 0.75 * up * v * v) + Math.abs(x) * W * 0.3 * Math.sin(Math.PI * v) + 0.035 * L * Math.sin(v * 9 + k) * x * x;
       return [c * r - s * w, y, s * r + c * w, x, v, 0, v, x, lr];
     });
   }
@@ -272,9 +275,9 @@ export function lantern(seed) {
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * TAU + R(), H = 0.8 + R() * 0.6, D = 0.35 + R() * 0.3, c = Math.cos(a), s = Math.sin(a);
     const path = (t) => { const r = D * t * t * (1 + 0.5 * t); return [c * r, H * Math.sin(t * 2.1) / 0.863, s * r]; };
-    g.tube(6, 10, path, (t) => 0.02 * (1 - 0.6 * t) + 0.004, (t) => [0, t, 0, 0]);
+    g.tube(7, 18, path, (t) => 0.02 * (1 - 0.6 * t) + 0.004, (t) => [0, t, 0, 0]);
     const e = path(1), pl = 0.2 + R() * 0.08, pr = 0.07 + R() * 0.025, rr = R();
-    g.surf(12, 8, (u, v) => { const b = u * TAU, r = pr * Math.pow(Math.sin(Math.PI * Math.pow(v, 0.62) * 0.93), 0.8) + 0.004; return [e[0] + Math.cos(b) * r, e[1] - pl * v, e[2] + Math.sin(b) * r, u, v, 1, v, rr, 0]; }, true);
+    g.surf(18, 11, (u, v) => { const b = u * TAU, r = pr * Math.pow(Math.sin(Math.PI * Math.pow(v, 0.62) * 0.93), 0.8) + 0.004; return [e[0] + Math.cos(b) * r, e[1] - pl * v, e[2] + Math.sin(b) * r, u, v, 1, v, rr, 0]; }, true);
   }
   return g.build();
 }

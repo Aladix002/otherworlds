@@ -39,10 +39,16 @@ shrubs, rosettes, lanterns, reeds, tuft clumps, pads, spores, fireflies). Shafts
 Post in the module (`exposure 1.35, bloom 0.2`). Puff instance ranges in `vsPuff` (40 billows, 220 spray, 10 lotus halos, 6 frog halos).
 
 ## Perf
-Medium, 1080p fly-through: avg 7.6-7.7 ms, p99 9.7-15 ms at scale ~1 on a quiet machine; 9.6-9.8 ms avg with the scale dipping to
-0.6 while other agents' shoots share the iGPU (still PASS). Low: avg 6.6 ms. Bundle 164 KB.
-`shadeG` reuses one lightmap sample per fragment; `dotGlow` layers and fine bark detail are skipped beyond 32-45 m.
-CPU frustum/distance culling with 2 LODs per instanced category.
+Medium, 1080p fly-through: avg 7.6-7.8 ms, p99 ~10-12.5 ms at scale ~1 when the iGPU is mostly free; up to ~9.8 ms avg with the
+scale dipping to 0.6 (and occasional p99 > 16.7) while other agents' shoots share the GPU. Bundle 167 KB.
+`shadeG` reuses one lightmap sample per fragment; `dotGlow` layers, fine ground detail (N5) and fine bark are distance-gated.
+CPU frustum/distance culling with 2 LODs per instanced category (trees switch at 30 m).
+
+## Round 2 notes
+`glow()` (common.wgsl) pushes every emissive term into HDR with a whitening core; post uses bloom 0.3 / threshold 1.0 so only emitters
+bloom. `nearFade()` shrinks plants within ~1.7 m of the camera (no near-plane intrusions). The sky pass draws a noise-masked dark
+canopy dome with a gap and disc for the moon. Trees get per-instance girth and lean in `vsTree`; trunks/branches are gnarled in geo.
+`U.door.w` = door open amount (warm light pool + contact shadow at the threshold in `fsTerrain`).
 
 ## Known issues / next
 Water has no true reflections of geometry (sky, moon glitter, lightmap glow, waterfall and lotus streaks only). Koi are opaque meshes

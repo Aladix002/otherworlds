@@ -54,6 +54,9 @@ fn shadeJ(alb: vec3f, n: vec3f, p: vec3f, ao: f32) -> vec3f {
 fn shadeG(alb: vec3f, n: vec3f, gl: vec3f, ao: f32) -> vec3f {   // shadeJ with the glow already sampled
   return alb * ((hemi(n, G.ambientSky, G.ambientGround) + G.sunColor * wrapDiffuse(n, G.sunDir, 0.4) * U.misc.x) * ao + gl * (0.55 + 0.45 * max(n.y, 0.0) + 0.3 * max(-n.y, 0.0)));
 }
+// push emission into HDR: the brighter the emitter, the hotter and whiter its core (feeds the bloom)
+fn glow(e: vec3f) -> vec3f { let l = max(e.r, max(e.g, e.b)); return e * (1.0 + 2.2 * l) + vec3f(l * l * l * 0.9); }
+fn nearFade(base: vec3f) -> f32 { return smoothstep(0.5, 1.7, distance(base.xz, G.camPos.xz)); }
 fn faceN(n: vec3f, p: vec3f) -> vec3f { let v = G.camPos - p; return select(-n, n, dot(n, v) >= 0.0); }
 fn segD(p: vec2f, a: vec2f, b: vec2f) -> f32 { let ba = b - a; return length(p - a - ba * clamp(dot(p - a, ba) / dot(ba, ba), 0.0, 1.0)); }
 // koi swim path (instance a = cx, cz, radius, angular speed; b = phase, slot, seed, depth) -> xyz, w = yaw

@@ -73,12 +73,13 @@ fn skyRefl(rd: vec3f) -> vec3f {
   var body = vec3f(0.002, 0.013, 0.018) + vec3f(0.0, 0.016, 0.016) * shallow + glowAt(vec3f(p.x, gh, p.z)) * 0.07 + sheen * 0.035;
   var e = U.slot[0].rgb * shallow * 0.05 * pl;
   e += U.slot[0].rgb * (rippleE * 0.22 + tw * 0.14 * (0.6 + 0.4 * sin(dw * 2.0 - t * 1.7)));
-  e += (vec3f(0.5, 0.7, 0.8) + U.slot[0].rgb * 0.3) * churn * 0.3;
+  let ringF = exp(-pow((dw - 2.2) / 1.1, 2.0)) * smoothstep(0.35, 0.7, nz(p.xz * 0.9 + vec2f(t * 0.03, -t * 0.07)).y);
+  e += (vec3f(0.5, 0.7, 0.8) + U.slot[0].rgb * 0.3) * (churn * 0.35 + ringF * 0.5);
   // plankton sparkles stirred near the falls and ripples
   let sp = nz(p.xz * 1.7 + vec2f(t * 0.02, 0.0));
   e += mix(U.slot[3].rgb, U.slot[0].rgb, sp.y) * smoothstep(0.86, 0.95, sp.x) * (tw * 2.0 + rippleE + 0.12 + 0.2 * pl) * fd * 0.6;
   let col = refl * F + body * (1.0 - F) + e;
-  let a = clamp(mix(0.6 + 0.28 * (1.0 - T), 1.0, F), 0.0, 1.0);
+  let a = clamp(mix(0.66 + 0.24 * (1.0 - T), 1.0, F), 0.0, 1.0);
   return vec4f(col, a);
 }
 
@@ -112,7 +113,7 @@ fn mistDen(y: f32) -> f32 { return exp(-max(y + 0.3, 0.0) * 0.45); }
   gs *= L / 3.0 * M * 0.6;
   // moonlit veil with forward scattering
   let mu = dot(rd, G.sunDir);
-  var inscat = G.fogColor * (1.0 - T) * (1.0 + 2.5 * phaseHG(mu, 0.55) * U.misc.x) + gs;
+  var inscat = G.fogColor * (1.0 - T) * (1.0 + 1.0 * phaseHG(mu, 0.55) * U.misc.x) + gs;
   // moon shafts: soft light columns along the moon direction
   var sh = 0.0;
   let A = -G.sunDir;
@@ -131,7 +132,7 @@ fn mistDen(y: f32) -> f32 { return exp(-max(y + 0.3, 0.0) * 0.45); }
     let dust = 0.7 + 0.6 * nz(cp.xz * 0.004 + vec2f(G.time * 0.003, hgt * 0.002)).x;
     sh += exp(-off * off / (s.z * s.z)) * s.w * fall * dust / sqrt(den) * smoothstep(1.5, 6.0, tr);
   }
-  inscat += vec3f(0.42, 0.52, 0.95) * sh * 0.022 * U.misc.x;
+  inscat += vec3f(0.42, 0.52, 0.95) * sh * 0.016 * U.misc.x;
   let k2 = 1.0 - G.transition;
   return vec4f(inscat * k2, (1.0 - T) * k2);
 }
@@ -140,7 +141,7 @@ fn mistDen(y: f32) -> f32 { return exp(-max(y + 0.3, 0.0) * 0.45); }
 struct XO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) w: vec3f, @location(2) @interpolate(flat) k: f32 };
 fn fallPos(u: f32, v: f32, layer: f32) -> vec3f {
   let lip = U.wf.xyz; let bz = U.wf.w;
-  let wdt = mix(3.6, 5.2, layer) * (1.0 + 0.35 * v);
+  let wdt = mix(5.4, 7.4, layer) * (1.0 + 0.3 * v);
   let x = lip.x + (u - 0.5) * wdt + sin(v * 5.0 + u * 3.0) * 0.12;
   let y = lip.y * (1.0 - v) - 0.3 * v;
   let z = lip.z + (bz - lip.z) * sqrt(v) + layer * 0.4 * v + sin(u * 9.0 + v * 3.0) * 0.08;
@@ -186,7 +187,7 @@ fn wrapAround(p: vec2f, c: vec2f, size: f32) -> vec2f { return c + (p - c) - siz
     q = wrapAround(q, G.camPos.xz, S);
     let gy = terrH(q);
     wp = vec3f(q.x, max(gy, 0.0) + 0.2 + life * 18.0, q.y);
-    size = 0.022 + 0.03 * h2.x;
+    size = 0.03 + 0.05 * h2.x * h2.x;
     col = slotOf(h2.z * 4.0) * 1.7;
     a = smoothstep(0.0, 0.12, life) * (1.0 - smoothstep(0.7, 1.0, life));
   } else {
@@ -203,14 +204,14 @@ fn wrapAround(p: vec2f, c: vec2f, size: f32) -> vec2f { return c + (p - c) - siz
   }
   let d = distance(wp, G.camPos);
   a *= smoothstep(1.5, 5.0, d) * (1.0 - smoothstep(16.0, 21.0, d));
-  let sz = size + d * 0.0016;
+  let sz = size + d * 0.0028;
   o.pos = G.viewProj * vec4f(billboard(wp, c, vec2f(sz * (1.0 + 1.5 * o.soft))), 1.0);
   o.col = col * a * min(1.0, pow(size * 1.3 / sz, 2.0)) * (1.0 - G.transition);
   return o;
 }
 @fragment fn fsSpore(in: BO) -> @location(0) vec4f {
   let r2 = dot(in.c, in.c);
-  let core = exp(-r2 * select(9.0, 30.0, in.soft > 0.5));
+  let core = select(exp(-r2 * 5.0) * max(1.0 - r2, 0.0), exp(-r2 * 30.0), in.soft > 0.5);
   let halo = exp(-r2 * 5.0) * 0.1 * in.soft;
   return vec4f(in.col * (core + halo), 0.0);
 }

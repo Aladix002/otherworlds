@@ -32,7 +32,7 @@ function terrain(x, z) {
   const [rc, am, edge, a] = cliffInfo(x, z);
   const c = ss(edge, edge + 3.4, rc) * am;
   if (c > 0) {
-    let top = 14.5 + 2.2 * fbm2(x * 0.05, z * 0.05, 3) + 5 * ss(20, 40, rc) - 1.3 * Math.exp(-(((x - WFX) / 2.2) ** 2)) * ss(18, 16.5, rc);
+    let top = 14.5 + 2.2 * fbm2(x * 0.05, z * 0.05, 3) + 5 * ss(20, 40, rc) - 1.5 * Math.exp(-(((x - WFX) / 3.3) ** 2)) * ss(18, 16.5, rc);
     top += c * (1 - c) * 6 * fbm2(a * 14, rc * 0.25, 2);
     h = mix(h, Math.max(h, top), c);
   }
@@ -90,7 +90,7 @@ export default {
     sunDir: [-0.45, 0.62, -0.5], sunColor: [0.16, 0.18, 0.34], fogColor: [0.016, 0.03, 0.045], fogDensity: 0,
     ambientSky: [0.042, 0.06, 0.11], ambientGround: [0.032, 0.03, 0.05],
   },
-  post: { exposure: 1.35, bloom: 0.2, bloomThreshold: 0.7, bloomKnee: 0.7, vignette: 0.3, saturation: 1.12, contrast: 1.04 },
+  post: { exposure: 1.3, bloom: 0.3, bloomThreshold: 1.0, bloomKnee: 0.6, vignette: 0.3, saturation: 1.1, contrast: 1.12 },
   clearColor: [0.01, 0.015, 0.03],
   doorLight: [0.15, 0.2, 0.24],
   fov: 64,
@@ -167,7 +167,7 @@ export default {
       const n = fbm2(x * 0.022 + 3.1, z * 0.022 - 1.7, 2), r = R(), b = n < -0.12 ? 0 : n < 0.14 ? 2 : 1;
       return r < lime ? 3 : r < 0.24 ? (b === 2 ? (n < 0 ? 0 : 1) : 2) : b;
     };
-    const free = (x, z, rPath, rDoor) => pathDist(x, z) > rPath && Math.hypot(x - DOOR[0], z - DOOR[1]) > rDoor && Math.hypot(x - SPAWN[0], z - SPAWN[2]) > 2.5;
+    const free = (x, z, rPath, rDoor) => pathDist(x, z) > rPath && Math.hypot(x - DOOR[0], z - DOOR[1]) > rDoor && Math.hypot(x - SPAWN[0], z - SPAWN[2]) > 3 && Math.hypot(x + 15, z + 15) > 4.5;
     // trees
     const nTrees = [110, 165, 220][q], trees = [];
     const heroT = [[-24, -26, 1.35], [24, -24, 1.3], [-21, -4, 1.25], [20, 2, 1.3], [-33, 4, 1.4], [-27, 12, 1.2], [14, 30, 1.2], [-12, 24, 1.25], [36, -40, 1.3], [-38, -42, 1.3]];
@@ -190,10 +190,10 @@ export default {
       tInst[v].push(x, y, z, s, R() * TAU, slot, R(), y);
       this.treeCol.set([x, z, 1.45 * s], i * 3);
       this.treeGrid[((Math.floor(x / 12) + 32) & 63) * 64 + ((Math.floor(z / 12) + 32) & 63)].push(i);
-      emit.push(x, z, slot, 0.7 * s, 5);
+      emit.push(x, z, slot, 1.0 * s, 4);
     });
     this.cats = [];
-    this.treeCats = tInst.map((a, v) => this.cat(ctx, treeMeshes[v][0], treeMeshes[v][1], a, 9, 130, 34));
+    this.treeCats = tInst.map((a, v) => this.cat(ctx, treeMeshes[v][0], treeMeshes[v][1], a, 9, 130, 30));
     await progress(0.45);
 
     // ground plants: ferns (instanced per frond), fans, spirals, shrubs, mushrooms, rocks
@@ -223,7 +223,7 @@ export default {
       const s = spot(true); if (!s) continue;
       const [x, z] = s, y = this.hAt(x, z) - 0.05, slot = zs(x, z), big = R(), sc = 0.7 + big * big * 2, n = 2 + (R() * 3 | 0), y0 = R() * TAU;
       for (let f = 0; f < n; f++) fans.push(x + (R() - 0.5) * 0.3, y, z + (R() - 0.5) * 0.3, sc * (0.8 + R() * 0.4), y0 + (f / n) * TAU, slot, R(), 0);
-      emit.push(x, z, slot, 0.7 * sc, 2.4);
+      emit.push(x, z, slot, 1.1 * sc, 2.2);
     }
     const fanM = this.mesh(ctx, fan());
     this.fanCat = this.cat(ctx, fanM, fanM, fans, 2, 50, 99);
@@ -289,7 +289,7 @@ export default {
       for (let k = 0; k < n; k++) { const px = x + (R() - 0.5) * 1.5, pz = z + (R() - 0.5) * 1.5; if (pathDist(px, pz) > 1.1) tf.push(px, this.hAt(px, pz) - 0.01, pz, 0.7 + R() * 1.1, R() * TAU, slot, R(), 6); }
       emit.push(x, z, slot, 0.35, 1.6);
     }
-    this.tuftCat = this.cat(ctx, this.mesh(ctx, tuft(8)), null, tf, 0.4, 32, 99);
+    this.tuftCat = this.cat(ctx, this.mesh(ctx, tuft(8)), null, tf, 0.4, 24, 99);
     const mush = [];
     for (let k = 0; k < PATH.length - 1; k++) {
       const [ax, az] = PATH[k], [bx, bz] = PATH[k + 1], L = Math.hypot(bx - ax, bz - az), n = Math.floor(L / 2.6);
@@ -298,7 +298,7 @@ export default {
         const x = ax + (bx - ax) * t + (-(bz - az) / L) * sd * off, z = az + (bz - az) * t + ((bx - ax) / L) * sd * off;
         if (Math.hypot(x - DOOR[0], z - DOOR[1]) < 2.5 || lagE(x, z) < 1.1) continue;
         const slot = zs(x, z, 0.3);
-        mush.push(x, this.hAt(x, z) - 0.02, z, 0.9 + R() * 1.3, R() * TAU, slot, R(), 2); emit.push(x, z, slot, 0.6, 1.7);
+        mush.push(x, this.hAt(x, z) - 0.02, z, 0.9 + R() * 1.3, R() * TAU, slot, R(), 2); emit.push(x, z, slot, 1.1, 1.6);
       }
     }
     for (const t of trees) for (let k = 0; k < 2; k++) { const a = R() * TAU, r = 1.2 * t[2] + R(), x = t[0] + Math.cos(a) * r, z = t[1] + Math.sin(a) * r; mush.push(x, this.hAt(x, z) - 0.02, z, 1 + R() * 1.6, R() * TAU, zs(x, z, 0.2), R(), 2); }
@@ -347,8 +347,8 @@ export default {
     this.lotus = new Float32Array(this.lotus); this.lotusSign = new Int8Array(lot.length);
     this.lotusCat = this.cat(ctx, this.mesh(ctx, lotus()), null, lotI, 1.2, 140, 99);
     const fishI = [];
-    for (let i = 0; i < 8; i++) fishI.push(LAG[0] + (R() - 0.5) * 8, LAG[1] + (R() - 0.5) * 6 + 2, 5 + R() * 7, (0.04 + R() * 0.04) * (R() < 0.5 ? -1 : 1), R() * TAU, R() * 4 | 0, R(), -0.34 - R() * 0.25);
-    fishI.push(-3.4, -27.4, 2.3, 0.11, 1.2, 0, R(), -0.32, -2.2, -29, 3.1, -0.085, 4, 1, R(), -0.36);
+    for (let i = 0; i < 8; i++) fishI.push(LAG[0] + (R() - 0.5) * 8, LAG[1] + (R() - 0.5) * 6 + 2, 5 + R() * 7, (0.04 + R() * 0.04) * (R() < 0.5 ? -1 : 1), R() * TAU, R() * 4 | 0, R(), -0.42 - R() * 0.25);
+    fishI.push(-3.4, -27.4, 2.3, 0.11, 1.2, 0, R(), -0.4, -2.2, -29, 3.1, -0.085, 4, 1, R(), -0.46);
     this.fishM = this.mesh(ctx, fish()); this.fishB = ctx.buffer(new Float32Array(fishI), 'vertex'); this.nFish = 10;
     this.frogM = this.mesh(ctx, frog());
     // frog pad trios (nearby pads)
@@ -388,10 +388,10 @@ export default {
     // ---------- uniforms, bind groups, pipelines ----------
     this.U = new Float32Array(172);
     this.ub = ctx.buffer(688, 'uniform');
-    const shafts = [[-4, -30, 0.75, 1.0], [-1.5, -26.5, 0.4, 0.7], [-7, -33.5, 0.5, 0.6], [-12, -8, 0.6, 0.6], [9, -5, 0.5, 0.55], [DOOR[0] + 0.3, DOOR[1] - 0.3, 0.75, 0.9]];
+    const shafts = [[-4, -30, 1.3, 0.8], [-1.5, -26.5, 0.4, 0], [-7, -33.5, 0.5, 0], [-12, -8, 0.9, 0.45], [9, -5, 0.8, 0.4], [DOOR[0] + 0.3, DOOR[1] - 0.3, 0.75, 0.9]];
     shafts.forEach((s, i) => this.U.set(s, 104 + i * 4));
     this.U.set(this.wf, 96);
-    this.U.set([1, 0.03, 0.011, 1.25], 100);
+    this.U.set([1, 0.028, 0.008, 1.6], 100);
     this.U.set([DOOR[0], this.hAt(DOOR[0], DOOR[1]), DOOR[1], 0], 168);
     const lin = dev.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
     const rep = dev.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'repeat', addressModeV: 'repeat' });
@@ -497,6 +497,7 @@ export default {
       U[40 + j * 4] = LAG[0] + Math.cos(a) * LAG[2] * r; U[41 + j * 4] = LAG[1] + Math.sin(a) * LAG[3] * r; U[42 + j * 4] = k * per + 1; U[43 + j * 4] = 0.05;
     }
     // lotus bloom state (same curve as bloomOf in WGSL) for halos and reflections; chime when one starts to open
+    U[171] = ctx.doors && ctx.doors[0] ? ctx.doors[0].open : 0;
     const L = this.lotus;
     for (let i = 0; i < this.lotusSign.length; i++) {
       const o = i * 5, sn = Math.sin(TAU * (t / L[o] + L[o + 1] * TAU)), s = sn > 0 ? 1 : -1;

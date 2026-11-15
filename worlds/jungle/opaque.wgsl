@@ -18,7 +18,8 @@ fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = ce
   let d = length(q - c - o);
   let rad = rmax * (0.35 + 0.65 * u2f(pcg(h + 3u))) * step(1.0 - dens, r);
   let fw = fwidth(q.x) * 1.2;
-  return vec2f(smoothstep(rad + fw, rad * 0.15 - fw * 0.2, d) * smoothstep(0.9, 0.25, fw / max(rad, 1e-3)), u2f(pcg(h + 11u)));
+  let m = smoothstep(rad + fw, -fw * 0.2, d);
+  return vec2f(m * m * (0.35 + 0.65 * u2f(pcg(h + 5u))) * smoothstep(0.9, 0.25, fw / max(rad, 1e-3)), u2f(pcg(h + 11u)));
 }
 
 // ---------------- terrain ----------------
@@ -31,12 +32,18 @@ fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = ce
   let slope = 1.0 - n0.y;
   let rockM = smoothstep(0.38, 0.62, slope + (N2.z - 0.5) * 0.3);
   let soil = 1.0 - rockM;
-  var bump = (N3.xy - 0.5) * 0.6 + (N4.xy - 0.5) * 0.55 * near;
+  let fine = 1.0 - smoothstep(3.0, 10.0, dist);
+  var N5 = vec4f(0.5); if (dist < 16.0) { N5 = nz(p.xz * 7.3 + 0.37); }
+  var bump = (N3.xy - 0.5) * 0.6 + (N4.xy - 0.5) * 0.55 * near + (N5.xy - 0.5) * 0.7 * fine;
   // moss carpet, leaf litter, bare earth, rock
   let mossM = smoothstep(0.35, 0.65, N2.y * 0.6 + N3.z * 0.5);
   var alb = mix(hex(0x16261d), hex(0x2c4a2a), N1.x) * (0.7 + 0.5 * N3.x);
   alb = mix(alb, hex(0x35602e) * (0.55 + 0.9 * N4.z), mossM * 0.65);
   alb = mix(alb, hex(0x3a2a22), smoothstep(0.6, 0.75, N3.y) * 0.6);
+  alb *= 1.0 + (N5.z - 0.5) * 0.9 * fine;
+  // leaf litter and clover flecks
+  alb = mix(alb, hex(0x4a3020) * (0.5 + N5.w), smoothstep(0.62, 0.7, N4.w * 0.6 + N5.x * 0.5) * 0.4 * fine);
+  alb = mix(alb, hex(0x4a8a3a), smoothstep(0.66, 0.72, N4.y * 0.5 + N5.y * 0.6) * mossM * 0.6 * fine);
   alb = mix(alb, hex(0x2a1f2c), smoothstep(0.55, 0.75, N1.y + N2.x * 0.2) * 0.5);
   alb = mix(alb, mix(hex(0x221e2a), hex(0x3a3642), N2.w) * (0.65 + 0.7 * N4.w), rockM);
   if (dist < 36.0) {
@@ -63,6 +70,7 @@ fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = ce
     alb = mix(alb, mix(hex(0x3c3a4c), hex(0x625e74), fract(vo.z * 13.7)) * (0.7 + 0.6 * N4.x), st);
     bump = mix(bump, (vec2f(fract(vo.z * 3.1), fract(vo.z * 5.3)) - 0.5) * 0.4 + (N4.xy - 0.5) * 0.2, st);
     sheen = st;
+    alb *= 1.0 + st * (smoothstep(0.3, 0.12, edge) * 0.45 - smoothstep(0.14, 0.08, edge) * 0.5);   // bevel: light shoulder, dark seam
     let joint = smoothstep(0.15, 0.02, edge) * pm;
     e += mix(U.slot[0].rgb, U.slot[3].rgb, 0.2 + 0.4 * N1.z) * joint * (0.015 + 0.22 * smoothstep(0.45, 0.8, N2.z) * (0.4 + N4.w));
     let band = exp(-pow((pd + wob - 1.4) / 0.3, 2.0)) * soil;
@@ -85,22 +93,29 @@ fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = ce
     e += mix(U.slot[0].rgb, U.slot[2].rgb, db.y) * (db.x * 0.7 + dr * N3.z * 0.04);
   }
   // lichen streaks on the cliff
-  let lich = smoothstep(0.74, 0.8, nz(vec2f((p.x + p.z) * 0.2, p.y * 0.03)).x) * smoothstep(0.4, 0.7, N2.y) * rockM * smoothstep(1.0, 4.0, p.y);
-  e += U.slot[0].rgb * lich * 0.1;
+  // wet glowing moss on the cliff, brightest near the fall
+  let wfd = exp(-distance(p.xz, vec2f(U.wf.x, U.wf.z)) * 0.12);
+  e += mix(U.slot[0].rgb, U.slot[3].rgb, N3.x) * smoothstep(0.5, 0.85, N2.y * 0.6 + N3.z * 0.5) * (0.4 + N4.z) * rockM * smoothstep(0.5, 3.0, p.y) * (0.03 + 0.14 * wfd);
+  // door: soft contact shadow, warm light spilling from the open portal
+  alb *= 1.0 - 0.55 * exp(-dd * dd * 1.6);
+  e += vec3f(1.0, 0.72, 0.45) * exp(-dd * dd * 0.55) * 0.085 * U.door.w / max(pl, 0.3);
   e *= pl * (1.0 + 0.6 * touch(p));
   let n = normalize(n0 + vec3f(bump.x, 0.0, bump.y) * (0.55 + 0.5 * rockM));
   let gl = slotCol(lm) * pl * exp(-max(p.y - terrH(p.xz), 0.0) * 0.22) * U.misc.w;
-  var c = shadeG(alb, n, gl, 1.0 - 0.3 * rockM) + alb * gl * 0.8;
+  var c = shadeG(alb, n, gl, 1.0 - 0.3 * rockM) + alb * gl * 1.5;
   let V = normalize(G.camPos - p);
-  c += (gl * 0.5 + G.sunColor * 0.5) * pow(1.0 - max(dot(n, V), 0.0), 4.0) * (0.05 + 0.25 * sheen + 0.2 * wet);
-  return vec4f(c + e, 1.0);
+  c += (gl * 0.5 + G.sunColor * 0.5) * pow(1.0 - max(dot(n, V), 0.0), 4.0) * (0.05 + 0.3 * sheen + 0.2 * wet + 0.35 * rockM);
+  c += G.sunColor * pow(max(dot(reflect(-V, n), G.sunDir), 0.0), 24.0) * (0.5 * sheen + 0.25 * rockM);
+  return vec4f(c + glow(e), 1.0);
 }
 
 // ---------------- trees ----------------
 struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f, @location(3) at: vec4f, @location(4) a: vec4f, @location(5) b: vec4f };
 @vertex fn vsTree(v: VII) -> VO {
   let R = rotY(v.b.x);
-  var lp = v.p * v.a.w;
+  let gi = 0.75 + 0.6 * fract(v.b.z * 11.3);
+  var lp = v.p * v.a.w * vec3f(gi, 1.0, gi);
+  lp += vec3f(fract(v.b.z * 5.7) - 0.5, 0.0, fract(v.b.z * 8.9) - 0.5) * lp.y * lp.y * 0.012;
   let t = G.time; let sd = v.b.z * 17.0;
   if (v.at.x > 0.5 && v.at.x < 1.5) {
     let k = smoothstep(8.0, 30.0, lp.y);
@@ -160,7 +175,7 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
     let side = smoothstep(0.14, 0.0, 0.5 - abs(fract(vv * 7.0 - ax * 1.8) - 0.5)) * (1.0 - 0.7 * ax);
     let df = 1.0 - smoothstep(25.0, 60.0, dist);
     e = sl * ((exp(-ax * ax * 120.0) * 0.8 + exp(-ax * ax * 10.0) * 0.16 + side * 0.28) * (1.0 - 0.65 * vv) * glowy + smoothstep(0.55, 1.0, ax) * 0.1 * step(kind, 0.22)) * df;
-    if (m > 2.5) { e = slotOf(in.b.y + 2.0) * (0.12 + 0.5 * exp(-ax * ax * 30.0)) * (1.0 - 0.5 * vv) * df; }
+    if (m > 2.5) { e = slotOf(in.b.y + 2.0) * (0.08 + 0.4 * exp(-ax * ax * 30.0)) * (1.0 - 0.5 * vv) * (1.0 - smoothstep(8.0, 20.0, dist)); }
     // moonlight through the leaf, plus a faint tint of the tree's own glow
     let back = max(dot(-n, G.sunDir), 0.0);
     extra = alb * (G.sunColor * (2.2 * back + 0.5 * pow(1.0 - abs(dot(n, V)), 2.0)) * U.misc.x + sl * 0.05);
@@ -173,13 +188,14 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
     e = slotOf(in.b.y + 2.0) * (0.05 + 0.1 * bead + 1.1 * trav) * df * (0.35 + 0.65 * max(dot(n, V), 0.0));
   }
   e *= pl * (1.0 + 0.8 * touch(p));
-  return vec4f(shadeG(alb, n, gl, ao) + extra + e, 1.0);
+  return vec4f(shadeG(alb, n, gl, ao) + extra + glow(e), 1.0);
 }
 
 // ---------------- generic props: 0 rock, 1 candelabra shrub, 2 mushrooms, 3 rosette, 4 lantern, 5 reed, 6 tuft ----------------
 @vertex fn vsProp(v: VII) -> VO {
   let R = rotY(v.b.x);
   var lp = v.p * v.a.w;
+  if (v.b.w > 0.5) { lp *= nearFade(v.a.xyz); }
   if (v.b.w > 0.5 && (v.b.w < 1.5 || v.b.w > 2.5)) {
     let sd = v.b.z * 29.0; let t = G.time;
     let k = lp.y * lp.y / max(v.a.w, 0.3) * 0.07 * (1.0 + 0.8 * touch(v.a.xyz));
@@ -208,8 +224,12 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
     if (part > 0.5) {
       // bulb: bright core seen through a dimmer skin
       alb = sl * 0.2;
-      e = sl * (0.25 + 0.9 * ndv * ndv) + vec3f(1.0, 0.95, 0.9) * pow(ndv, 6.0) * 0.5;
-    } else { alb = mix(hex(0x1a1420), hex(0x3a2c4a), g); e = sl * (0.02 + 0.55 * pow(g, 2.5)); }
+      e = sl * (0.2 + 0.5 * ndv * ndv) + vec3f(1.0, 0.95, 0.9) * pow(ndv, 6.0) * 0.12;
+    } else {
+      let sp = dotGlow(in.uv * vec2f(5.0, 9.0) + g * 37.0, 0.45, 0.3).x;
+      alb = mix(hex(0x1a1420), hex(0x3a2c4a), g) * (0.7 + 0.6 * nz(in.uv * vec2f(0.7, 1.9) + g * 5.0).x);
+      e = sl * (0.02 + 0.4 * pow(g, 2.5) + sp * 0.35 * g + 0.5 * pow(1.0 - ndv, 2.5) * (0.2 + g));
+    }
   } else if (ty < 2.5) {
     if (part < 0.5) {
       alb = mix(hex(0x2a2430), hex(0x80788c), smoothstep(0.0, 0.5, g));
@@ -218,20 +238,22 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
       // cap: darker crown with pale spots, glowing translucent rim
       let sp = dotGlow(in.uv * vec2f(9.0, 3.0) + in.b.z * 7.0, 0.5, 0.3).x * smoothstep(0.15, 0.6, g);
       alb = mix(sl * 0.35 + 0.05, hex(0x3a2c48), smoothstep(0.1, 0.9, g)) + sp * 0.3;
-      e = sl * (0.1 + 0.45 * pow(1.0 - g, 2.5) + 0.25 * pow(1.0 - ndv, 2.0) + sp * 0.3) * (0.6 + 0.4 * ndv);
+      e = sl * (0.16 + 0.55 * pow(1.0 - g, 2.5) + 0.3 * pow(1.0 - ndv, 2.0) + sp * 0.4) * (0.6 + 0.4 * ndv);
     } else {
       let gill = 0.55 + 0.45 * cos(in.uv.x * 6.2832 * 20.0);
       alb = sl * 0.3;
-      e = (sl * 0.9 + 0.1) * gill * (0.35 + 0.65 * g);
+      e = (sl * 1.0 + 0.1) * gill * (0.4 + 0.6 * g);
     }
   } else if (ty < 3.5) {
     // rosette leaf: glowing midrib and side veins, brighter toward the heart of the plant
     let x = in.at.z; let ax = abs(x);
     alb = mix(hex(0x0c2a24), hex(0x1f5a3a), g * 0.7 + in.at.w * 0.3);
     let side = smoothstep(0.16, 0.0, 0.5 - abs(fract(g * 6.0 - ax * 1.4) - 0.5)) * (1.0 - 0.6 * ax);
-    e = sl * ((exp(-ax * ax * 150.0) * 1.0 + exp(-ax * ax * 9.0) * 0.14 + side * 0.3) * (1.0 - 0.75 * g) + smoothstep(0.8, 1.0, ax) * 0.1);
-    alb *= 1.0 + 1.5 * max(dot(-n, G.sunDir), 0.0);
-    e += alb * sl * 0.25 * (1.0 - g);
+    let ret = nz(vec2f(x * 1.3, g * 2.6) + in.at.w * 9.0);
+    let fine = smoothstep(0.1, 0.0, abs(ret.x - 0.5)) * 0.5 + smoothstep(0.06, 0.0, abs(ret.y - 0.5)) * 0.3;   // net of small veins
+    e = sl * ((exp(-ax * ax * 150.0) * 1.0 + exp(-ax * ax * 9.0) * 0.14 + side * 0.3 + fine * 0.12) * (1.0 - 0.7 * g) + smoothstep(0.75, 1.0, ax) * 0.12);
+    alb *= (0.7 + 0.6 * ret.z) * (1.0 + 1.5 * max(dot(-n, G.sunDir), 0.0));
+    e += alb * sl * (0.35 * (1.0 - g) + 0.5 * pow(1.0 - ndv, 2.0));
   } else if (ty < 4.5) {
     if (part > 0.5) {
       // lantern pod: warm core glowing through ribbed skin, brightest at the open mouth
@@ -243,14 +265,14 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
   } else if (ty < 5.5) {
     alb = mix(hex(0x10261c), hex(0x2a5a38), g);
     e = sl * 0.5 * pow(g, 3.0);
-    if (part > 0.5) { alb = sl * 0.2; e = (sl + 0.15) * (0.4 + 0.9 * ndv * ndv); }
+    if (part > 0.5) { alb = sl * 0.2; e = (sl + 0.1) * (0.25 + 0.45 * ndv * ndv); }
   } else {
     alb = mix(hex(0x12301e), hex(0x2f6a36), g);
     e = sl * 0.45 * g * g;
     if (part > 0.5) { alb = sl * 0.3; e = mix(vec3f(1.0, 0.95, 0.8), sl, smoothstep(0.1, 0.6, g)) * (0.8 - 0.5 * g); }
-    e *= 1.0 - smoothstep(18.0, 30.0, distance(p, G.camPos));
+    e *= 1.0 - smoothstep(9.0, 22.0, distance(p, G.camPos));
   }
-  return vec4f(shadeJ(alb, n, p, 1.0) + e * pl, 1.0);
+  return vec4f(shadeJ(alb, n, p, 1.0) + glow(e * pl), 1.0);
 }
 
 // ---------------- fern fronds (shape built in the vertex shader) ----------------
@@ -264,7 +286,7 @@ fn rachis(s: f32, L: f32, phi0: f32, bend: f32, curl: f32) -> vec3f {
   return vec3f(q, phi0 - bend * s - curl * 11.0 * s * s * s);
 }
 @vertex fn vsFern(v: VII) -> VO {
-  let base = v.a.xyz; let L = v.a.w;
+  let base = v.a.xyz; let L = v.a.w * nearFade(v.a.xyz);
   let tch = touch(base);
   let sd = v.b.z * 31.0;
   let curl = v.b.w * (1.0 - 0.85 * tch);
@@ -311,23 +333,24 @@ fn rachis(s: f32, L: f32, phi0: f32, bend: f32, curl: f32) -> vec3f {
   e *= pulse(p) * (0.8 + 0.7 * in.e.x);
   alb *= 1.0 + 1.2 * max(dot(-n, G.sunDir), 0.0);
   alb += sl * 0.03;
-  return vec4f(shadeJ(alb, n, p, 0.8 + 0.2 * s) + e, 1.0);
+  return vec4f(shadeJ(alb, n, p, 0.8 + 0.2 * s) + glow(e), 1.0);
 }
 
 // ---------------- fan plants ----------------
 @vertex fn vsFan(v: VII) -> VO {
-  let base = v.a.xyz; let S = v.a.w; let tch = touch(base);
+  let base = v.a.xyz; let S = v.a.w * nearFade(v.a.xyz); let tch = touch(base);
   let sd = v.b.z * 23.0;
   let R = rotY(v.b.x);
-  let hs = 0.55 * S;
+  let hs = (0.4 + 0.4 * fract(v.b.z * 6.3)) * S;
+  let nr = 4.0 + floor(fract(v.b.z * 13.7) * 5.0);
   var lp: vec3f; var ln: vec3f;
   if (v.at.x > 0.5) {
-    let open = 0.62 + 0.1 * sin(G.time * 0.23 + sd) + 0.07 * sin(G.time * 0.41 + sd * 0.6) + 0.28 * tch;
+    let open = 0.45 + 0.3 * fract(v.b.z * 17.9) + 0.1 * sin(G.time * 0.23 + sd) + 0.07 * sin(G.time * 0.41 + sd * 0.6) + 0.28 * tch;
     let th = v.uv.x * open * 1.45;
     let r = v.uv.y * S * 0.75;
-    let pleat = cos(v.uv.x * 12.0 * 3.14159);
-    var q = vec3f(sin(th) * r, cos(th) * r, pleat * 0.045 * r);
-    let tilt = -0.35 - 0.3 * fract(v.b.z * 9.1) + 0.12 * sin(G.time * 0.19 + sd);
+    let pleat = cos(v.uv.x * 2.0 * nr * 3.14159);
+    var q = vec3f(sin(th) * r, cos(th) * r, pleat * 0.045 * r - (fract(v.b.z * 27.1) - 0.3) * 0.6 * r * r / S);
+    let tilt = -0.15 - 0.6 * fract(v.b.z * 9.1) + 0.12 * sin(G.time * 0.19 + sd);
     q = rotX(tilt) * q;
     lp = q + vec3f(0.0, hs, 0.0);
     ln = rotX(tilt) * vec3f(0.0, 0.0, 1.0);
@@ -337,7 +360,7 @@ fn rachis(s: f32, L: f32, phi0: f32, bend: f32, curl: f32) -> vec3f {
     ln = vec3f(cos(a), 0.0, sin(a));
   }
   var o = outV(base + R * lp, R * ln, v.uv, v.at, v.b);
-  o.e = vec3f(tch, 0.0, 0.0);
+  o.e = vec3f(tch, nr, 0.0);
   return o;
 }
 @fragment fn fsFan(in: VO) -> @location(0) vec4f {
@@ -346,21 +369,23 @@ fn rachis(s: f32, L: f32, phi0: f32, bend: f32, curl: f32) -> vec3f {
   var alb = hex(0x1a2e2a); var e = vec3f(0.0);
   if (in.at.x > 0.5) {
     let r = in.uv.y;
-    let fold = abs(fract(in.uv.x * 6.0) - 0.5);
-    let fw = fwidth(in.uv.x * 6.0);
-    let rib = (smoothstep(0.05 + fw, 0.0, fold) + exp(-fold * fold * 60.0) * 0.3) * smoothstep(0.02, 0.2, r);
+    let fx = in.uv.x * in.e.y * 0.5;
+    let fold = abs(fract(fx) - 0.5);
+    let fw = fwidth(fx);
+    let far = smoothstep(0.04, 0.2, fw);
+    let rib = mix((smoothstep(0.05 + fw, 0.0, fold) + exp(-fold * fold * 60.0) * 0.3), 0.3, far) * smoothstep(0.02, 0.2, r);
     let rim = smoothstep(0.8, 1.0, r);
     alb = mix(hex(0x17302c), hex(0x2c2a48), r);
     e = sl * (rib * (0.9 - 0.6 * r) + rim * rim * 0.8 + 0.05 * (1.0 - r)) + alb * sl * 0.3;
     alb *= 1.0 + 1.2 * max(dot(-n, G.sunDir), 0.0);
   } else { e = sl * 0.1; }
   e *= pulse(p) * (0.8 + 0.7 * in.e.x);
-  return vec4f(shadeJ(alb, n, p, 1.0) + e, 1.0);
+  return vec4f(shadeJ(alb, n, p, 1.0) + glow(e), 1.0);
 }
 
 // ---------------- spiral stalks ----------------
 @vertex fn vsSpiral(v: VII) -> VO {
-  let base = v.a.xyz; let Hh = v.a.w; let tch = touch(base);
+  let base = v.a.xyz; let Hh = v.a.w * nearFade(v.a.xyz); let tch = touch(base);
   let sd = v.b.z * 41.0;
   let coil = v.b.w * (1.0 - 0.55 * tch) * (1.0 + 0.06 * sin(G.time * 0.27 + sd));
   let s = v.uv.y;
@@ -386,10 +411,11 @@ fn rachis(s: f32, L: f32, phi0: f32, bend: f32, curl: f32) -> vec3f {
 @fragment fn fsSpiral(in: VO) -> @location(0) vec4f {
   let p = in.w; let n = faceN(normalize(in.n), p);
   let s = in.e.y; let sl = slotOf(in.b.y);
-  let ring = smoothstep(0.3, 0.0, abs(fract(s * 16.0 - G.time * 0.25 + in.b.z * 3.0) - 0.5) - 0.1);
+  let ring = pow(0.5 + 0.5 * sin(s * 11.0 - G.time * 0.7 + in.b.z * 19.0), 3.0);
+  let ndv = max(dot(n, normalize(G.camPos - p)), 0.0);
   let alb = mix(hex(0x1c2a24), hex(0x2a1c36), s);
-  let e = sl * (0.15 + ring * 0.9 * smoothstep(0.2, 0.6, s) + smoothstep(0.85, 1.0, s) * 2.0) * pulse(p) * (0.8 + 0.7 * in.e.x);
-  return vec4f(shadeJ(alb, n, p, 1.0) + e, 1.0);
+  let e = sl * ((0.1 + ring * 0.6 * smoothstep(0.1, 0.6, s)) * (0.4 + 0.6 * ndv) + 0.25 * pow(1.0 - ndv, 2.0) + smoothstep(0.8, 1.0, s) * 1.0) * pulse(p) * (0.8 + 0.7 * in.e.x);
+  return vec4f(shadeJ(alb, n, p, 1.0) + glow(e), 1.0);
 }
 
 // ---------------- lily pads ----------------
@@ -408,8 +434,9 @@ fn rachis(s: f32, L: f32, phi0: f32, bend: f32, curl: f32) -> vec3f {
   let r = in.at.y; let a = in.at.z;
   let sl = slotOf(in.b.y);
   // radial veins that fork half way out, fine concentric cross veins; all fade toward the edge
-  let d1 = abs(fract(a * 2.228) - 0.5) * 0.449 * r;
-  let d2 = abs(fract(a * 4.456 + 0.5) - 0.5) * 0.224 * r;
+  let nv = 9.0 + floor(fract(in.b.z * 7.7) * 9.0);
+  let d1 = abs(fract(a * nv / 6.2832) - 0.5) * 6.2832 / nv * r;
+  let d2 = abs(fract(a * nv / 3.1416 + 0.5) - 0.5) * 3.1416 / nv * r;
   let fw = fwidth(r) + 1e-4;
   let k = smoothstep(0.03, 0.008, fw);
   let v1 = (smoothstep(0.012 + fw, 0.002, d1) + exp(-d1 * d1 * 900.0) * 0.3) * smoothstep(0.02, 0.1, r);
@@ -421,15 +448,15 @@ fn rachis(s: f32, L: f32, phi0: f32, bend: f32, curl: f32) -> vec3f {
   let N = nz(p.xz * 0.9);
   var alb = mix(hex(0x0f3626), hex(0x2a5a34), smoothstep(0.1, 0.9, r)) * (0.75 + 0.5 * N.x);
   let rimM = smoothstep(0.96, 0.985, r);
-  alb = mix(alb, hex(0x4a1832) * (0.6 + 0.5 * N.y), rimM);
-  var e = sl * ((v1 + v2 + v3) * fade * wave * 0.9 + exp(-r * r * 90.0) * 0.5) * (1.0 - rimM);
+  alb = mix(alb, mix(hex(0x4a1832), hex(0x1c3a2c), fract(in.b.z * 3.9)) * (0.5 + 0.5 * N.y), rimM);
+  var e = mix(sl, slotOf(in.b.y + 1.0), fract(in.b.z * 5.3) * 0.6) * ((v1 + v2 * step(0.4, fract(in.b.z * 9.1)) + v3) * fade * wave * 0.9 + exp(-r * r * 90.0) * 0.5) * (1.0 - rimM);
   e += slotOf(in.b.y + 1.0) * smoothstep(0.99, 1.0, r) * 0.12;
   if (!up || n.y < 0.2) { e *= 0.25; }
   e *= pulse(p) * (1.0 + 0.8 * touch(p));
   let V = normalize(G.camPos - p);
   let F = pow(1.0 - max(dot(n, V), 0.0), 4.0);
   let spec = pow(max(dot(reflect(-V, n), G.sunDir), 0.0), 60.0) * 0.3;
-  return vec4f(shadeJ(alb, n, p, 1.0) + e + G.sunColor * spec + (glowAt(p) * 0.3 + G.ambientSky * 0.6) * F * (1.0 - rimM), 1.0);
+  return vec4f(shadeJ(alb, n, p, 1.0) + glow(e) + G.sunColor * spec + (glowAt(p) * 0.3 + G.ambientSky * 0.6) * F * (1.0 - rimM), 1.0);
 }
 
 // ---------------- lotus (petals shaped here: closed bud <-> open bloom) ----------------
@@ -497,7 +524,9 @@ fn bloomOf(b: vec4f) -> f32 {
   let f = fishPos(v.a, b);
   var lp = v.p * 1.3 * (0.8 + 0.4 * fract(b.z * 3.3));
   let zt = 1.0 - v.at.y;
-  lp.x += sin(t * 2.6 + lp.z * 5.0 + b.z * 9.0) * 0.07 * zt * zt;
+  lp.x += sin(t * 2.6 + lp.z * 5.0 + b.z * 9.0) * 0.06 * zt * zt;
+  // refraction-style shimmer from the rippling surface above
+  lp += vec3f(sin(t * 1.9 + f.x * 5.0 + lp.z * 9.0), 0.0, cos(t * 1.6 + f.z * 5.0 + lp.x * 9.0)) * 0.012;
   if (v.at.x > 0.5 && v.at.y > 0.6) { lp.y += sin(t * 2.6 - 2.0 + b.z * 9.0) * 0.04 * v.at.z; }
   let yaw = f.w;
   let R = mat3x3f(cos(yaw), 0.0, -sin(yaw), 0.0, 1.0, 0.0, sin(yaw), 0.0, cos(yaw));
@@ -510,20 +539,22 @@ fn bloomOf(b: vec4f) -> f32 {
   let V = normalize(G.camPos - p); let ndv = max(dot(n, V), 0.0);
   // koi pattern: soft orange / white patches over a dim body, luminous along the back
   let N = nz(vec2f(in.uv.x * 0.5 + in.b.z * 3.0, in.uv.y * 0.9 + in.b.z));
-  let ptc = smoothstep(0.36, 0.62, N.x);
+  let ptc = smoothstep(0.44, 0.54, N.x + (nz(in.uv * vec2f(2.0, 3.5) + in.b.z).z - 0.5) * 0.25);
   let orange = vec3f(1.6, 0.48, 0.1); let white = vec3f(1.25, 1.15, 1.05);
   var e = mix(orange, white, smoothstep(0.4, 0.65, N.y)) * (0.08 + 0.6 * ptc) * (0.5 + 0.5 * max(n.y, 0.0));
-  e += sl * 0.25 * (1.0 - ptc);
-  e *= 0.5 + 0.5 * ndv;
+  e += sl * 0.2 * (1.0 - ptc) + vec3f(0.9, 0.95, 1.0) * pow(max(n.y, 0.0), 6.0) * 0.25;   // sheen along the back
+  e *= 0.45 + 0.55 * ndv;
+  e = mix(e, e * vec3f(1.0, 0.55, 0.35), smoothstep(0.8, 1.0, z) * 0.6);   // darker head
   if (in.at.x > 0.5) {
     // fins: translucent veils fading to the edge
     let fv = in.at.z; let fu = abs(in.at.w);
     let ray = 0.7 + 0.3 * cos(in.at.w * 14.0);
-    e = mix(orange, white, 0.3 + 0.5 * fv) * (1.0 - 0.8 * fv) * (1.0 - 0.5 * fu * fu) * ray * 0.32;
+    e = mix(orange, white, 0.2 + 0.6 * fv) * (0.85 - 0.6 * fv) * (1.0 - 0.4 * fu * fu) * ray * 0.45;
   }
+  if (in.at.x > 1.5) { e = vec3f(0.01) + vec3f(1.0, 0.9, 0.6) * pow(1.0 - ndv, 3.0) * 0.5; }
   // tint by the water above
   let d = max(-p.y, 0.0);
-  e = e * exp(-d * vec3f(1.6, 0.5, 0.45)) + vec3f(0.0, 0.02, 0.025) * (1.0 - exp(-d * 2.0));
+  e = e * exp(-d * vec3f(1.9, 0.7, 0.6)) + vec3f(0.0, 0.03, 0.035) * (1.0 - exp(-d * 2.0));
   return vec4f(e * (0.85 + 0.3 * pulse(p)), 1.0);
 }
 
@@ -548,7 +579,8 @@ fn bloomOf(b: vec4f) -> f32 {
   let lime = mix(U.slot[3].rgb, U.slot[0].rgb, 0.35);
   var e = lime * sp.x * 0.7 * step(tag, 1.5) * smoothstep(0.0, 0.5, n.y) + lime * 0.06;
   if (tag > 3.5) { alb = lime * 0.3; e = (lime * 1.2 + 0.2) * (0.25 + 1.3 * in.b.y) * (0.4 + 0.6 * ndv); }
-  else if (tag > 2.5) { alb = vec3f(0.3, 0.25, 0.05); e = vec3f(1.8, 1.35, 0.35) * (0.35 + 0.65 * ndv * ndv); }
+  else if (tag > 2.5) { alb = vec3f(0.25, 0.22, 0.08); e = vec3f(0.5, 0.42, 0.14) * (0.3 + 0.7 * ndv * ndv) * step(0.5, ndv + in.uv.y * 0.6); }
+  else if (tag < 1.5) { let st = smoothstep(0.25, 0.1, abs(fract(in.uv.x * 2.0 + 0.25) - 0.5)) * smoothstep(0.35, 0.7, in.uv.y); alb = mix(alb, hex(0x7ac05a), st * 0.7); e += lime * st * 0.25; }
   e += (glowAt(p) * 0.4 + G.sunColor * 0.5) * pow(1.0 - ndv, 3.0) * 0.5;
   return vec4f(shadeJ(alb, n, p, 1.0) + e * (0.8 + 0.3 * pulse(p)), 1.0);
 }
@@ -585,7 +617,7 @@ fn skyCol(rd: vec3f, stars: bool) -> vec3f {
   var c = mix(hex(0x0a2a38) * 0.35, hex(0x140f33) * 0.3, smoothstep(-0.05, 0.35, h));
   c = mix(c, hex(0x05061a) * 0.25, smoothstep(0.3, 0.95, h));
   let m = max(dot(rd, G.sunDir), 0.0);
-  c += vec3f(0.35, 0.4, 0.75) * (pow(m, 8.0) * 0.05 + pow(m, 64.0) * 0.12 + pow(m, 900.0) * 0.6) * U.misc.x;
+  c += vec3f(0.35, 0.4, 0.75) * (pow(m, 8.0) * 0.05 + pow(m, 64.0) * 0.12 + smoothstep(0.99955, 0.9998, m) * 5.0) * U.misc.x;
   if (stars && h > 0.0) {
     let q = rd.xz / (h + 0.35) * 70.0;
     let d = dotGlow(q, 0.12, 0.09);
@@ -593,6 +625,11 @@ fn skyCol(rd: vec3f, stars: bool) -> vec3f {
     c += mix(vec3f(0.7, 0.8, 1.2), vec3f(1.2, 0.8, 1.1), d.y) * d.x * tw * 0.5 * smoothstep(0.05, 0.3, h);
     let neb = nz(rd.xz / (h + 0.5) * 0.25 + vec2f(0.1, G.time * 0.0007));
     c += slotCol(vec4f(neb.x, 0.0, neb.y, 0.0)) * 0.025 * smoothstep(0.4, 0.8, neb.z) * smoothstep(0.1, 0.5, h);
+    // dark canopy closing the sky overhead, open around the moon; moonlit leaf edges
+    let q2 = rd.xz / (h + 0.4);
+    let lf = nz(q2 * 0.31).x * 0.6 + nz(q2 * 1.7 + 0.3).y * 0.4 + 0.3 * smoothstep(0.05, 0.6, h) - 0.5 * pow(m, 7.0);
+    let can = smoothstep(0.4, 0.5, lf) * smoothstep(0.0, 0.2, h);
+    c = mix(c, vec3f(0.004, 0.011, 0.013) + G.sunColor * 0.12 * smoothstep(0.56, 0.42, lf) * pow(m, 3.0), can);
   }
   return c;
 }
