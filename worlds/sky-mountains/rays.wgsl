@@ -34,5 +34,5 @@ struct RO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) 
   let dist = G.near / max(textureLoad(DT, vec2i(in.pos.xy), 0), 1e-6);
   let air = 1.0 - exp(-dist * 0.0018);
   let glow = pow(s, 5.0) * 0.4 + pow(s, 24.0) * 0.1;
-  return vec4f(G.sunColor * vec3f(1.0, 0.82, 0.6) * (v * v * glow * air * G.params.x * 0.26), 0.0);
+  return vec4f(G.sunColor * vec3f(1.0, 0.72, 0.5) * (v * v * glow * air * G.params.x * 0.22), 0.0);
 }

@@ -64,7 +64,7 @@ export default {
     pose(-0.5, SPAWN[1] + 3.0, -9.5, -8.6, SPAWN[1] + 2.7, -19.6, 12),    // close pine on the island's ledge
     pose(-25, 75, 3, -38, 10, -42, 41),                                  // looking down into the clouds
     pose(46, 56, -8, 46 + SUN[0] * 100, 56 + SUN[1] * 100 + 6, -8 + SUN[2] * 100, 26),   // sunrise backlight through pillars
-    pose(1.9, DOOR[1] + 1.5, 9.8, -0.3, DOOR[1] + 1.2, DOOR[2], 16),        // the door on its ledge
+    pose(2.4, DOOR[1] + 1.45, 10.2, -0.4, DOOR[1] + 1.15, DOOR[2], 16),        // the door on its ledge
   ],
   flythrough: [
     [0, 72.6, 2, 0, 72, -40], [1, 73, -16, 10, 74, -80], [6, 77, -44, 50, 72, -130], [16, 80, -78, 56, 68, -128], [14, 76, -112, 50, 60, -132],
@@ -76,10 +76,11 @@ export default {
   doors: [{ pos: DOOR, yaw: Math.PI, to: 'moon-sea' }],
   bounds: { center: [0, 95, -70], radius: 280 },
   env: {
-    sunDir: SUN, sunColor: [3.7, 2.1, 0.95], fogColor: [0.6, 0.56, 0.78], fogDensity: 0.0012,
-    ambientSky: [0.16, 0.22, 0.47], ambientGround: [0.21, 0.17, 0.2],
+    sunDir: SUN, sunColor: [4.3, 2.15, 0.8], fogColor: [0.62, 0.52, 0.72], fogDensity: 0.0012,
+    ambientSky: [0.15, 0.2, 0.5], ambientGround: [0.24, 0.2, 0.34],
   },
-  post: { exposure: 1.0, bloom: 0.1, bloomThreshold: 1.0, bloomKnee: 0.7, vignette: 0.22, saturation: 1.18, contrast: 1.08 },
+  post: { exposure: 1.0, bloom: 0.12, bloomThreshold: 1.0, bloomKnee: 0.7, vignette: 0.24, saturation: 1.24, contrast: 1.15 },
+  doorLight: [0.07, 0.06, 0.1],
   clearColor: [0.5, 0.52, 0.8],
   fov: 64,
 
@@ -190,12 +191,14 @@ export default {
       return g;
     });
     this.rockB.push(add([up(merge(isl))], [0, 0, 0, 1, 0, 0.5, 1, -1], { d: [1e9], ck: 0, rk: 1e6 }));
-    this.rockB.push(add([up(stone(3, 3)), up(stone(3, 1))], stones, { d: [30, 260], ck: 0, rk: 1.4, bs: [0, 70, 0, 300] }));
-    this.rockB.push(add([up(stone(5, 2)), up(stone(5, 1))], frags, { d: [40, 700], ck: 0, rk: 2.2 }));
+    this.rockB.push(add([up(stone(3, 3)), up(stone(3, 2))], stones, { d: [30, 260], ck: 0, rk: 1.4, bs: [0, 70, 0, 300] }));
+    const half = (frags.length / 16 | 0) * 8;
+    this.rockB.push(add([up(stone(5, 3)), up(stone(5, 2))], frags.slice(0, half), { d: [60, 700], ck: 0, rk: 2.2 }));
+    this.rockB.push(add([up(stone(8, 3)), up(stone(8, 2))], frags.slice(half), { d: [60, 700], ck: 0, rk: 2.2 }));
     await progress(0.62);
-    for (let v = 0; v < 3; v++) { this.vegB.push(add(lods((l) => pine(v + 1, l), 4), trees[v], { d: [26, 75, 210, 560], ck: 3, rk: 5.5 })); await progress(0.65 + v * 0.04); }
-    this.vegB.push(add([up(tuft(11, 11)), up(tuft(12, 5))], cover.tufts, { d: [22, 80], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 130] }));
-    this.vegB.push(add([up(flower(4))], cover.flowers, { d: [70], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 120] }));
+    for (let v = 0; v < 3; v++) { this.vegB.push(add(lods((l) => pine(v + 1, l), 4), trees[v], { d: [22, 75, 210, 560], ck: 3, rk: 5.5 })); await progress(0.65 + v * 0.04); }
+    this.vegB.push(add([up(tuft(11, 11)), up(tuft(12, 5))], cover.tufts, { d: [22, 48], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 100] }));
+    this.vegB.push(add([up(flower(4))], cover.flowers, { d: [48], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 100] }));
     // cloud grid: polar, rings grow geometrically
     const NA = 128, NR = 84, cv = new Float32Array((NA * NR + 1) * 2), ci = new Uint32Array(NA * 3 + (NR - 1) * NA * 6);
     let n = 0;
@@ -215,18 +218,26 @@ export default {
     }
     this.birdM = up(crane()); this.birdI = ctx.buffer(Float32Array.from(bi), 'vertex'); this.nBird = bi.length / 8;
     // waterfalls (water + mist plume per fall)
-    const fi = [];
+    const fi = [], pi = [];
     this.fallList = falls();
-    for (const f of this.fallList) for (const kind of [1, 0]) fi.push(f[0], f[1], f[2], f[3], f[4], f[5], f[6], kind);
+    for (const f of this.fallList) {
+      const tx = -Math.sin(f[6]), tz = Math.cos(f[6]);
+      for (let k = -1; k <= 1; k++) { const o = k * f[4] * 0.55 + (R() - 0.5) * 0.2; fi.push(f[0] + tx * o, f[1], f[2] + tz * o, f[3] * (0.8 + 0.3 * R()), f[4] * (0.2 + 0.14 * R()), f[5] + k * 0.13, f[6], 0); }
+      for (let k = 0; k < 5; k++) pi.push(f[0], f[1], f[2], f[3], f[4], f[5], f[6], k);
+    }
     this.fallI = ctx.buffer(Float32Array.from(fi), 'vertex'); this.nFall = fi.length / 8;
-    this.nMote = [300, 600, 1000][q];
+    this.puffI = ctx.buffer(Float32Array.from(pi), 'vertex'); this.nPuff = pi.length / 8;
+    this.nMote = [160, 320, 520][q];
     await progress(0.8);
 
     // ---------- pipelines ----------
     const IL = M.instanceLayout(['float32x4', 'float32x4'], 3), sc = COMMON + SCENE, mod = ctx.shader(sc, 'scene'), fx = ctx.shader(COMMON + FX, 'fx'), rays = ctx.shader(RAYS, 'rays');
     const P = (d) => ctx.pipelineAsync({ layouts: [cL], ...d });
     this.dL = ctx.layout(['texture-depth']); this.rL = ctx.layout(['texture', 'sampler']);
-    [this.pRock, this.pVeg, this.pBird, this.pCloud, this.pShell, this.pSky, this.pFall, this.pMote, this.pRay, this.pRayMix] = await Promise.all([
+    const CB = [{ arrayStride: 8, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }] }];
+    [this.pVeil, this.pPuff, this.pRock, this.pVeg, this.pBird, this.pCloud, this.pShell, this.pSky, this.pFall, this.pMote, this.pRay, this.pRayMix] = await Promise.all([
+      P({ module: mod, vs: 'vsCloud', fs: 'fsVeil', buffers: CB, cull: 'none', blend: 'premul', label: 'veil' }),
+      P({ module: fx, vs: 'vsPuff', fs: 'fsPuff', buffers: [IL], cull: 'none', blend: 'premul', label: 'puff' }),
       P({ module: mod, fs: 'fsRock', buffers: [M.layout, IL], label: 'rock' }),
       P({ module: mod, fs: 'fsVeg', buffers: [M.layout, IL], cull: 'none', label: 'veg' }),
       P({ module: mod, vs: 'vsBird', fs: 'fsBird', buffers: [M.layout, IL], cull: 'none', label: 'bird' }),
@@ -282,6 +293,8 @@ export default {
     pass.setBindGroup(1, this.cBG);
     pass.setPipeline(this.pShell);
     pass.setVertexBuffer(0, this.cloudV); pass.setIndexBuffer(this.cloudI, 'uint32'); pass.drawIndexed(this.shellN, this.shells, 0, 0, 1);
+    pass.setPipeline(this.pVeil); pass.drawIndexed(this.shellN, 1, 0, 0, 20);
+    pass.setPipeline(this.pPuff); pass.setVertexBuffer(0, this.puffI); pass.draw(6, this.nPuff);
     pass.setPipeline(this.pFall); pass.setVertexBuffer(0, this.fallI); pass.draw(168, this.nFall);
     pass.setPipeline(this.pMote); pass.draw(6, this.nMote);
   },

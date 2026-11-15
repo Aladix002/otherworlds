@@ -4,7 +4,7 @@ import { makeRng } from '../../core/src/math.js';
 import { ss, pillarFn, islandTop, islandRR } from './geo.js';
 
 const TAU = Math.PI * 2;
-export const SUN = (() => { const v = [-0.5, 0.2, -0.84], l = Math.hypot(...v); return v.map((c) => c / l); })();
+export const SUN = (() => { const v = [-0.5, 0.135, -0.84], l = Math.hypot(...v); return v.map((c) => c / l); })();
 export const CLOUD_FLOOR = 9;
 
 // floating islands (world units). The first one is the hero island with the door.
@@ -93,14 +93,13 @@ export function pillarTrees(inst, k, variant, fl, R, out, max) {
 }
 
 // hero island dressing. Trees: [x, z, scale, variant]
-export const HERO_TREES = [[-8.5, -19.5, 1.25, 0], [11.5, -14, 1.0, 1], [-14.5, -2, 1.35, 2], [14, 7.5, 1.15, 0], [-9.5, 11.5, 0.9, 1], [-5.6, 19.3, 1.2, 2], [6.3, 20.2, 1.0, 0],
-  [1.5, 25.5, 1.3, 1], [-13, 16, 0.8, 0], [12.5, 18, 0.85, 2], [15.5, -4, 0.75, 1]];
+export const HERO_TREES = [[-8.5, -19.5, 1.25, 0], [11.5, -14, 1.0, 1], [-14.5, -2, 1.35, 2], [14.5, 6.5, 1.15, 0], [-7.2, 20.6, 1.2, 2], [7.5, 22.5, 1.0, 0], [15.5, -4, 0.75, 1]];
 // stones: [x, z, scale, flatten, sink]
 export const HERO_STONES = [[0.05, 13.1, 0.5, 0.22, 0.05], [-0.3, 11.5, 0.46, 0.2, 0.05], [0.35, 9.9, 0.52, 0.2, 0.06], [-0.1, 8.2, 0.42, 0.2, 0.05], [0.3, 6.6, 0.38, 0.2, 0.05],
   [-1.75, 15.5, 0.62, 0.8, 0.2], [1.8, 15.2, 0.5, 0.7, 0.15], [-2.5, 14.4, 0.3, 0.8, 0.1], [2.4, 16.3, 0.36, 0.8, 0.1], [-1.5, 16.7, 0.28, 0.7, 0.08], [1.45, 13.9, 0.2, 0.7, 0.06],
   [-6, -15.5, 1.5, 0.75, 0.5], [-4.3, -17.2, 0.8, 0.8, 0.25], [8.5, -18.5, 1.2, 0.7, 0.4], [3.2, -3.4, 0.5, 0.6, 0.15], [-11, 6, 1.0, 0.8, 0.3], [10, 13, 0.7, 0.8, 0.2],
   [-3.8, 22.6, 0.9, 0.8, 0.3], [9, 22.5, 1.1, 0.75, 0.35], [-15, -9, 1.3, 0.7, 0.4], [4.5, 3.5, 0.3, 0.7, 0.1], [-2.6, -9.5, 0.34, 0.7, 0.1], [13, -9, 0.9, 0.8, 0.3]];
-const nearDoor = (x, z) => Math.abs(x) < 0.75 && Math.abs(z - DOOR[2]) < 2.3;
+const nearDoor = (x, z) => Math.abs(x) < 0.42 && Math.abs(z - DOOR[2]) < 1.6 || Math.abs(x) < 0.8 && Math.abs(z - DOOR[2]) < 0.25;
 
 export function heroCover(q, R) {
   const tufts = [], flowers = [], I = HERO;
@@ -108,7 +107,7 @@ export function heroCover(q, R) {
   const clear = (x, z, m) => { for (const s of HERO_STONES) if (Math.hypot(x - s[0], z - s[1]) < s[2] * 0.9 + m) return 0; return !nearDoor(x, z); };
   for (let i = 0, t = 0; i < NT && t < NT * 6; t++) {
     let x = (R() * 2 - 1) * I.rx * 1.3, z = (R() * 2 - 1) * I.rz * 1.3;
-    if (t % 5 === 0) { const a = R() * TAU, r = 1 + 5 * R(); x = Math.cos(a) * r; z = DOOR[2] + Math.sin(a) * r; }   // lusher around the door
+    if (t % 4 === 0) { const a = R() * TAU, r = 0.6 + 4 * R() * R(); x = Math.cos(a) * r; z = DOOR[2] + Math.sin(a) * r; }   // lusher around the door
     if (islandRR(I, x, z) > 0.94 || !clear(x, z, 0.02)) continue;
     const n = fbm2(x * 0.13 + 4, z * 0.13, 2);
     if (n < -0.1 && R() < 0.85) continue;
@@ -144,8 +143,8 @@ export function fragments(R, out) {
 export function falls() {
   const out = [];
   for (const [i, th, w] of [[1, 1.72, 1.5], [1, 2.55, 0.9], [0, 3.35, 0.7], [2, 0.9, 2.4], [5, 1.3, 3.0], [5, 2.2, 2.0], [7, 2.6, 1.3], [3, 4.4, 1.0]]) {
-    const I = ISL[i], p = rim(I, th, 0.93), y = topY(I, p[0], p[1]) - 0.4, a = Math.atan2(Math.sin(th) * I.rz, Math.cos(th) * I.rx);
-    out.push([p[0], y, p[1], y - 22, w, out.length * 0.37, a]);
+    const I = ISL[i], p = rim(I, th, 0.985), y = topY(I, p[0], p[1]) + 0.1, a = Math.atan2(Math.sin(th) * I.rz, Math.cos(th) * I.rx);
+    out.push([p[0], y, p[1], y - 20, w, out.length * 0.37, a]);
   }
   return out;
 }

@@ -43,9 +43,9 @@ export function pillarFn(sd, fl, nv) {
     if (vb < 1) y = y0 + (yc - y0) * vb; else { const t = Math.min((v - 0.9) / 0.1, 1) * 1.5708; y = yc + (1 - yc) * Math.sin(t); cap = Math.pow(Math.max(Math.cos(t), 0), 0.6); }
     const shape = 1 + 0.3 * fbm2(c * 0.9 + s1 + y * 1.3, s * 0.9 + s2 + y * 0.7, 2);
     const width = 1 + wq * fbm2(y * 2.6 + s3, s1, 2) + head * Math.exp(-(((y - hy) * 9) ** 2)) + (fl ? 0 : 0.4 * Math.exp(-Math.max(y, 0) * 7));
-    const yy = y * K + 0.3 * fbm2(c * 0.7 + s3, s * 0.7 + y * 2, 2), fr = yy - Math.floor(yy), led = ss(0, 0.2, fr) * (1 - ss(0.8, 1, fr));
+    const yy = y * K + 0.75 * fbm2(c * 0.7 + s3, s * 0.7 + y * 2, 2) + 0.5 * Math.cos(th - wob), fr = yy - Math.floor(yy), led = ss(0, 0.2, fr) * (1 - ss(0.8, 1, fr));
     const fl2 = snoise2(c * 2.3 + s2, s * 2.3 + y * 0.6);
-    let r = shape * width * (0.55 + 0.45 * tr) * (1 + 0.05 * fl2 + 0.08 * (led - 0.6)) * cap, yo = y;
+    let r = shape * width * (0.55 + 0.45 * tr) * (1 + 0.09 * fl2 + 0.07 * (led - 0.6)) * cap, yo = y;
     if (fl) { const tb = Math.min(y / 0.34, 1), j = ridge2(c * 1.4 + s3, s * 1.4 + s1, 2); r *= Math.pow(tb, 0.6) * (1 - 0.3 * (1 - tb) * j); yo = y - 0.07 * (1 - tb) * (1 - tb) * (j - 0.5); }
     const off = lean * yo * yo + 0.07 * Math.sin(yo * 7 + wob);
     o[0] = r * c + Math.cos(la) * off; o[1] = yo; o[2] = r * s + Math.sin(la) * off;
@@ -72,7 +72,7 @@ function islandFn(I) {
     if (v > 0.5) {
       const q = 1 - rr, n = fbm2(x * 0.06 + I.sd * 3, z * 0.06, 2), sp = ridge2(x * 0.09 + I.sd, z * 0.09, 2);
       y = islandTop(I, ol * I.rx * c * 0.999, ol * I.rz * s * 0.999) - 1.2 - I.dep * Math.pow(q, 0.62) * (0.75 + 0.45 * n) - I.dep * 0.5 * sp * sp * sp * Math.pow(q, 0.4);
-      ao = 0.62 - 0.25 * sp;
+      ao = 0.82 - 0.2 * sp;
     }
     o[0] = x; o[1] = y; o[2] = z; o[3] = ao; o[4] = 0;
   };
@@ -82,43 +82,43 @@ export function island(I, nu, nv, nVines) {
   for (let i = 0; i < nVines; i++) {
     const root = i % 4 === 0;                              // every 4th is a thick dangling root from deeper under the island
     f(R(), root ? 0.62 + R() * 0.2 : 0.515 + R() * 0.07, o);
-    const L = (root ? 0.25 + R() * 0.3 : 0.12 + R() * 0.35) * I.dep + 2, r0 = (root ? 0.3 + R() * 0.3 : 0.07 + R() * 0.09) * Math.sqrt(I.rx / 20);
-    const p1 = R() * TAU, p2 = R() * TAU, w = root ? 1.6 : 0.5, path = [];
+    const L = (root ? 0.25 + R() * 0.3 : 0.12 + R() * 0.35) * I.dep + 2, r0 = (root ? 0.3 + R() * 0.3 : 0.12 + R() * 0.1) * Math.sqrt(I.rx / 20);
+    const p1 = R() * TAU, p2 = R() * TAU, w = root ? 2.2 : 1.3, path = [];
     for (let j = 0; j <= 8; j++) { const t = j / 8; path.push([o[0] + w * t * Math.sin(t * 4 + p1), o[1] + 0.6 - L * t, o[2] + w * t * Math.sin(t * 3.3 + p2)]); }
     parts.push(setUV(tube(path, (t) => r0 * (1 - 0.8 * t) + 0.015, root ? 6 : 4), 0.8, (t) => 1 + 0.98 * t * t * (root ? 0.4 : 1)));
   }
   return merge(parts);
 }
 
-// ---- Huangshan pine: leaning trunk, many thin horizontal needle pads. lod 0 adds short needle sprays.
+// ---- Huangshan pine: S-curved leaning trunk, long cantilevered limbs, tiers of clustered needle tufts (tilted, lobed, thick).
 function pad(R, c, ang, sx, sy, sz, sub, nNeedle) {
-  const g = sphere(1, sub), o1 = R() * 40, o2 = R() * 40, ca = Math.cos(ang), sa = Math.sin(ang), parts = [g], P = [0, 0, 0];
-  // lobed outline, lumpy top, flat dark underside
+  const g = sphere(1, sub), o1 = R() * 40, o2 = R() * 40, ca = Math.cos(ang), sa = Math.sin(ang), parts = [g], P = [0, 0, 0], tx = (R() - 0.5) * 0.6, tz = (R() - 0.5) * 0.6;
   const shp = (x, y, z) => {
-    const h = Math.hypot(x, z) || 1, d = 1 + 0.4 * snoise2(x / h * 1.1 + o1, z / h * 1.1 + o2) + 0.1 * snoise2(x * 3.1 + o2, z * 3.1 + o1);
+    const h = Math.hypot(x, z) || 1, d = 1 + 0.42 * snoise2(x / h * 1.2 + o1, z / h * 1.2 + o2) + 0.13 * snoise2(x * 3.1 + o2, z * 3.1 + o1);
     const lx = x * d * sx, lz = z * d * sz;
-    P[0] = c[0] + lx * ca - lz * sa; P[1] = c[1] + (y < 0 ? y * 0.3 : y * (0.8 + 0.5 * snoise2(x * 2.2 + o2, z * 2.2 - o1))) * sy; P[2] = c[2] + lx * sa + lz * ca;
+    P[0] = c[0] + lx * ca - lz * sa; P[2] = c[2] + lx * sa + lz * ca;
+    P[1] = c[1] + (y < 0 ? y * 0.35 : y * (0.75 + 0.55 * snoise2(x * 2.2 + o2, z * 2.2 - o1))) * sy + lx * tx + lz * tz;
   };
   for (let i = 0; i < g.pos.length; i += 3) {
     const y = g.pos[i + 1]; shp(g.pos[i], y, g.pos[i + 2]); g.pos.set(P, i);
-    g.uv[i / 3 * 2] = 0.12 + 0.88 * ss(-0.5, 0.75, y); g.uv[i / 3 * 2 + 1] = 3.25;
+    g.uv[i / 3 * 2] = 0.1 + 0.9 * ss(-0.45, 0.7, y); g.uv[i / 3 * 2 + 1] = 3.25;
   }
   computeNormals(g);
   if (nNeedle) {
     const NB = 6, n = mk(nNeedle * NB * 3, nNeedle * NB * 3); let k = 0;
     for (let i = 0; i < nNeedle; i++) {
-      const a = R() * TAU, b = 1.75 - 1.55 * R() * R(), dx = Math.cos(a) * Math.sin(b), dy = Math.cos(b), dz = Math.sin(a) * Math.sin(b);
+      const a = R() * TAU, b = 1.8 - 1.6 * R() * R(), dx = Math.cos(a) * Math.sin(b), dy = Math.cos(b), dz = Math.sin(a) * Math.sin(b);
       shp(dx, dy, dz);
       const bx = P[0], by = P[1], bz = P[2];
-      let nx = (dx * ca - dz * sa), ny = dy * 0.8 + 0.12, nz = (dx * sa + dz * ca); const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
+      let nx = (dx * ca - dz * sa), ny = dy * 0.8 + 0.1, nz = (dx * sa + dz * ca); const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
       for (let j = 0; j < NB; j++) {
-        let ex = nx + (R() - 0.5) * 1.5, ey = ny + (R() - 0.5) * 1.1, ez = nz + (R() - 0.5) * 1.5; const l = (0.11 + R() * 0.16) / Math.hypot(ex, ey, ez);
+        let ex = nx + (R() - 0.5) * 1.6, ey = ny + (R() - 0.5) * 1.2, ez = nz + (R() - 0.5) * 1.6; const l = (0.06 + R() * 0.09) / Math.hypot(ex, ey, ez);
         ex *= l; ey *= l; ez *= l;
-        let px = ey * nz - ez * ny, py = ez * nx - ex * nz, pz = ex * ny - ey * nx; const pl = 0.009 / (Math.hypot(px, py, pz) || 1); px *= pl; py *= pl; pz *= pl;
+        let px = ey * nz - ez * ny, py = ez * nx - ex * nz, pz = ex * ny - ey * nx; const pl = 0.012 / (Math.hypot(px, py, pz) || 1); px *= pl; py *= pl; pz *= pl;
         const Q = [[bx - px, by - py, bz - pz], [bx + px, by + py, bz + pz], [bx + ex, by + ey, bz + ez]];
         for (let q = 0; q < 3; q++) {
           n.pos.set(Q[q], k * 3); n.nrm[k * 3] = nx * 0.6; n.nrm[k * 3 + 1] = ny * 0.6 + 0.4; n.nrm[k * 3 + 2] = nz * 0.6;
-          n.uv[k * 2] = (q === 2 ? 1 : 0.5) * (0.35 + 0.65 * ss(-0.3, 0.6, dy)); n.uv[k * 2 + 1] = q === 2 ? 3.8 : 3.3; n.idx[k] = k; k++;
+          n.uv[k * 2] = (q === 2 ? 0.9 : 0.5) * (0.3 + 0.7 * ss(-0.3, 0.6, dy)); n.uv[k * 2 + 1] = q === 2 ? 3.6 : 3.3; n.idx[k] = k; k++;
         }
       }
     }
@@ -126,19 +126,33 @@ function pad(R, c, ang, sx, sy, sz, sub, nNeedle) {
   }
   return merge(parts);
 }
+function cluster(R, c, ang, r, lod, parts) {
+  const nb = [4, 3, 2, 1][lod], k = [1, 1.05, 1.15, 1.45][lod];
+  for (let i = 0; i < nb; i++) {
+    const a = ang + i * 2.2 + R() * 1.2, d = i ? r * (0.45 + 0.3 * R()) : 0, rr = (i ? r * (0.42 + 0.25 * R()) : r * 0.72) * k;
+    parts.push(pad(R, [c[0] + Math.cos(a) * d, c[1] + (i ? (R() - 0.4) * 0.3 : 0), c[2] + Math.sin(a) * d], a, rr, rr * (0.36 + 0.2 * R()), rr * (0.62 + 0.25 * R()), lod || i > 1 ? 1 : 2, lod ? 0 : 34));
+  }
+}
 export function pine(sd, lod) {
-  const R = makeRng(sd * 31 + 3), H = 5.2 + R() * 2.2, la = R() * TAU, lean = 0.2 + R() * 0.35, p1 = R() * TAU, p2 = R() * TAU;
-  const at = (t) => { const o = lean * H * Math.pow(t, 1.7); return [Math.cos(la) * o + 0.3 * Math.sin(t * 5 + p1) * t, -0.5 + (H + 0.5) * t, Math.sin(la) * o + 0.3 * Math.sin(t * 4 + p2) * t]; };
-  const path = []; for (let j = 0; j <= 8; j++) path.push(at(j / 8));
-  const parts = [setUV(tube(path, (t) => 0.27 * (1 - 0.8 * t) + (t < 0.12 ? 0.14 * (1 - t / 0.12) : 0), [8, 6, 5, 3][lod]), (t) => 0.55 + 0.45 * ss(0.5, 0.2, t), 2)];
-  const n = lod === 3 ? 4 : 7 + (R() * 2 | 0), sub = [2, 2, 1, 1][lod], nn = lod ? 0 : 120, big = [1, 1.12, 1.2, 1.5][lod];
+  const R = makeRng(sd * 31 + 3), H = 5.4 + R() * 2.2, la = R() * TAU, lean = 0.22 + R() * 0.3, p1 = R() * TAU, p2 = R() * TAU;
+  const at = (t) => {                                        // S-curve: leans out, then recovers toward the light
+    const o = lean * H * (Math.pow(t, 1.4) - 0.55 * t * t * t) * 1.6, w = 0.7 * Math.sin(t * 4.4 + p1) * t * (1 - 0.4 * t);
+    return [Math.cos(la) * o - Math.sin(la) * w, -0.5 + (H + 0.5) * t - 0.25 * lean * H * t * t, Math.sin(la) * o + Math.cos(la) * w + 0.2 * Math.sin(t * 6 + p2) * t];
+  };
+  const path = []; for (let j = 0; j <= 10; j++) path.push(at(j / 10));
+  const parts = [setUV(tube(path, (t) => 0.25 * Math.pow(1 - t, 0.8) + 0.035 + (t < 0.1 ? 0.16 * (1 - t / 0.1) ** 2 : 0), [9, 6, 5, 3][lod]), (t) => 0.55 + 0.45 * ss(0.5, 0.2, t), 2)];
+  const n = lod === 3 ? 4 : 6 + (R() * 2 | 0);
   for (let k = 0; k < n; k++) {
-    const tk = 0.42 + 0.58 * k / (n - 1), p = at(tk), top = k === n - 1;
-    const ang = la + Math.PI * 0.6 + k * 2.4 + R() * 0.9, L = top ? 0.35 : (1.4 + R() * 1.1) * (1 - 0.4 * tk) * (k % 3 === 0 ? 1.3 : 1);
-    const c = [p[0] + Math.cos(ang) * L, p[1] + 0.1 * L - (top ? -0.15 : 0.1), p[2] + Math.sin(ang) * L], r = top ? 1.25 + R() * 0.3 : L * 0.66;
-    if (lod < 3 && !top) parts.push(setUV(tube([p, [(p[0] + c[0]) / 2, p[1] - 0.06 * L, (p[2] + c[2]) / 2], c], (t) => 0.07 - 0.04 * t, 4), 0.6, 2));
-    parts.push(pad(R, c, ang, r * big, (0.34 + R() * 0.14) * big, r * 0.7 * big, sub, nn));
-    if (!lod) { const a2 = ang + 1.3 + R() * 2.4, q = r * 0.75; parts.push(pad(R, [c[0] + Math.cos(a2) * q, c[1] + 0.12 - R() * 0.24, c[2] + Math.sin(a2) * q], a2, r * 0.62, 0.3 + R() * 0.1, r * 0.5, 2, nn * 0.6 | 0)); }
+    const tk = 0.4 + 0.6 * k / (n - 1), p = at(tk), top = k === n - 1, limb = !top && (k === 1 || k === 4);
+    const ang = la + (limb ? 0 : Math.PI * 0.7) + k * 2.4 + R() * 0.9, L = top ? 0.3 : (1.3 + R() * 1.0) * (1 - 0.4 * tk) * (limb ? 1.9 : 1);
+    const c = [p[0] + Math.cos(ang) * L, p[1] + (top ? 0.2 : 0.16 * L - 0.1 - (limb ? 0.12 * L : 0)), p[2] + Math.sin(ang) * L], r = top ? 1.3 + R() * 0.3 : limb ? 1.05 + R() * 0.3 : L * 0.7;
+    if (lod < 3 && !top) {
+      const m = [(p[0] + c[0]) / 2 + (R() - 0.5) * 0.3, p[1] + (limb ? 0.22 * L : 0.02 * L), (p[2] + c[2]) / 2 + (R() - 0.5) * 0.3];
+      parts.push(setUV(tube([p, [(p[0] + m[0]) / 2, (p[1] + m[1]) / 2 + 0.05 * L, (p[2] + m[2]) / 2], m, [(m[0] + c[0]) / 2, (m[1] + c[1]) / 2 + 0.04 * L, (m[2] + c[2]) / 2], c],
+        (t) => (limb ? 0.13 : 0.075) * (1 - 0.7 * t), lod ? 4 : 6), 0.6, 2));
+      if (limb && lod < 2) cluster(R, [m[0], m[1] + 0.15, m[2]], ang + 1, 0.7, Math.max(lod, 1), parts);
+    }
+    cluster(R, c, ang, r, lod, parts);
   }
   return merge(parts);
 }
@@ -196,7 +210,7 @@ export function stone(sd, sub) {
   const g = sphere(1, sub), o = sd * 9.7;
   for (let i = 0; i < g.pos.length; i += 3) {
     const x = g.pos[i], y = g.pos[i + 1], z = g.pos[i + 2];
-    const d = 1 + 0.32 * snoise2(x * 1.2 + o, z * 1.2 + y * 0.8 - o) + 0.12 * snoise2(y * 2.9 + o, x * 2.9 - z * 2.1);
+    const d = 1 + 0.3 * snoise2(x * 1.1 + o, z * 1.1 + y * 0.8 - o) + 0.06 * snoise2(y * 2.3 + o, x * 2.3 - z * 2.1);
     g.pos[i] = x * d; g.pos[i + 1] = y * d * 0.72; g.pos[i + 2] = z * d; g.uv[i / 3 * 2] = 0.6 + 0.4 * ss(-0.8, 0.2, y); g.uv[i / 3 * 2 + 1] = 0;
   }
   return computeNormals(g);
