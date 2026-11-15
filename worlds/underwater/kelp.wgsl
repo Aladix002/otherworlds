@@ -12,7 +12,7 @@ fn kelpOff(s: f32, H: f32, ph: f32) -> vec3f {
   return (CUR * (a * 0.055 + 0.07) + vec3f(-0.6, 0.0, 0.8) * b * 0.03) * H * s * s;
 }
 
-struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) k: vec3f };
+struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) k: vec3f, @location(3) sd: f32 };
 @vertex fn vs(@location(0) p: vec3f, @location(1) nn: vec3f, @location(2) uv: vec2f, @builtin(instance_index) ii: u32) -> VO {
   let K = kelps[vis[ii]];
   let H = K.a.w;
@@ -31,15 +31,15 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
     dir = normalize(dir + CUR * 0.7 + vec3f(0.0, 0.35, 0.0));
     let L = K.b.y * (0.75 + 0.5 * uv.y);
     let fl = sin(G.time * 0.9 + t * 4.0 + p.x * 3.0 + K.b.x) * 0.1;
-    let along = dir * (0.03 + L * t) + vec3f(0.0, -0.45 * L * t * t + fl * t, 0.0);
-    let dal = dir * L + vec3f(0.0, -0.9 * L * t + fl, 0.0);
+    let along = dir * (0.03 + L * t) + vec3f(0.0, -0.6 * L * t * t + fl * t, 0.0);
+    let dal = dir * L + vec3f(0.0, -1.2 * L * t + fl, 0.0);
     let across = normalize(vec3f(-dir.z, 0.7 * sin(p.x * 5.0 + uv.y * 9.0), dir.x));
-    let wd = max(0.16 * sin(PI * pow(max(t, 0.001), 0.6)) * (0.8 + 0.4 * uv.y) + 0.008, px * 0.7);
+    let wd = max(0.13 * sin(PI * pow(max(t, 0.001), 0.55)) * (0.8 + 0.4 * uv.y) * (1.0 + 0.12 * sin(t * 40.0 + uv.y * 20.0)) + 0.008, px * 0.7);
     w = base + along + across * (p.z * wd);
     n = normalize(cross(dal, across));
   }
   var o: VO;
-  o.w = w; o.n = n; o.k = vec3f(s, uv.x, K.b.z);
+  o.w = w; o.n = n; o.k = vec3f(s, uv.x, K.b.z); o.sd = p.z;
   o.pos = G.viewProj * vec4f(w, 1.0);
   return o;
 }
@@ -50,10 +50,10 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let v = normalize(wp - G.camPos);
   if (blade > 0.5 && dot(n, v) > 0.0) { n = -n; }
   let tint = in.k.z;
-  var alb = mix(vec3f(0.6, 0.36, 0.08), vec3f(1.0, 0.62, 0.1), blade);
+  var alb = mix(vec3f(0.5, 0.26, 0.05), vec3f(0.95, 0.45, 0.06), blade);
   alb *= mix(vec3f(1.0), vec3f(1.1, 0.85, 0.65), tint);
   let t = in.k.y - 1.0;
-  alb *= mix(1.0, 0.75 + 0.35 * t, blade);
+  alb *= mix(1.0, (0.7 + 0.4 * t) * (1.0 - 0.3 * smoothstep(0.25, 0.0, abs(in.sd)) * (1.0 - t)), blade);
   let L = lightAt(wp.y);
   let w = waterAt(wp.y);
   let ao = mix(0.35, 1.0, smoothstep(0.0, 0.7, in.k.x));

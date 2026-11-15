@@ -1,5 +1,5 @@
 // Load-time placement of rocks and blade flora (seagrass, anemones, soft corals, sea pens).
-export function scatter(H, N, rng, q, padTest) {
+export function scatter(H, N, rng, q, padTest, keep) {
   const rocks = [], blades = [], R = [];
   const free = (x, z, r) => { for (let i = 0; i < R.length; i += 4) if (Math.hypot(R[i] - x, R[i + 2] - z) < R[i + 3] + r) return false; return true; };
   const rock = (x, z, s, deep) => {
@@ -12,7 +12,7 @@ export function scatter(H, N, rng, q, padTest) {
   for (let i = 0, tries = 0; i < nr && tries < 5000; tries++) {
     const deep = i > nr * 0.55, x = rng() * 200 - 100, z = deep ? -140 - rng() * 165 : -8 - rng() * 132;
     const s = deep ? 1.5 + Math.pow(rng(), 2) * 6 : 0.7 + Math.pow(rng(), 2.5) * 3.5;
-    if (Math.hypot(x - 10, z + 70) < 20 || !free(x, z, s)) continue;
+    if (Math.hypot(x - 10, z + 70) < 20 || !free(x, z, s) || keep.some((k) => Math.hypot(k[0] - x, k[2] - z) < s + 6)) continue;
     rock(x, z, s, deep); i++;
   }
   // a few rocks framing the shallows

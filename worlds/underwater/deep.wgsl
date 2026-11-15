@@ -2,7 +2,7 @@
 @group(2) @binding(0) var<storage, read> jel: array<vec4f>;    // comb jellies: pos, scale
 override NBD: u32 = 70u;
 const CH = array<vec4f, 5>(vec4f(-6.0, -91.0, -272.0, 0.0), vec4f(14.0, -87.0, -292.0, 1.0), vec4f(-30.0, -78.0, -238.0, 2.0),
-                           vec4f(35.0, -99.0, -262.0, 0.0), vec4f(2.0, -68.0, -212.0, 1.0));
+                           vec4f(35.0, -99.0, -262.0, 0.0), vec4f(6.0, -56.0, -172.0, 1.0));
 fn chainHead(c: u32, t: f32) -> vec3f {
   let C = CH[c]; let f = f32(c) * 1.7;
   return C.xyz + vec3f(9.0 * sin(t * 0.021 + f), 2.5 * sin(t * 0.033 + f * 2.0), 7.0 * sin(t * 0.017 + f * 0.7 + 1.0));
