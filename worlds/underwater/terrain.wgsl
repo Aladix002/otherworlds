@@ -1,0 +1,58 @@
+// Seabed: generated on the GPU at load (gen entry), shaded with sand ripples, caustics and zone materials.
+override SEGX: u32 = 256u;
+override SEGZ: u32 = 384u;
+override SX: f32 = 320.0;
+override SZ: f32 = 480.0;
+override CZ: f32 = -90.0;
+@group(2) @binding(0) var<storage, read_write> verts: array<f32>;
+@compute @workgroup_size(64) fn gen(@builtin(global_invocation_id) id: vec3u) {
+  let nx = SEGX + 1u;
+  if (id.x >= nx * (SEGZ + 1u)) { return; }
+  let uv = vec2f(f32(id.x % nx) / f32(SEGX), f32(id.x / nx) / f32(SEGZ));
+  let p = (uv - 0.5) * vec2f(SX, SZ) + vec2f(0.0, CZ);
+  let e = 0.5;
+  let h = terrainH(p);
+  let n = normalize(vec3f(terrainH(p - vec2f(e, 0.0)) - terrainH(p + vec2f(e, 0.0)), 2.0 * e,
+                          terrainH(p - vec2f(0.0, e)) - terrainH(p + vec2f(0.0, e))));
+  let o = id.x * 8u;
+  verts[o] = p.x; verts[o + 1u] = h; verts[o + 2u] = p.y;
+  verts[o + 3u] = n.x; verts[o + 4u] = n.y; verts[o + 5u] = n.z; verts[o + 6u] = uv.x; verts[o + 7u] = uv.y;
+}
+
+struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f };
+@vertex fn vs(@location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f) -> VO {
+  var o: VO; o.w = p; o.n = n; o.pos = G.viewProj * vec4f(p, 1.0); return o;
+}
+@fragment fn fs(in: VO) -> @location(0) vec4f {
+  let wp = in.w;
+  var n = normalize(in.n);
+  let d = -wp.y;
+  let kelp = uss(16.0, 24.0, d) * (1.0 - uss(40.0, 60.0, d));
+  let deep = uss(40.0, 80.0, d);
+  let nb = textureSample(tNoise, sRep, wp.xz * 0.021);
+  let nf = textureSample(tNoise, sRep, wp.xz * 0.37);
+  let caus = causticsAt(wp);
+  // sand ripples (normal only), faded before they alias
+  let dir = normalize(vec2f(0.8, 0.6) + (nb.xy - 0.5) * 0.8);
+  let freq = 3.6;
+  let ph = dot(wp.xz, dir) * freq + nb.z * 10.0;
+  let fw = length(fwidth(wp.xz)) * freq;
+  let rip = (1.0 - uss(0.5, 1.6, fw)) * (1.0 - 0.7 * kelp) * (1.0 - deep) * smoothstep(0.6, 0.9, n.y);
+  let s = sin(ph); let rs = sign(s) * pow(abs(s), 0.6);
+  n = normalize(n + vec3f(dir.x, 0.0, dir.y) * rs * 0.22 * rip + vec3f(nf.x - 0.5, 0.0, nf.y - 0.5) * 0.25 * (1.0 - uss(0.4, 1.2, fw * 0.3)));
+  // materials: white sand -> golden kelp sand with pebbles -> dark silt
+  let m = nb.w;
+  var alb = mix(vec3f(0.86, 0.82, 0.70), vec3f(0.95, 0.9, 0.78), smoothstep(0.35, 0.7, m));
+  alb *= 0.9 + 0.2 * nf.z;
+  let kel = mix(vec3f(0.55, 0.45, 0.30), vec3f(0.42, 0.36, 0.27), smoothstep(0.4, 0.7, nf.w + m * 0.4));
+  alb = mix(alb, kel, kelp);
+  alb = mix(alb, vec3f(0.26, 0.28, 0.32) * (0.8 + 0.4 * nf.z), deep);
+  let rock = smoothstep(0.55, 0.35, n.y);
+  alb = mix(alb, vec3f(0.42, 0.4, 0.38) * (0.7 + 0.5 * nf.x), rock);
+  // greenish algae film in shallow patches
+  alb = mix(alb, vec3f(0.42, 0.55, 0.32), smoothstep(0.62, 0.8, nb.z) * 0.35 * (1.0 - deep));
+  // kelp canopy dapple
+  let dap = mix(1.0, 0.45 + 1.1 * textureSample(tNoise, sRep, wp.xz * 0.045 + G.time * vec2f(0.004, 0.002)).r, kelp);
+  var c = uwLit(alb, n, wp, caus * dap, dap);
+  return vec4f(c, 1.0);
+}
