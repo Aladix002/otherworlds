@@ -3,62 +3,76 @@ import DOOR from '../wgsl/door.wgsl';
 import WRAP from '../wgsl/postcard-wrap.wgsl';
 import DEFAULT_PC from '../wgsl/postcard-default.wgsl';
 import { trsY, mul4, m4, easeInOut, clamp } from './math.js';
-import { sphere } from './mesh.js';
+import { sphere, cylinder, torus } from './mesh.js';
 
-export const OPEN_W = 0.96, OPEN_H = 2.05;
+export const OPEN_W = 0.96, OPEN_H = 2.05, FRAME_W = 0.14, FRAME_D = 0.16;
 const MAX_DOORS = 4, OPEN_TIME = 1.6, SWING = 100 * Math.PI / 180;
 
+// Vertex: pos(3) nrm(3) o(3: box-local offset in meters, unrotated) h(3: box half extents) attr(4: part, mat, seed, rotZ)
+// mat: 0 wood (grain along local y), 1 wood (grain along x), 2 iron. part: 0 frame, 1 leaf.
+const VS = 16;
 function buildGeometry() {
   const V = [], I = [];
-  // box with local "bc" coords in [-1,1] for edge shading; rotZ rotates around box center in XY
   function box(cx, cy, cz, sx, sy, sz, part, mat, seed, rotZ = 0) {
     const hx = sx / 2, hy = sy / 2, hz = sz / 2, c = Math.cos(rotZ), s = Math.sin(rotZ);
     const faces = [[0, 1, 2, 1], [0, 1, 2, -1], [1, 2, 0, 1], [1, 2, 0, -1], [2, 0, 1, 1], [2, 0, 1, -1]];
     for (const [n, u, t, sg] of faces) {
-      const base = V.length / 12;
+      const base = V.length / VS;
       for (let k = 0; k < 4; k++) {
         const cu = (k & 1) ? 1 : -1, cv = (k & 2) ? 1 : -1;
         const b = [0, 0, 0]; b[n] = sg; b[u] = cu * sg; b[t] = cv;
         const nr = [0, 0, 0]; nr[n] = sg;
         const lx = b[0] * hx, ly = b[1] * hy;
-        V.push(cx + lx * c - ly * s, cy + lx * s + ly * c, cz + b[2] * hz, nr[0] * c - nr[1] * s, nr[0] * s + nr[1] * c, nr[2], b[0], b[1], b[2], part, mat, seed);
+        V.push(cx + lx * c - ly * s, cy + lx * s + ly * c, cz + b[2] * hz, nr[0] * c - nr[1] * s, nr[0] * s + nr[1] * c, nr[2],
+          lx, ly, b[2] * hz, hx, hy, hz, part, mat, seed, rotZ);
       }
       I.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
     }
   }
-  function ball(cx, cy, cz, r, part, seed) {
-    const g = sphere(r, 1), base = V.length / 12;
-    for (let i = 0; i < g.pos.length / 3; i++) V.push(cx + g.pos[i * 3], cy + g.pos[i * 3 + 1], cz + g.pos[i * 3 + 2], g.nrm[i * 3], g.nrm[i * 3 + 1], g.nrm[i * 3 + 2], g.nrm[i * 3], g.nrm[i * 3 + 1], g.nrm[i * 3 + 2], part, 2, seed);
+  // arbitrary smooth mesh (no bevels): o = 0, h = large
+  function geo(g, ox, oy, oz, part, mat, seed) {
+    const base = V.length / VS;
+    for (let i = 0; i < g.pos.length / 3; i++) V.push(ox + g.pos[i * 3], oy + g.pos[i * 3 + 1], oz + g.pos[i * 3 + 2], g.nrm[i * 3], g.nrm[i * 3 + 1], g.nrm[i * 3 + 2], 0, 0, 0, 1, 1, 1, part, mat, seed, 0);
     for (const k of g.idx) I.push(base + k);
   }
-  const W = OPEN_W, H = OPEN_H, pw = 0.11, pd = 0.13;
-  // frame (part 0), door-local: opening centered on x, ground at y=0, plane z=0
-  box(-(W / 2 + pw / 2), (H + 0.13 - 0.12) / 2, 0, pw, H + 0.13 + 0.12, pd, 0, 0, 11);
-  box(W / 2 + pw / 2, (H + 0.13 - 0.12) / 2, 0, pw, H + 0.13 + 0.12, pd, 0, 0, 12);
-  box(0, H + 0.075, 0, W + 2 * pw + 0.14, 0.15, pd + 0.03, 0, 1, 13);
-  box(0, -0.035, 0, W + 2 * pw + 0.04, 0.09, pd + 0.05, 0, 1, 14);
-  box(-W / 2 - 0.004, 0.42, 0.045, 0.03, 0.1, 0.03, 0, 2, 1);
-  box(-W / 2 - 0.004, 1.74, 0.045, 0.03, 0.1, 0.03, 0, 2, 1);
-  // leaf (part 1), hinge axis at x=0, z=0
-  const lw = W - 0.012, lh = H - 0.012, t = 0.044, n = 5, plw = lw / n;
-  for (let i = 0; i < n; i++) {
-    const th = t + Math.sin(i * 12.9898) * 0.003, top = lh + Math.sin(i * 78.233) * 0.004;
-    box(0.006 + plw * (i + 0.5), 0.008 + top / 2, Math.sin(i * 3.7) * 0.0015, plw - 0.0012, top, th, 1, 0, i + 1);
+  const W = OPEN_W, H = OPEN_H, pw = FRAME_W, pd = FRAME_D;
+  // ---- frame (part 0), door-local: opening centered on x, ground at y=0, door plane z=0 ----
+  const postH = H + 0.2;
+  box(-(W / 2 + pw / 2), postH / 2 - 0.08, 0, pw, postH + 0.08, pd, 0, 0, 11);
+  box(W / 2 + pw / 2, postH / 2 - 0.08, 0, pw, postH + 0.08, pd, 0, 0, 12);
+  box(0, H + 0.09, 0, W + 2 * pw + 0.16, 0.18, pd + 0.04, 0, 1, 13);          // lintel with overhang
+  box(0, H + 0.205, 0, W + 2 * pw + 0.22, 0.05, pd + 0.07, 0, 1, 15);         // cap board
+  box(0, -0.02, 0, W + 2 * pw + 0.06, 0.07, pd + 0.12, 0, 1, 14);            // threshold
+  for (const hy of [0.36, 1.74]) {                                            // pintles on the hinge post
+    box(-W / 2 - 0.02, hy, 0, 0.04, 0.03, 0.03, 0, 2, 1);
+    geo(cylinder(0.011, 0.011, 0.05, 8), -W / 2 - 0.004, hy - 0.08, 0, 0, 2, 1);
   }
-  // back battens + diagonal brace (z < 0 side), front strap hinges and knobs (z > 0)
-  const bz = -t / 2 - 0.0125;
-  box(0.006 + lw / 2, 0.36, bz, lw - 0.07, 0.13, 0.025, 1, 1, 7);
-  box(0.006 + lw / 2, 1.74, bz, lw - 0.07, 0.13, 0.025, 1, 1, 8);
-  const x0 = 0.1, y0 = 0.44, x1 = lw - 0.08, y1 = 1.66, len = Math.hypot(x1 - x0, y1 - y0);
-  box((x0 + x1) / 2, (y0 + y1) / 2, bz, 0.11, len, 0.022, 1, 0, 9, -Math.atan2(x1 - x0, y1 - y0));
-  for (const hy of [0.36, 1.74]) box(0.27, hy, t / 2 + 0.004, 0.56, 0.045, 0.007, 1, 2, 0);
+  // ---- leaf (part 1), hinge axis at x=0, z=0 ----
+  const lw = W - 0.006, lh = H - 0.012, t = 0.046, n = 5, plw = lw / n;
+  for (let i = 0; i < n; i++) {
+    const th = t + Math.sin(i * 12.9898) * 0.003, top = lh + Math.sin(i * 78.233) * 0.006;
+    box(0.003 + plw * (i + 0.5), 0.01 + top / 2, Math.sin(i * 3.7) * 0.0015, plw - 0.0035, top, th, 1, 0, i + 1);
+  }
+  box(0.006 + lw / 2, 0.01 + lh / 2, 0, lw - 0.03, lh - 0.04, t - 0.012, 1, 0, 6);  // inner backing board: gaps read dark, not see-through
+  const bz = -t / 2 - 0.014;                                                       // battens + Z brace on the back
+  box(0.006 + lw / 2, 0.36, bz, lw - 0.06, 0.14, 0.028, 1, 1, 7);
+  box(0.006 + lw / 2, 1.74, bz, lw - 0.06, 0.14, 0.028, 1, 1, 8);
+  const x0 = 0.11, y0 = 0.44, x1 = lw - 0.09, y1 = 1.66, len = Math.hypot(x1 - x0, y1 - y0);
+  box((x0 + x1) / 2, (y0 + y1) / 2, bz, 0.12, len - 0.06, 0.026, 1, 0, 9, -Math.atan2(x1 - x0, y1 - y0));
+  for (const hy of [0.36, 1.74]) {                                                 // strap hinges + knuckles (front)
+    box(0.3, hy, t / 2 + 0.005, 0.6, 0.05, 0.009, 1, 2, 0);
+    box(0.62, hy, t / 2 + 0.005, 0.05, 0.034, 0.009, 1, 2, 0);
+    geo(cylinder(0.013, 0.013, 0.09, 10), 0.0, hy - 0.045, 0.012, 1, 2, 1);
+  }
   const kx = lw - 0.1;
-  box(kx, 1.0, t / 2 + 0.003, 0.06, 0.15, 0.006, 1, 2, 1);
-  box(kx, 1.0, t / 2 + 0.025, 0.016, 0.016, 0.04, 1, 2, 1);
-  ball(kx, 1.0, t / 2 + 0.05, 0.032, 1, 1);
-  box(kx, 1.0, -t / 2 - 0.003, 0.06, 0.15, 0.006, 1, 2, 1);
-  box(kx, 1.0, -t / 2 - 0.025, 0.016, 0.016, 0.04, 1, 2, 1);
-  ball(kx, 1.0, -t / 2 - 0.05, 0.032, 1, 1);
+  box(kx, 1.0, t / 2 + 0.004, 0.07, 0.17, 0.008, 1, 2, 2);                        // front escutcheon plate
+  box(kx, 1.05, t / 2 + 0.018, 0.016, 0.016, 0.026, 1, 2, 2);                     // ring staple
+  const ring = torus(0.045, 0.0075, 18, 8);                                        // ring handle hanging in the door plane
+  for (let i = 0; i < ring.pos.length; i += 3) { const y = ring.pos[i + 1], z = ring.pos[i + 2]; ring.pos[i + 1] = -z; ring.pos[i + 2] = y; const ny = ring.nrm[i + 1], nz = ring.nrm[i + 2]; ring.nrm[i + 1] = -nz; ring.nrm[i + 2] = ny; }
+  geo(ring, kx, 1.05 - 0.045, t / 2 + 0.03, 1, 2, 2);
+  box(kx, 1.0, -t / 2 - 0.004, 0.06, 0.15, 0.008, 1, 2, 2);                       // back plate + round knob
+  box(kx, 1.0, -t / 2 - 0.022, 0.016, 0.016, 0.03, 1, 2, 2);
+  geo(sphere(0.03, 2), kx, 1.0, -t / 2 - 0.05, 1, 2, 2);
   return { verts: new Float32Array(V), idx: new Uint16Array(I.length % 2 ? [...I, 0] : I), count: I.length };
 }
 
@@ -73,9 +87,10 @@ export function createDoors(ctx, world, postcards) {
   const doorBG = ctx.bindGroup(doorLayout, [ubuf]);
   const doorPipe = ctx.pipeline({
     code: DOOR, label: 'door', layouts: [doorLayout], cull: 'none',
-    buffers: [{ arrayStride: 48, attributes: [
+    buffers: [{ arrayStride: VS * 4, attributes: [
       { shaderLocation: 0, offset: 0, format: 'float32x3' }, { shaderLocation: 1, offset: 12, format: 'float32x3' },
-      { shaderLocation: 2, offset: 24, format: 'float32x3' }, { shaderLocation: 3, offset: 36, format: 'float32x3' }] }],
+      { shaderLocation: 2, offset: 24, format: 'float32x3' }, { shaderLocation: 3, offset: 36, format: 'float32x3' },
+      { shaderLocation: 4, offset: 48, format: 'float32x4' }] }],
   });
 
   // postcards: one uniform slot per door + 1 for the full-screen overlay (256-byte aligned slots)
@@ -120,7 +135,7 @@ export function createDoors(ctx, world, postcards) {
     for (const d of doors) {
       const o = d.index * 40;
       // leaf transform = frame * T(hinge) * R(angle)
-      const ang = d.side * d.open * SWING;
+      const ang = -d.side * d.open * SWING; // swings toward the viewer (pulled open)
       trsY(d.tmpM, -OPEN_W / 2, 0, 0, ang);
       mul4(d.leafM, d.frameM, d.tmpM);
       udata.set(d.frameM, o); udata.set(d.leafM, o + 16);
@@ -199,8 +214,8 @@ export function createDoors(ctx, world, postcards) {
       const dx = x - d.pos[0], dz = z - d.pos[2], c = Math.cos(d.yaw), s = Math.sin(d.yaw);
       const lx = c * dx - s * dz, lz = s * dx + c * dz, ly = y - d.pos[1];
       if (Math.abs(lx) > 3 || Math.abs(lz) > 3) { r = Math.min(r, Math.hypot(lx, lz) - 1.2); continue; }
-      r = Math.min(r, boxD(lx, ly, lz, -(OPEN_W / 2 + 0.055), 1.1, 0, 0.055, 1.2, 0.065), boxD(lx, ly, lz, OPEN_W / 2 + 0.055, 1.1, 0, 0.055, 1.2, 0.065));
-      r = Math.min(r, boxD(lx, ly, lz, 0, OPEN_H + 0.075, 0, OPEN_W / 2 + 0.2, 0.075, 0.08));
+      r = Math.min(r, boxD(lx, ly, lz, -(OPEN_W / 2 + FRAME_W / 2), 1.15, 0, FRAME_W / 2, 1.2, FRAME_D / 2), boxD(lx, ly, lz, OPEN_W / 2 + FRAME_W / 2, 1.15, 0, FRAME_W / 2, 1.2, FRAME_D / 2));
+      r = Math.min(r, boxD(lx, ly, lz, 0, OPEN_H + 0.12, 0, OPEN_W / 2 + 0.25, 0.12, 0.1));
       if (d.open < 0.5) r = Math.min(r, boxD(lx, ly, lz, 0, OPEN_H / 2, 0, OPEN_W / 2, OPEN_H / 2, 0.03));
     }
     return r;

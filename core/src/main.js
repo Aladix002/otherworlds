@@ -168,7 +168,7 @@ async function boot(world, P, ui, canvas, gpu, flags) {
   ctx.doors = doors.doors;
   const heightAt = world.heightAt ? (x, z) => world.heightAt(x, z) : null;
   const sdf = (x, y, z) => { const a = doors.sdf(x, y, z); return world.sdf ? Math.min(a, world.sdf(x, y, z)) : a; };
-  const camOpts = { sens: settings.sens, invertY: settings.invertY, sdf, heightAt, bounds: world.bounds || null, upKeyBlocked: false };
+  const camOpts = { sens: settings.sens, invertY: settings.invertY, sdf: null, heightAt: null, bounds: world.bounds || null, upKeyBlocked: false }; // world fns enabled after init
   const spawn = world.spawn || { pos: [0, 2, 0], yaw: 0, pitch: 0 };
   const dy = +P.get('dy') || 0, dp = P.has('dp') ? clamp(+P.get('dp'), -0.6, 0.6) : spawn.pitch || 0;
   cam.set(spawn.pos, spawn.yaw || 0, via ? dp : spawn.pitch || 0);
@@ -240,7 +240,7 @@ async function boot(world, P, ui, canvas, gpu, flags) {
   input.onKey = (e) => {
     if (e.code === 'KeyM' && ctx.audio) { const m = !ctx.audio.muted; ctx.audio.setMuted(m); store.set('muted', m); ui.message(m ? 'Zvuk stlmený' : 'Zvuk zapnutý', 1400); }
     if (e.code === 'KeyH') ui.togglePerf();
-    if (e.code === 'Escape' && entered && performance.now() - lockChangedAt > 400) { if (ui.menuOpen) { ui.closeMenu(); input.lock(); } else if (!input.locked) openMenu(); }
+    if (e.code === 'Escape' && entered && performance.now() - lockChangedAt > 400) { if (ui.menuOpen) { ui.closeMenu(); input.lock(); } else { input.unlock(); openMenu(); } }
     if (entered && ctx.audio && ctx.audio.ctx.state !== 'running') ctx.audio.resume();
   };
   let lockChangedAt = 0;
@@ -428,10 +428,11 @@ async function boot(world, P, ui, canvas, gpu, flags) {
     transition(alpha, i = 0) { const d = doors.doors[i]; if (!d) return; trans.mode = alpha > 0 ? 'shot' : 'none'; trans.pc = d.pc; trans.alpha = alpha; trans.yaw = d.yaw; },
     arrival(alpha) { trans.mode = alpha > 0 ? 'shot' : 'none'; trans.pc = doors.postcardPipes(world.id); trans.alpha = alpha; trans.yaw = cam.yaw; },
     // camera `dist` meters in front of door i (front side), looking at it
-    doorView(i = 0, dist = 3.2, height = 1.55) {
+    // angle: 0 = front, PI/2 = side, PI = back (orbit around the door, looking at it)
+    doorView(i = 0, dist = 3.2, height = 1.55, angle = 0) {
       const d = doors.doors[i]; if (!d) return false;
-      const s = Math.sin(d.yaw), c = Math.cos(d.yaw);
-      cam.set([d.pos[0] + s * dist, d.pos[1] + height, d.pos[2] + c * dist], d.yaw, -0.03); cam.frozen = true; return true;
+      const y = d.yaw + angle, s = Math.sin(y), c = Math.cos(y);
+      cam.set([d.pos[0] + s * dist, d.pos[1] + height, d.pos[2] + c * dist], y, -0.03); cam.frozen = true; return true;
     },
     camera: cam, ctx,
   };
@@ -455,7 +456,7 @@ async function boot(world, P, ui, canvas, gpu, flags) {
   await doors.ready();
   ui.progress(1);
   await device.queue.onSubmittedWorkDone();
-  worldReady = true;
+  worldReady = true; camOpts.sdf = sdf; camOpts.heightAt = heightAt;
   try { sessionStorage.removeItem('ow.lost'); } catch (_) { /* */ }
   if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
   await frames(3);

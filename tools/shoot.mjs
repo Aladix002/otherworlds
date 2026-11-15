@@ -39,7 +39,10 @@ async function main() {
       const shot = async (name, fn) => { await page.evaluate(fn); await page.evaluate(() => window.__ow.frames(3)); await page.screenshot({ path: join(outDir, `door-${name}.png`) }); };
       await page.evaluate(() => { window.__ow.door(0, 0); return window.__ow.settle(10, 1); });
       await shot('closed', () => {});
-      await shot('open', () => window.__ow.door(0, 1));
+      await shot('side', () => window.__ow.doorView(0, 2.6, 1.4, 0.95));
+      await shot('back', () => window.__ow.doorView(0, 2.8, 1.5, Math.PI));
+      await shot('open', () => { window.__ow.doorView(0, 3.2); window.__ow.door(0, 1); });
+      await shot('open-side', () => window.__ow.doorView(0, 3.4, 1.6, 0.7));
       await shot('near', () => { window.__ow.doorView(0, 0.9, 1.5); });
       await shot('through', () => { window.__ow.doorView(0, 0.5, 1.5); window.__ow.transition(0.6, 0); });
       await shot('arrival', () => { window.__ow.transition(0); window.__ow.door(0, 0); window.__ow.setPose(0); window.__ow.arrival(0.55); });
@@ -63,9 +66,9 @@ async function main() {
   }
   const poses = readdirSync(outDir).filter((f) => /^pose-\d+\.png$/.test(f)).sort((a, b) => parseInt(a.slice(5)) - parseInt(b.slice(5)));
   const motion = readdirSync(outDir).filter((f) => /^motion-\d+\.png$/.test(f)).sort();
-  const doorShots = ['closed', 'open', 'near', 'through', 'arrival'].map((n) => `door-${n}.png`).filter((f) => readdirSync(outDir).includes(f));
+  const doorShots = ['closed', 'side', 'back', 'open', 'open-side', 'near', 'through', 'arrival'].map((n) => `door-${n}.png`).filter((f) => readdirSync(outDir).includes(f));
   try {
-    execFileSync('montage', [...poses, ...doorShots, ...motion, '-tile', '6x', '-geometry', '480x270+3+3', '-background', '#111', '-type', 'TrueColor', '-define', 'png:color-type=2', 'sheet.png'], { cwd: outDir });
+    execFileSync('montage', [...poses, ...doorShots, ...motion, '-tile', '6x', '-geometry', '480x270+3+3', '-background', '#111', '-depth', '8', '-define', 'png:color-type=2', 'sheet.png'], { cwd: outDir });
   } catch (e) { console.error('montage failed:', e.message); }
   const errs = wgslErrors(logs);
   if (errs.length) { console.error(`${errs.length} console error(s):\n` + errs.slice(0, 20).join('\n')); }
