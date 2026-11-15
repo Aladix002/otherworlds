@@ -33,10 +33,12 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
   var c = alb * (G.sunColor * (dif * ao * ao + rim * 0.35) + hemi(n, G.ambientSky, G.ambientGround) * ao * (0.55 + 0.45 * sh));
   c += alb * G.sunColor * vec3f(1.0, 0.9, 0.35) * (trans * back * back * sh * 0.8);
   // mist where things sink into the cloud sea
-  if (wp.y < 60.0) {
-    let ch = cloudHG(wp.xz).x;
-    let m = smoothstep(ch + 20.0, ch - 2.0, wp.y);
-    c = mix(c, cloudShade(0.3 + 0.25 * smoothstep(-0.3, 0.5, ndl), 0.9), m * m);
+  if (wp.y < 70.0) {
+    let hg = cloudHG(wp.xz);
+    let m = smoothstep(hg.x + 20.0, hg.x - 2.0, wp.y);
+    let crest = smoothstep(-22.0, 20.0, hg.x);
+    let cl = smoothstep(-0.1, 0.5, dot(normalize(vec3f(-hg.y, 1.0, -hg.z)), G.sunDir)) * 0.55;
+    c = mix(c, cloudShade(cl * (0.3 + 0.7 * crest), 0.28 + 0.72 * crest), m * m);
   }
   return atmo(c, wp);
 }
@@ -52,20 +54,23 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
   let wy = smoothstep(0.45, 0.8, abs(n.y));
   let fine = mix(mix(nl(wp.xy, 0.16, d), nl(wp.zy, 0.16, d), wx), nl(wp.xz, 0.21, d), wy);
   let mic = nl(wp.xz + wp.y * vec2f(0.7, -0.6), 0.55, d);
-  let up = smoothstep(0.42, 0.8, n.y + (top.a - 0.5) * 0.5 + (strata.r - 0.5) * 0.3);
+  let up = smoothstep(0.32, 0.66, n.y + (top.a - 0.5) * 0.3);
   var alb = mix(vec3f(0.30, 0.27, 0.26), vec3f(0.56, 0.47, 0.38), smoothstep(0.2, 0.8, mix(strata.a, fine.a, wy)));
   alb *= 0.72 + 0.5 * mix(streak, top.a, wy);
-  alb = mix(alb, vec3f(0.13, 0.12, 0.13), smoothstep(0.5, 0.85, mix(stB.r, stA.r, wx)) * 0.45);
+  alb = mix(alb, vec3f(0.13, 0.12, 0.13), smoothstep(0.5, 0.85, mix(stB.r, stA.r, wx)) * 0.45 * (1.0 - wy));
   // shrubs clinging to ledges, moss and meadow on anything that faces up
   let cling = smoothstep(0.52, 0.7, strata.r + (fine.a - 0.5) * 0.4) * smoothstep(0.0, 0.3, n.y);
   alb = mix(alb, mix(vec3f(0.06, 0.12, 0.05), vec3f(0.16, 0.24, 0.07), fine.a), cling * 0.85);
   let meadow = mix(mix(vec3f(0.07, 0.15, 0.045), vec3f(0.2, 0.3, 0.07), top.a), vec3f(0.36, 0.34, 0.1), smoothstep(0.55, 0.85, top.r) * 0.6);
-  alb = mix(alb, meadow * (0.85 + 0.3 * mic.a) + vec3f(0.05, 0.04, 0.0) * smoothstep(0.6, 0.8, mic.r), up * select(1.0, 0.3, in.sd.y < -1.5));
+  alb = mix(alb, meadow * (0.85 + 0.3 * mic.a), up * select(1.0, 0.3, in.sd.y < -1.5));
   alb *= 0.8 + 0.4 * mic.a;
   let near = 1.0 - smoothstep(20.0, 110.0, d);
-  n = bump(n, wp, (mix(strata.a, top.a, wy) * 1.6 + fine.a * 0.9 + streak * 0.6 * (1.0 - wy)) * (1.0 - up) + (top.a * 0.25 + mic.a * 0.2) * up + mic.a * 0.2, 0.5 * near);
+  n = bump(n, wp, (mix(strata.a, top.a, wy) * 1.6 + fine.a * 0.9 + streak * 0.6 * (1.0 - wy)) * (1.0 - up) + mic.a * 0.2 * (1.0 - up), 0.5 * near * (1.0 - up));
+  // flat ground: analytic gradients from the noise texture (smooth, no derivative blocks)
+  n = normalize(n + vec3f(top.g - 0.5 + (mic.g - 0.5) * 0.8, 0.0, top.b - 0.5 + (mic.b - 0.5) * 0.8) * (0.8 * up));
   var sh = 1.0;
   if (in.sd.y < -0.5) { sh = shadowAt(wp.xz); }
+  alb *= 1.0 - 0.35 * smoothstep(0.2, 0.7, -n.y);
   let ao = in.m.x * (0.72 + 0.28 * fine.a);
   return vec4f(shade(alb, n, wp, ao, sh, up * 0.15), 1.0);
 }
@@ -82,7 +87,7 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
   if (mat == 3.0) {
     let nf = nl(vec2f(wp.x + wp.y * 0.7, wp.z - wp.y * 0.4), 1.1, d).a * 0.6 + nl(vec2f(wp.z - wp.y * 0.5, -wp.x), 2.1, d).a * 0.4;
     let tuft = smoothstep(0.25, 0.75, nf);
-    alb = mix(vec3f(0.006, 0.028, 0.02), vec3f(0.055, 0.13, 0.035), ao * (0.3 + 0.7 * nz.a)) * (0.35 + 1.0 * tuft);
+    alb = mix(vec3f(0.005, 0.024, 0.018), vec3f(0.04, 0.105, 0.03), ao * (0.3 + 0.7 * nz.a)) * (0.35 + 1.0 * tuft);
     alb = mix(alb, vec3f(0.15, 0.24, 0.06), smoothstep(0.55, 1.0, wgt) * 0.5) * (0.8 + 0.4 * in.sd.x);
     tr = 0.25 + 0.75 * wgt;
   }
@@ -118,7 +123,7 @@ struct SO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
   let mare = textureSample(NT, NS, rd.xy * 6.0).a;
   c = mix(c, vec3f(0.92, 0.9, 1.0) * (0.75 + 0.35 * mare), (1.0 - smoothstep(0.82, 1.0, mr)) * smoothstep(-0.9, 0.6, dot(normalize(rd - md * m), normalize(G.sunDir - md * dot(G.sunDir, md))) + (1.0 - mr) * 0.9) * 0.55);
   // sun: small hot core in a wide soft glow
-  c += G.sunColor * (smoothstep(0.99955, 0.99985, s) * 9.0 + pow(s, 900.0) * 2.5 + pow(s, 90.0) * 0.3 + pow(s, 12.0) * 0.06);
+  c += G.sunColor * (smoothstep(0.99955, 0.99985, s) * 9.0 + pow(s, 900.0) * 1.4 + pow(s, 90.0) * 0.18 + pow(s, 12.0) * 0.05);
   return vec4f(c, 1.0);
 }
 

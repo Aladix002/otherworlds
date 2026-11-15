@@ -3,7 +3,7 @@ fn pcSky_cols(a: f32, f: f32, sd: f32) -> f32 {     // silhouette height of a ro
   let x = a * f + sd;
   let i = floor(x); let e = abs(fract(x) - 0.5);
   let h = hash11(i + sd * 7.0); let w = 0.16 + 0.26 * hash11(i * 1.7 + 3.0 + sd);
-  return select(-1.0, h * h * 0.85 + 0.15 - 0.12 * pow(e / w, 4.0), e < w && h > 0.3);
+  return select(-1.0, h * h * 0.85 + 0.15 - 0.05 * pow(e / w, 4.0), e < w && h > 0.45);
 }
 fn postcard(rd: vec3f, t: f32) -> vec3f {
   let sun = normalize(vec3f(-0.5, 0.2, -0.84));
@@ -28,7 +28,7 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
   let az = atan2(rd.x, -rd.z);
   for (var i = 0; i < 3; i++) {
     let fi = f32(i);
-    let h = pcSky_cols(az, 34.0 - fi * 11.0, fi * 31.7) * (0.13 + 0.13 * fi) - 0.03 * fi;
+    let h = pcSky_cols(az, 34.0 - fi * 11.0, fi * 31.7) * (0.08 + 0.11 * fi) - 0.03 * fi;
     let m = smoothstep(0.004, -0.004, rd.y - h) * smoothstep(-0.02 - 0.05 * fi, 0.0, rd.y + 0.06 * fi);
     let rock = mix(vec3f(0.2, 0.2, 0.34), vec3f(0.9, 0.55, 0.36), pow(sh, 3.0) * 0.6) * (0.9 - 0.2 * fi) + vec3f(0.05, 0.12, 0.02) * smoothstep(0.03, 0.0, h - rd.y);
     c = mix(c, mix(haze, rock, 0.22 + 0.26 * fi), m);

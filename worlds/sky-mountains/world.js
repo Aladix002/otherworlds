@@ -27,7 +27,7 @@ function binBatch(b, ctx, cam, tx, ty, kx, ky) {
   const { src, stage, cnt, n, L } = b, ex = cam.eye[0], ey = cam.eye[1], ez = cam.eye[2], f = cam.fwd, r = cam.right, u = cam.up;
   cnt.fill(0);
   if (b.bs) { const d = Math.hypot(ex - b.bs[0], ey - b.bs[1], ez - b.bs[2]); if (d > b.bs[3]) return; }
-  const d0 = b.d[0], d1 = b.d[1], d2 = b.d[2];
+  const D = b.d;
   for (let i = 0; i < n; i++) {
     const k = i * 8, s = src[k + 3], h = src[k + 6], rad = s * (h > 1 ? h : 1) * b.rk;
     const dx = src[k] - ex, dy = src[k + 1] + s * h * b.ck - ey, dz = src[k + 2] - ez;
@@ -36,8 +36,9 @@ function binBatch(b, ctx, cam, tx, ty, kx, ky) {
     const x = dx * r[0] + dy * r[1] + dz * r[2]; if ((x < 0 ? -x : x) > z * tx + rad * kx) continue;
     const y = dx * u[0] + dy * u[1] + dz * u[2]; if ((y < 0 ? -y : y) > z * ty + rad * ky) continue;
     const q = Math.sqrt(dx * dx + dy * dy + dz * dz) / s;
-    if (q > d2) continue;
-    const l = q < d0 ? 0 : q < d1 ? (L > 1 ? 1 : 0) : L - 1, w = (l * n + cnt[l]++) * 8;
+    let l = 0; while (l < L && q >= D[l]) l++;
+    if (l === L) continue;
+    const w = (l * n + cnt[l]++) * 8;
     stage[w] = src[k]; stage[w + 1] = src[k + 1]; stage[w + 2] = src[k + 2]; stage[w + 3] = s;
     stage[w + 4] = src[k + 4]; stage[w + 5] = src[k + 5]; stage[w + 6] = h; stage[w + 7] = src[k + 7];
   }
@@ -61,7 +62,7 @@ export default {
     pose(-70, 176, 150, -30, 96, -160, 20),                                // wide establishing shot
     pose(4, 82, -62, I1.x - 6, I1.y - 16, I1.z, 33),                       // floating island with waterfalls
     pose(-0.5, SPAWN[1] + 3.0, -9.5, -8.6, SPAWN[1] + 2.7, -19.6, 12),    // close pine on the island's ledge
-    pose(-17, 76, -27, 8, 18, -44, 41),                                  // looking down into the clouds
+    pose(-25, 75, 3, -38, 10, -42, 41),                                  // looking down into the clouds
     pose(46, 56, -8, 46 + SUN[0] * 100, 56 + SUN[1] * 100 + 6, -8 + SUN[2] * 100, 26),   // sunrise backlight through pillars
     pose(1.9, DOOR[1] + 1.5, 9.8, -0.3, DOOR[1] + 1.2, DOOR[2], 16),        // the door on its ledge
   ],
@@ -173,7 +174,7 @@ export default {
 
     // ---------- meshes and batches ----------
     const up = (g) => M.upload(g);
-    const lods = (f) => [0, 1, 2].map((l) => up(f(l)));
+    const lods = (f, n = 3) => [...Array(n).keys()].map((l) => up(f(l)));
     const PD = [[32, 64], [16, 30], [8, 11]];
     this.batches = [];
     const add = (meshes, inst, o) => { const b = makeBatch(ctx, meshes, inst, o); this.batches.push(b); return b; };
@@ -188,13 +189,13 @@ export default {
       for (let k = 0; k < g.pos.length; k += 3) { g.pos[k] += I.x; g.pos[k + 1] += I.y; g.pos[k + 2] += I.z; }
       return g;
     });
-    this.rockB.push(add([up(merge(isl))], [0, 0, 0, 1, 0, 0.5, 1, -1], { d: [1e9, 1e9, 1e9], ck: 0, rk: 1e6 }));
-    this.rockB.push(add([up(stone(3, 2)), up(stone(3, 1))], stones, { d: [30, 30, 260], ck: 0, rk: 1.4, bs: [0, 70, 0, 300] }));
-    this.rockB.push(add([up(stone(5, 2)), up(stone(5, 1))], frags, { d: [40, 40, 700], ck: 0, rk: 2.2 }));
+    this.rockB.push(add([up(merge(isl))], [0, 0, 0, 1, 0, 0.5, 1, -1], { d: [1e9], ck: 0, rk: 1e6 }));
+    this.rockB.push(add([up(stone(3, 3)), up(stone(3, 1))], stones, { d: [30, 260], ck: 0, rk: 1.4, bs: [0, 70, 0, 300] }));
+    this.rockB.push(add([up(stone(5, 2)), up(stone(5, 1))], frags, { d: [40, 700], ck: 0, rk: 2.2 }));
     await progress(0.62);
-    for (let v = 0; v < 3; v++) { this.vegB.push(add(lods((l) => pine(v + 1, l)), trees[v], { d: [26, 150, 520], ck: 3, rk: 5.5 })); await progress(0.65 + v * 0.04); }
-    this.vegB.push(add([up(tuft(11, 11)), up(tuft(12, 5))], cover.tufts, { d: [22, 22, 80], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 130] }));
-    this.vegB.push(add([up(flower(4))], cover.flowers, { d: [1e9, 1e9, 70], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 120] }));
+    for (let v = 0; v < 3; v++) { this.vegB.push(add(lods((l) => pine(v + 1, l), 4), trees[v], { d: [26, 75, 210, 560], ck: 3, rk: 5.5 })); await progress(0.65 + v * 0.04); }
+    this.vegB.push(add([up(tuft(11, 11)), up(tuft(12, 5))], cover.tufts, { d: [22, 80], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 130] }));
+    this.vegB.push(add([up(flower(4))], cover.flowers, { d: [70], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 120] }));
     // cloud grid: polar, rings grow geometrically
     const NA = 128, NR = 84, cv = new Float32Array((NA * NR + 1) * 2), ci = new Uint32Array(NA * 3 + (NR - 1) * NA * 6);
     let n = 0;

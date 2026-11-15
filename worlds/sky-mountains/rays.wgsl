@@ -33,6 +33,6 @@ struct RO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) 
   // in-scatter grows with the depth of air in front of the surface
   let dist = G.near / max(textureLoad(DT, vec2i(in.pos.xy), 0), 1e-6);
   let air = 1.0 - exp(-dist * 0.0018);
-  let glow = pow(s, 5.0) * 0.5 + pow(s, 24.0) * 0.3;
-  return vec4f(G.sunColor * vec3f(1.0, 0.82, 0.6) * (v * v * glow * air * G.params.x * 0.3), 0.0);
+  let glow = pow(s, 5.0) * 0.4 + pow(s, 24.0) * 0.1;
+  return vec4f(G.sunColor * vec3f(1.0, 0.82, 0.6) * (v * v * glow * air * G.params.x * 0.26), 0.0);
 }

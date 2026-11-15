@@ -112,7 +112,7 @@ function pad(R, c, ang, sx, sy, sz, sub, nNeedle) {
       const bx = P[0], by = P[1], bz = P[2];
       let nx = (dx * ca - dz * sa), ny = dy * 0.8 + 0.12, nz = (dx * sa + dz * ca); const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
       for (let j = 0; j < NB; j++) {
-        let ex = nx + (R() - 0.5) * 1.5, ey = ny + (R() - 0.5) * 1.1, ez = nz + (R() - 0.5) * 1.5; const l = (0.09 + R() * 0.12) / Math.hypot(ex, ey, ez);
+        let ex = nx + (R() - 0.5) * 1.5, ey = ny + (R() - 0.5) * 1.1, ez = nz + (R() - 0.5) * 1.5; const l = (0.11 + R() * 0.16) / Math.hypot(ex, ey, ez);
         ex *= l; ey *= l; ez *= l;
         let px = ey * nz - ez * ny, py = ez * nx - ex * nz, pz = ex * ny - ey * nx; const pl = 0.009 / (Math.hypot(px, py, pz) || 1); px *= pl; py *= pl; pz *= pl;
         const Q = [[bx - px, by - py, bz - pz], [bx + px, by + py, bz + pz], [bx + ex, by + ey, bz + ez]];
@@ -130,13 +130,13 @@ export function pine(sd, lod) {
   const R = makeRng(sd * 31 + 3), H = 5.2 + R() * 2.2, la = R() * TAU, lean = 0.2 + R() * 0.35, p1 = R() * TAU, p2 = R() * TAU;
   const at = (t) => { const o = lean * H * Math.pow(t, 1.7); return [Math.cos(la) * o + 0.3 * Math.sin(t * 5 + p1) * t, -0.5 + (H + 0.5) * t, Math.sin(la) * o + 0.3 * Math.sin(t * 4 + p2) * t]; };
   const path = []; for (let j = 0; j <= 8; j++) path.push(at(j / 8));
-  const parts = [setUV(tube(path, (t) => 0.27 * (1 - 0.8 * t) + (t < 0.12 ? 0.14 * (1 - t / 0.12) : 0), [8, 5, 3][lod]), (t) => 0.55 + 0.45 * ss(0.5, 0.2, t), 2)];
-  const n = lod === 2 ? 4 : 7 + (R() * 2 | 0), sub = [2, 1, 1][lod], nn = lod ? 0 : 120, big = [1, 1.2, 1.5][lod];
+  const parts = [setUV(tube(path, (t) => 0.27 * (1 - 0.8 * t) + (t < 0.12 ? 0.14 * (1 - t / 0.12) : 0), [8, 6, 5, 3][lod]), (t) => 0.55 + 0.45 * ss(0.5, 0.2, t), 2)];
+  const n = lod === 3 ? 4 : 7 + (R() * 2 | 0), sub = [2, 2, 1, 1][lod], nn = lod ? 0 : 120, big = [1, 1.12, 1.2, 1.5][lod];
   for (let k = 0; k < n; k++) {
     const tk = 0.42 + 0.58 * k / (n - 1), p = at(tk), top = k === n - 1;
     const ang = la + Math.PI * 0.6 + k * 2.4 + R() * 0.9, L = top ? 0.35 : (1.4 + R() * 1.1) * (1 - 0.4 * tk) * (k % 3 === 0 ? 1.3 : 1);
     const c = [p[0] + Math.cos(ang) * L, p[1] + 0.1 * L - (top ? -0.15 : 0.1), p[2] + Math.sin(ang) * L], r = top ? 1.25 + R() * 0.3 : L * 0.66;
-    if (lod < 2 && !top) parts.push(setUV(tube([p, [(p[0] + c[0]) / 2, p[1] - 0.06 * L, (p[2] + c[2]) / 2], c], (t) => 0.07 - 0.04 * t, 4), 0.6, 2));
+    if (lod < 3 && !top) parts.push(setUV(tube([p, [(p[0] + c[0]) / 2, p[1] - 0.06 * L, (p[2] + c[2]) / 2], c], (t) => 0.07 - 0.04 * t, 4), 0.6, 2));
     parts.push(pad(R, c, ang, r * big, (0.34 + R() * 0.14) * big, r * 0.7 * big, sub, nn));
     if (!lod) { const a2 = ang + 1.3 + R() * 2.4, q = r * 0.75; parts.push(pad(R, [c[0] + Math.cos(a2) * q, c[1] + 0.12 - R() * 0.24, c[2] + Math.sin(a2) * q], a2, r * 0.62, 0.3 + R() * 0.1, r * 0.5, 2, nn * 0.6 | 0)); }
   }
