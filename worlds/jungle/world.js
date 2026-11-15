@@ -1,7 +1,7 @@
 // Bioluminescent jungle with a waterfall lagoon. See NOTES.md.
 import { fbm2, pcg, u2f } from '../../core/src/noise.js';
 import { makeRng } from '../../core/src/math.js';
-import { VLAYOUT, ILAYOUT, tree, frond, fan, spiral, lotus, pad, fish, frog, mushrooms, shrub, fromCore } from './geo.js';
+import { VLAYOUT, ILAYOUT, tree, frond, fan, spiral, lotus, pad, fish, frog, mushrooms, shrub, rosette, lantern, reed, tuft, fromCore } from './geo.js';
 import COMMON from './common.wgsl';
 import OPAQUE from './opaque.wgsl';
 import FX from './fx.wgsl';
@@ -11,6 +11,7 @@ const LAG = [0, -36, 21, 13];                       // lagoon centre x, z and ra
 const WFX = 2.5;                                     // waterfall x
 const DOOR = [9.5, 17];
 const PATH = [[-1, -20], [1.5, -6], [4, 6], [5.5, 18], [2.5, 31], [-2.5, 43], [-4, 56], [0.5, 70], [4, 84]];
+const SPUR = [[4.9, 12.5], [9.5, 15.2]];             // stepping stones from the path to the door
 const ss = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
 
@@ -41,13 +42,13 @@ function terrain(x, z) {
 }
 const hp = (x, z, dy) => [x, Math.max(terrain(x, z), -0.55) + dy, z];
 const yawTo = (x, z, tx, tz) => Math.atan2(-(tx - x), -(tz - z));
+function segD(x, z, [ax, az], [bx, bz]) {
+  const vx = bx - ax, vz = bz - az, h = Math.min(1, Math.max(0, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
+  return Math.hypot(x - ax - vx * h, z - az - vz * h);
+}
 function pathDist(x, z) {
-  let d = 1e9;
-  for (let i = 0; i < PATH.length - 1; i++) {
-    const [ax, az] = PATH[i], [bx, bz] = PATH[i + 1], vx = bx - ax, vz = bz - az;
-    const h = Math.min(1, Math.max(0, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
-    d = Math.min(d, Math.hypot(x - ax - vx * h, z - az - vz * h));
-  }
+  let d = segD(x, z, SPUR[0], SPUR[1]) + 0.25;
+  for (let i = 0; i < PATH.length - 1; i++) d = Math.min(d, segD(x, z, PATH[i], PATH[i + 1]));
   return d;
 }
 const lagE = (x, z) => Math.hypot((x - LAG[0]) / LAG[2], (z - LAG[1]) / LAG[3]);
@@ -71,7 +72,7 @@ export default {
     { pos: hp(3.5, 26, 1.65), yaw: yawTo(3.5, 26, -2.5, 43), pitch: -0.06, t: 22 },
     { pos: hp(-28, 6.5, 1.6), yaw: 0.9, pitch: 0.95, t: 40 },
     { pos: hp(-9, -1, 1.9), yaw: yawTo(-9, -1, -26, 6), pitch: -0.08, t: 52 },
-    { pos: hp(3, 5, 1.6), yaw: yawTo(3, 5, DOOR[0], DOOR[1]), pitch: -0.02, t: 18 },
+    { pos: hp(6.6, 8.2, 1.6), yaw: yawTo(6.6, 8.2, DOOR[0] + 0.3, DOOR[1]), pitch: -0.03, t: 18 },
   ],
   flythrough: [
     { pos: hp(0, -9, 1.8), yaw: 0, pitch: 0 }, { pos: hp(-8, -20, 1.8), yaw: -0.3, pitch: -0.05 },
@@ -87,11 +88,11 @@ export default {
   bounds: { center: [0, 0, -10], radius: 72 },
   env: {
     sunDir: [-0.45, 0.62, -0.5], sunColor: [0.16, 0.18, 0.34], fogColor: [0.016, 0.03, 0.045], fogDensity: 0,
-    ambientSky: [0.035, 0.05, 0.095], ambientGround: [0.025, 0.018, 0.035],
+    ambientSky: [0.042, 0.06, 0.11], ambientGround: [0.032, 0.03, 0.05],
   },
-  post: { exposure: 1.35, bloom: 0.16, bloomThreshold: 0.75, bloomKnee: 0.7, vignette: 0.3, saturation: 1.12, contrast: 1.04 },
+  post: { exposure: 1.35, bloom: 0.2, bloomThreshold: 0.7, bloomKnee: 0.7, vignette: 0.3, saturation: 1.12, contrast: 1.04 },
   clearColor: [0.01, 0.015, 0.03],
-  doorLight: [0.1, 0.09, 0.13],
+  doorLight: [0.15, 0.2, 0.24],
   fov: 64,
 
   hAt(x, z) {
@@ -161,6 +162,11 @@ export default {
 
     // ---------- placement ----------
     const emit = []; // x, z, slot, strength, radius
+    // hue zones: groves of cyan, violet or magenta with a neighbouring hue mixed in and lime as a rare accent
+    const zs = (x, z, lime = 0.06) => {
+      const n = fbm2(x * 0.022 + 3.1, z * 0.022 - 1.7, 2), r = R(), b = n < -0.12 ? 0 : n < 0.14 ? 2 : 1;
+      return r < lime ? 3 : r < 0.24 ? (b === 2 ? (n < 0 ? 0 : 1) : 2) : b;
+    };
     const free = (x, z, rPath, rDoor) => pathDist(x, z) > rPath && Math.hypot(x - DOOR[0], z - DOOR[1]) > rDoor && Math.hypot(x - SPAWN[0], z - SPAWN[2]) > 2.5;
     // trees
     const nTrees = [110, 165, 220][q], trees = [];
@@ -180,11 +186,11 @@ export default {
     this.treeCol = new Float32Array(trees.length * 3);
     this.treeGrid = Array.from({ length: 64 * 64 }, () => []);
     trees.forEach(([x, z, s], i) => {
-      const v = i % NV, y = this.hAt(x, z), slot = R() * 4 | 0;
+      const v = i % NV, y = this.hAt(x, z), slot = zs(x, z, 0.03);
       tInst[v].push(x, y, z, s, R() * TAU, slot, R(), y);
       this.treeCol.set([x, z, 1.45 * s], i * 3);
       this.treeGrid[((Math.floor(x / 12) + 32) & 63) * 64 + ((Math.floor(z / 12) + 32) & 63)].push(i);
-      emit.push(x, z, slot, 0.8 * s, 6);
+      emit.push(x, z, slot, 0.7 * s, 5);
     });
     this.cats = [];
     this.treeCats = tInst.map((a, v) => this.cat(ctx, treeMeshes[v][0], treeMeshes[v][1], a, 9, 130, 34));
@@ -207,38 +213,83 @@ export default {
     const fern = [], nFern = [150, 270, 360][q];
     for (let i = 0; i < nFern; i++) {
       const s = spot(true); if (!s) continue;
-      const [x, z] = s, y = this.hAt(x, z) - 0.05, slot = (R() * 4 | 0) + (R() < 0.3 ? 0.5 : 0), sc = 0.9 + R() * 1.5, n = 5 + (R() * 4 | 0), y0 = R() * TAU;
+      const [x, z] = s, y = this.hAt(x, z) - 0.05, slot = zs(x, z), big = R(), sc = 0.7 + big * big * 2.2, n = 5 + (R() * 4 | 0), y0 = R() * TAU;
       for (let f = 0; f < n; f++) fern.push(x, y, z, sc * (0.75 + R() * 0.4), y0 + (f / n) * TAU + R() * 0.4, slot, R(), f === 0 && R() < 0.6 ? 0.85 + R() * 0.15 : 0);
-      emit.push(x, z, slot, 0.5 * sc, 3.5);
+      emit.push(x, z, slot, 0.7 * sc, 2.4);
     }
     this.fernCat = this.cat(ctx, this.mesh(ctx, frond(16)), this.mesh(ctx, frond(8)), fern, 3, 55, 16);
     const fans = [];
     for (let i = 0; i < [50, 90, 130][q]; i++) {
       const s = spot(true); if (!s) continue;
-      const [x, z] = s, y = this.hAt(x, z) - 0.05, slot = R() * 4 | 0, sc = 0.9 + R() * 1.3, n = 2 + (R() * 3 | 0), y0 = R() * TAU;
+      const [x, z] = s, y = this.hAt(x, z) - 0.05, slot = zs(x, z), big = R(), sc = 0.7 + big * big * 2, n = 2 + (R() * 3 | 0), y0 = R() * TAU;
       for (let f = 0; f < n; f++) fans.push(x + (R() - 0.5) * 0.3, y, z + (R() - 0.5) * 0.3, sc * (0.8 + R() * 0.4), y0 + (f / n) * TAU, slot, R(), 0);
-      emit.push(x, z, slot, 0.5 * sc, 3.5);
+      emit.push(x, z, slot, 0.7 * sc, 2.4);
     }
     const fanM = this.mesh(ctx, fan());
     this.fanCat = this.cat(ctx, fanM, fanM, fans, 2, 50, 99);
     const spi = [];
     for (let i = 0; i < [35, 60, 85][q]; i++) {
       const s = spot(false); if (!s) continue;
-      const [x, z] = s, slot = R() * 4 | 0, n = 3 + (R() * 4 | 0);
+      const [x, z] = s, slot = zs(x, z, 0.12), n = 3 + (R() * 4 | 0);
       for (let f = 0; f < n; f++) {
         const a = R() * TAU, r = R() * 0.9, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
         spi.push(px, this.hAt(px, pz) - 0.05, pz, 0.7 + R() * 1.6, R() * TAU, slot, R(), 0.5 + R() * 0.5);
       }
-      emit.push(x, z, slot, 0.8, 3.5);
+      emit.push(x, z, slot, 0.9, 2.2);
     }
     this.spiCat = this.cat(ctx, this.mesh(ctx, spiral(7, 34)), this.mesh(ctx, spiral(4, 14)), spi, 2, 50, 14);
     const shr = [];
     for (let i = 0; i < [30, 55, 80][q]; i++) {
       const s = spot(true); if (!s) continue;
-      const [x, z] = s, slot = R() * 4 | 0;
-      shr.push(x, this.hAt(x, z), z, 1.2 + R() * 1.4, R() * TAU, slot, R(), 1); emit.push(x, z, slot, 0.9, 3.5);
+      const [x, z] = s, slot = zs(x, z);
+      shr.push(x, this.hAt(x, z), z, 1 + R() * 1.8, R() * TAU, slot, R(), 1); emit.push(x, z, slot, 1.2, 2.6);
     }
+    // door surroundings: lantern plants and rosettes frame it, mushrooms at its posts
+    const ros = [], lan = [], dz = DOOR[1], dxs = DOOR[0];
+    for (const sd of [-1, 1]) {
+      lan.push(dxs + sd * 1.75, this.hAt(dxs + sd * 1.75, dz + 0.5), dz + 0.5, 1.25, R() * TAU, sd < 0 ? 0 : 2, R(), 4);
+      ros.push(dxs + sd * 2.5, this.hAt(dxs + sd * 2.5, dz + 1.5) - 0.03, dz + 1.5, 1.7, R() * TAU, sd < 0 ? 2 : 0, R(), 3);
+      ros.push(dxs + sd * 1.3, this.hAt(dxs + sd * 1.3, dz + 2.3) - 0.03, dz + 2.3, 1.2, R() * TAU, 0.5, R(), 3);
+      shr.push(dxs + sd * 3.4, this.hAt(dxs + sd * 3.4, dz + 0.2), dz + 0.2, 1.9, R() * TAU, sd < 0 ? 2 : 1, R(), 1);
+      emit.push(dxs + sd * 1.75, dz + 0.5, sd < 0 ? 0 : 2, 1.6, 3, dxs + sd * 3.4, dz + 0.2, sd < 0 ? 2 : 1, 1.2, 2.6);
+    }
+    emit.push(dxs, dz - 1, 0, 1.2, 3);
     this.shrubCat = this.cat(ctx, this.mesh(ctx, shrub(5)), null, shr, 3, 50, 99);
+    for (let i = 0; i < [40, 70, 100][q]; i++) {
+      const s = spot(true); if (!s) continue;
+      const [x, z] = s, slot = zs(x, z), big = R();
+      ros.push(x, this.hAt(x, z) - 0.03, z, 0.8 + big * big * 1.8, R() * TAU, slot, R(), 3); emit.push(x, z, slot, 0.8, 2.4);
+    }
+    this.rosCat = this.cat(ctx, this.mesh(ctx, rosette(9)), null, ros, 2, 55, 99);
+    for (let i = 0; i < [30, 50, 75][q]; i++) {
+      const s = spot(i % 2 === 0); if (!s) continue;
+      const [x, z] = s, slot = zs(x, z, 0.15);
+      lan.push(x, this.hAt(x, z) - 0.02, z, 0.8 + R() * 1.1, R() * TAU, slot, R(), 4); emit.push(x, z, slot, 1.3, 2.8);
+    }
+    this.lanCat = this.cat(ctx, this.mesh(ctx, lantern(3)), null, lan, 2.5, 50, 99);
+    const reeds = [];
+    for (let i = 0; i < [36, 60, 84][q]; i++) {
+      const a = R() * TAU, e0 = 0.9 + R() * 0.13, x = LAG[0] + Math.cos(a) * LAG[2] * e0, z = LAG[1] + Math.sin(a) * LAG[3] * e0;
+      const [rc, am, edge] = cliffInfo(x, z);
+      if ((am > 0.05 && rc > edge - 3) || (Math.abs(x) < 6 && z > -27)) continue;
+      const slot = R() < 0.6 ? 0 : zs(x, z, 0.25);
+      reeds.push(x, Math.max(this.hAt(x, z), -0.25) - 0.05, z, 0.8 + R() * 0.7, R() * TAU, slot, R(), 5); emit.push(x, z, slot, 0.5, 2);
+    }
+    this.reedCat = this.cat(ctx, this.mesh(ctx, reed(4)), null, reeds, 2.5, 70, 99);
+    // ground cover: clumps of small glowing tufts and star flowers
+    const tf = [];
+    for (let i = 0; i < [240, 520, 760][q]; i++) {
+      let x, z;
+      if (i < 8) { const a = (i / 8) * TAU; x = dxs + Math.cos(a) * (1.3 + R()); z = dz + Math.sin(a) * (1.3 + R()) + 0.3; if (Math.abs(x - dxs) < 0.8) continue; }
+      else if (R() < 0.4) { const k = R() * 5 | 0, t = R(), sd = R() < 0.5 ? -1 : 1, o = 1.5 + R() * 2, [ax, az] = PATH[k], [bx, bz] = PATH[k + 1], L = Math.hypot(bx - ax, bz - az); x = ax + (bx - ax) * t - ((bz - az) / L) * sd * o; z = az + (bz - az) * t + ((bx - ax) / L) * sd * o; }
+      else { const a = R() * TAU, r = R() * 58; x = Math.cos(a) * r; z = -8 + Math.sin(a) * r; }
+      const [rc, am, edge] = cliffInfo(x, z);
+      if (lagE(x, z) < 1.07 || pathDist(x, z) < 1.25 || (am > 0.05 && rc > edge - 0.5)) continue;
+      const slot = zs(x, z, 0.14), n = 3 + (R() * 4 | 0);
+      for (let k = 0; k < n; k++) { const px = x + (R() - 0.5) * 1.5, pz = z + (R() - 0.5) * 1.5; if (pathDist(px, pz) > 1.1) tf.push(px, this.hAt(px, pz) - 0.01, pz, 0.7 + R() * 1.1, R() * TAU, slot, R(), 6); }
+      emit.push(x, z, slot, 0.35, 1.6);
+    }
+    this.tuftCat = this.cat(ctx, this.mesh(ctx, tuft(8)), null, tf, 0.4, 32, 99);
     const mush = [];
     for (let k = 0; k < PATH.length - 1; k++) {
       const [ax, az] = PATH[k], [bx, bz] = PATH[k + 1], L = Math.hypot(bx - ax, bz - az), n = Math.floor(L / 2.6);
@@ -246,12 +297,13 @@ export default {
         const t = (i + R()) / n, sd = R() < 0.5 ? -1 : 1, off = 1.5 + R() * 0.8;
         const x = ax + (bx - ax) * t + (-(bz - az) / L) * sd * off, z = az + (bz - az) * t + ((bx - ax) / L) * sd * off;
         if (Math.hypot(x - DOOR[0], z - DOOR[1]) < 2.5 || lagE(x, z) < 1.1) continue;
-        const slot = R() < 0.5 ? 0 : 3;
-        mush.push(x, this.hAt(x, z) - 0.02, z, 0.9 + R() * 1.1, R() * TAU, slot, R(), 2); emit.push(x, z, slot, 0.35, 2.5);
+        const slot = zs(x, z, 0.3);
+        mush.push(x, this.hAt(x, z) - 0.02, z, 0.9 + R() * 1.3, R() * TAU, slot, R(), 2); emit.push(x, z, slot, 0.6, 1.7);
       }
     }
-    for (const t of trees) for (let k = 0; k < 2; k++) { const a = R() * TAU, r = 1.2 * t[2] + R(), x = t[0] + Math.cos(a) * r, z = t[1] + Math.sin(a) * r; mush.push(x, this.hAt(x, z) - 0.02, z, 1 + R() * 1.4, R() * TAU, R() * 4 | 0, R(), 2); }
-    this.mushCat = this.cat(ctx, this.mesh(ctx, mushrooms(3)), null, mush, 0.5, 38, 99);
+    for (const t of trees) for (let k = 0; k < 2; k++) { const a = R() * TAU, r = 1.2 * t[2] + R(), x = t[0] + Math.cos(a) * r, z = t[1] + Math.sin(a) * r; mush.push(x, this.hAt(x, z) - 0.02, z, 1 + R() * 1.6, R() * TAU, zs(x, z, 0.2), R(), 2); }
+    for (const sd of [-1, 1]) { mush.push(DOOR[0] + sd * 1.0, this.hAt(DOOR[0] + sd, DOOR[1]) - 0.02, DOOR[1] + 0.25, 1.6, R() * TAU, sd < 0 ? 0 : 3, R(), 2); emit.push(DOOR[0] + sd, DOOR[1] + 0.25, sd < 0 ? 0 : 3, 0.7, 1.6); }
+    this.mushCat = this.cat(ctx, this.mesh(ctx, mushrooms(3)), null, mush, 0.6, 42, 99);
     const rocks = [];
     for (let i = 0; i < 26; i++) {
       const a = (R() - 0.5) * 2.6, rc = 13.6 + R() * 3.5, dz = -rc * Math.cos(a), dx = (rc * Math.sin(a)) / 0.62;
@@ -262,6 +314,12 @@ export default {
       const a = R() * TAU, e0 = 1.02 + R() * 0.2, x = LAG[0] + Math.cos(a) * LAG[2] * e0, z = LAG[1] + Math.sin(a) * LAG[3] * e0;
       if (!free(x, z, 1.8, 4)) continue;
       rocks.push(x, this.hAt(x, z) - 0.15, z, 0.3 + R() * 0.7, R() * TAU, R() * 4 | 0, R(), 0);
+    }
+    for (let i = 0; i < 150; i++) {       // small stones scattered over the clearing and along the path
+      const a = R() * TAU, r = R() * 45, x = Math.cos(a) * r, z = -6 + Math.sin(a) * r;
+      if (lagE(x, z) < 1.05 || pathDist(x, z) < 1.2 || Math.hypot(x - DOOR[0], z - DOOR[1]) < 2.5) continue;
+      const sc = 0.08 + R() * R() * 0.4;
+      rocks.push(x, this.hAt(x, z) - sc * 0.35, z, sc, R() * TAU, zs(x, z), R(), 0);
     }
     this.rockCat = this.cat(ctx, this.mesh(ctx, fromCore(ctx.mesh.rock(11, 2, 0.45), [0, 0, 0, 0])), null, rocks, 1.3, 140, 99);
     await progress(0.6);
@@ -282,20 +340,21 @@ export default {
     }
     this.padsW = new Float32Array(pads.length * 4);
     const padI = [];
-    pads.forEach(([x, z, r], i) => { this.padsW.set([x, z, r, 0], i * 4); const sl = R() < 0.5 ? 0 : 3; padI.push(x, 0.035, z, r, R() * TAU, sl, R(), 0); emit.push(x, z, sl, 0.3 * r, 2.5 * r); });
+    pads.forEach(([x, z, r], i) => { this.padsW.set([x, z, r, 0], i * 4); const sl = R() < 0.5 ? 0 : 3; padI.push(x, 0.03, z, r, R() * TAU, sl, R(), 0); emit.push(x, z, sl, 0.3 * r, 1.6 * r); });
     this.padCat = this.cat(ctx, this.mesh(ctx, pad()), null, padI, 2.4, 140, 99);
     const lotI = []; this.lotus = [];
-    lot.forEach(([x, z, s]) => { const per = 55 + R() * 45, sd = R(); lotI.push(x, 0.02, z, s, R() * TAU, 1, sd, per); this.lotus.push(per, sd, x, z); emit.push(x, z, 1, 1.0, 4.5); });
+    lot.forEach(([x, z, s]) => { const per = 55 + R() * 45, sd = R(); lotI.push(x, 0.02, z, s, R() * TAU, 1, sd, per); this.lotus.push(per, sd, x, z, s); emit.push(x, z, 1, 0.3, 2.5); });
     this.lotus = new Float32Array(this.lotus); this.lotusSign = new Int8Array(lot.length);
     this.lotusCat = this.cat(ctx, this.mesh(ctx, lotus()), null, lotI, 1.2, 140, 99);
     const fishI = [];
-    for (let i = 0; i < 8; i++) fishI.push(LAG[0] + (R() - 0.5) * 8, LAG[1] + (R() - 0.5) * 6 + 2, 6 + R() * 7, (0.05 + R() * 0.05) * (R() < 0.5 ? -1 : 1), R() * TAU, R() * 4 | 0, R(), -0.45 - R() * 0.35);
-    this.fishM = this.mesh(ctx, fish()); this.fishB = ctx.buffer(new Float32Array(fishI), 'vertex'); this.nFish = 8;
+    for (let i = 0; i < 8; i++) fishI.push(LAG[0] + (R() - 0.5) * 8, LAG[1] + (R() - 0.5) * 6 + 2, 5 + R() * 7, (0.04 + R() * 0.04) * (R() < 0.5 ? -1 : 1), R() * TAU, R() * 4 | 0, R(), -0.34 - R() * 0.25);
+    fishI.push(-3.4, -27.4, 2.3, 0.11, 1.2, 0, R(), -0.32, -2.2, -29, 3.1, -0.085, 4, 1, R(), -0.36);
+    this.fishM = this.mesh(ctx, fish()); this.fishB = ctx.buffer(new Float32Array(fishI), 'vertex'); this.nFish = 10;
     this.frogM = this.mesh(ctx, frog());
     // frog pad trios (nearby pads)
-    this.frogPads = new Int32Array(12);
-    for (let f = 0; f < 4; f++) {
-      const a = [f === 0 ? 0 : (f * 5) % pads.length];
+    this.frogPads = new Int32Array(18);
+    for (let f = 0; f < 6; f++) {
+      const a = [[0, 2, 5, 9, 13, 17][f] % pads.length];
       while (a.length < 3) {
         const p = pads[a[a.length - 1]]; let best = -1, bd = 1e9;
         pads.forEach((o, k) => { if (a.includes(k)) return; const d = Math.hypot(o[0] - p[0], o[1] - p[1]) - o[2] - p[2]; if (d < bd) { bd = d; best = k; } });
@@ -308,11 +367,11 @@ export default {
     for (let z = LAG[1]; z > LAG[1] - 30; z -= 0.1) { const h = terrain(WFX, z); if (h > 0 && bz === LAG[1]) bz = z; if (h > 12.5) { lz = z; break; } }
     const lipY = terrain(WFX, lz - 0.6);
     this.wf = [WFX, lipY, lz + 0.2, bz + 2.2];
-    emit.push(WFX, bz + 2, 0, 3.0, 9, WFX, bz - 1, 0, 1.5, 6, WFX - 3, bz + 1, 3, 1.0, 6, WFX + 3, bz + 1, 2, 1.0, 6);
+    emit.push(WFX, bz + 2, 0, 1.6, 8, WFX, bz - 1, 0, 1.0, 6, WFX - 3, bz + 1, 3, 0.6, 5, WFX + 3, bz + 1, 2, 0.6, 5);
     await progress(0.7);
 
     // ---------- lightmap from all emitters ----------
-    const LMN = 160, lm = new Float32Array(LMN * LMN * 4), cs = WSIZE / LMN;
+    const LMN = 256, lm = new Float32Array(LMN * LMN * 4), cs = WSIZE / LMN;
     for (let k = 0; k < emit.length; k += 5) {
       const x = emit[k], z = emit[k + 1], sl = emit[k + 2] | 0, st = emit[k + 3], r = emit[k + 4];
       const gi = (x / WSIZE + 0.5) * LMN - 0.5, gj = (z / WSIZE + 0.5) * LMN - 0.5, rr = Math.ceil((r * 2.2) / cs);
@@ -327,25 +386,26 @@ export default {
     dev.queue.writeTexture({ texture: lmap }, lh, { bytesPerRow: LMN * 8 }, [LMN, LMN]);
 
     // ---------- uniforms, bind groups, pipelines ----------
-    this.U = new Float32Array(100);
-    this.ub = ctx.buffer(400, 'uniform');
-    const shafts = [[-4, -30, 1.2, 1.0], [6, -24, 0.8, 0.8], [-12, -8, 1.0, 0.7], [9, -6, 0.7, 0.6], [-2, 8, 0.9, 0.55]];
-    shafts.forEach((s, i) => this.U.set(s, 80 + i * 4));
-    this.U.set(this.wf, 72);
-    this.U.set([1, 0.03, 0.011, 1], 76);
+    this.U = new Float32Array(172);
+    this.ub = ctx.buffer(688, 'uniform');
+    const shafts = [[-4, -30, 0.75, 1.0], [-1.5, -26.5, 0.4, 0.7], [-7, -33.5, 0.5, 0.6], [-12, -8, 0.6, 0.6], [9, -5, 0.5, 0.55], [DOOR[0] + 0.3, DOOR[1] - 0.3, 0.75, 0.9]];
+    shafts.forEach((s, i) => this.U.set(s, 104 + i * 4));
+    this.U.set(this.wf, 96);
+    this.U.set([1, 0.03, 0.011, 1.25], 100);
+    this.U.set([DOOR[0], this.hAt(DOOR[0], DOOR[1]), DOOR[1], 0], 168);
     const lin = dev.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
     const rep = dev.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'repeat', addressModeV: 'repeat' });
     this.cL = ctx.layout(['uniform', 'texture', 'texture', 'texture', 'sampler', 'sampler']);
     this.cBG = ctx.bindGroup(this.cL, [this.ub, hmap.createView(), lmap.createView(), ntex.createView(), lin, rep]);
     this.dL = ctx.layout(['texture-depth']);
     const head = `const NPATH = ${PATH.length}u;\nconst PATH = array<vec2f, ${PATH.length}>(${PATH.map((p) => `vec2f(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`).join(',')});\n` +
-      `const LAGOON = vec4f(${LAG.map((v) => v.toFixed(2)).join(',')});\nconst NSPORE = ${[600, 1200, 2200][q]}u;\n`;
+      `const SPA = vec2f(${SPUR[0]}); const SPB = vec2f(${SPUR[1]});\nconst LAGOON = vec4f(${LAG.map((v) => v.toFixed(2)).join(',')});\nconst NSPORE = ${[600, 1200, 2200][q]}u;\n`;
     this.nSpore = [600, 1200, 2200][q]; this.nFly = [50, 90, 140][q];
     const sh = (c, l) => ctx.rawShader('diagnostic(off, derivative_uniformity);\n' + ctx.wgsl.prelude + head + COMMON + c, l);
     const om = sh(OPAQUE, 'jungle-opaque'), fm = sh(FX, 'jungle-fx');
     const L = [this.cL], VB = [VLAYOUT], VBI = [VLAYOUT, ILAYOUT];
     const P = (module, vs, fs, o = {}) => ctx.pipelineAsync({ module, vs, fs, layouts: L, cull: 'none', label: vs, ...o });
-    [this.pTerr, this.pTree, this.pProp, this.pFern, this.pFan, this.pSpi, this.pPad, this.pLotus, this.pFish, this.pFrog, this.pPetal, this.pSky, this.pWater, this.pMist, this.pFall, this.pSpore, this.pPuff] = await Promise.all([
+    [this.pTerr, this.pTree, this.pProp, this.pFern, this.pFan, this.pSpi, this.pPad, this.pLotus, this.pFish, this.pFrog, this.pPetal, this.pSky, this.pWater, this.pMist, this.pFall, this.pSpore, this.pPuff, this.pFishGlow] = await Promise.all([
       P(om, 'vsTerrain', 'fsTerrain', { buffers: VB, cull: 'back' }), P(om, 'vsTree', 'fsTree', { buffers: VBI }), P(om, 'vsProp', 'fsProp', { buffers: VBI }),
       P(om, 'vsFern', 'fsFern', { buffers: VBI }), P(om, 'vsFan', 'fsFan', { buffers: VBI }), P(om, 'vsSpiral', 'fsSpiral', { buffers: VBI }),
       P(om, 'vsPad', 'fsPad', { buffers: VBI }), P(om, 'vsLotus', 'fsLotus', { buffers: VBI }), P(om, 'vsFish', 'fsFish', { buffers: VBI }),
@@ -353,11 +413,11 @@ export default {
       P(fm, 'vsWater', 'fsWater', { buffers: VB, blend: 'alpha', depthWrite: true }),
       P(fm, 'vsMist', 'fsMist', { layouts: [this.cL, this.dL], blend: 'premul', depthFormat: null }),
       P(fm, 'vsFall', 'fsFall', { buffers: VB, blend: 'add' }), P(fm, 'vsSpore', 'fsSpore', { blend: 'add' }), P(fm, 'vsPuff', 'fsPuff', { blend: 'add' }),
+      P(fm, 'vsFishGlow', 'fsPuff', { blend: 'add', buffers: [ILAYOUT] }),
     ]);
     // water surface grid and waterfall sheet
     this.waterM = this.mesh(ctx, fromCore(ctx.mesh.translate(ctx.mesh.plane(LAG[2] * 2 + 6, LAG[3] * 2 + 6, 72, 48), LAG[0], 0, LAG[1]), [0, 0, 0, 0]));
     this.fallM = this.mesh(ctx, fromCore(ctx.mesh.plane(1, 1, 10, 36), [0, 0, 0, 0]));
-    this.frogPos = new Float32Array(12);
     this.resize(ctx);
     await progress(1);
   },
@@ -409,7 +469,7 @@ export default {
     }
     // frogs hop between nearby pads on slow, staggered schedules
     const P = this.padsW, au = ctx.audio;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       const per = 19 + 6.3 * i, off = 3 + 4.1 * i, k = Math.floor((t - off) / per), loc = t - off - k * per, kk = Math.max(k, 0);
       const pa = this.frogPads[i * 3 + (kk % 3)] * 4, pb = this.frogPads[i * 3 + ((kk + 1) % 3)] * 4;
       const angA = Math.atan2(P[pb + 1] - P[pa + 1], P[pb] - P[pa]);
@@ -425,8 +485,8 @@ export default {
         if (loc < 1.4) sq = 1 - (loc - 1) / 0.4;
       }
       if (loc > per - 0.5) sq = (loc - (per - 0.5)) / 0.5;
-      U[40 + i * 4] = x; U[41 + i * 4] = y; U[42 + i * 4] = z; U[43 + i * 4] = yaw;
-      U[56 + i * 4] = hop; U[57 + i * 4] = sq;
+      U[48 + i * 4] = x; U[49 + i * 4] = y; U[50 + i * 4] = z; U[51 + i * 4] = yaw;
+      U[72 + i * 4] = hop; U[73 + i * 4] = sq; U[74 + i * 4] = (0.5 + 0.5 * Math.sin(t * 1.1 + i * 2.3)) ** 2 * (0.5 + 0.5 * Math.sin(t * 0.13 + i));
       // ripple at landing
       U[16 + i * 4] = P[pb]; U[17 + i * 4] = P[pb + 1]; U[18 + i * 4] = off + kk * per + 0.95 + (k < 0 ? -100 : 0); U[19 + i * 4] = P[pb + 2] * 0.9;
       if (au && k >= 0 && loc > 0.95 && loc < 1.2 && this.lastPlip[i] !== k) { this.lastPlip[i] = k; this.plip(au, P[pb], P[pb + 1]); }
@@ -434,19 +494,19 @@ export default {
     // fish kisses: small ripples at random lagoon spots
     for (let j = 0; j < 2; j++) {
       const per = j ? 13.3 : 9.7, k = Math.floor(t / per), h = pcg(k * 2 + j + 99), a = u2f(h) * TAU, r = Math.sqrt(u2f(pcg(h))) * 0.75;
-      U[32 + j * 4] = LAG[0] + Math.cos(a) * LAG[2] * r; U[33 + j * 4] = LAG[1] + Math.sin(a) * LAG[3] * r; U[34 + j * 4] = k * per + 1; U[35 + j * 4] = 0.05;
+      U[40 + j * 4] = LAG[0] + Math.cos(a) * LAG[2] * r; U[41 + j * 4] = LAG[1] + Math.sin(a) * LAG[3] * r; U[42 + j * 4] = k * per + 1; U[43 + j * 4] = 0.05;
+    }
+    // lotus bloom state (same curve as bloomOf in WGSL) for halos and reflections; chime when one starts to open
+    const L = this.lotus;
+    for (let i = 0; i < this.lotusSign.length; i++) {
+      const o = i * 5, sn = Math.sin(TAU * (t / L[o] + L[o + 1] * TAU)), s = sn > 0 ? 1 : -1;
+      U[128 + i * 4] = L[o + 2]; U[129 + i * 4] = L[o + 3]; U[130 + i * 4] = L[o + 4];
+      U[131 + i * 4] = ss(0.15, 0.85, 0.5 + 0.5 * sn + 0.06 * Math.sin(t * 0.37 + L[o + 1] * 9));
+      if (au && this.lotusSign[i] === -1 && s === 1) this.chime(au, L[o + 2], L[o + 3]);
+      this.lotusSign[i] = s;
     }
     ctx.write(this.ub, U);
     this.cull(ctx, cam);
-    // lotus chimes when a flower starts to open
-    if (au) {
-      const L = this.lotus;
-      for (let i = 0; i < this.lotusSign.length; i++) {
-        const s = Math.sin(TAU * (t / L[i * 4] + L[i * 4 + 1] * TAU)) > 0 ? 1 : -1;
-        if (this.lotusSign[i] === -1 && s === 1) this.chime(au, L[i * 4 + 2], L[i * 4 + 3]);
-        this.lotusSign[i] = s;
-      }
-    }
   },
 
   drawCat(pass, c) {
@@ -458,13 +518,14 @@ export default {
     pass.setPipeline(this.pTerr); pass.setVertexBuffer(0, this.terr.vb); pass.setIndexBuffer(this.terr.ib, 'uint32'); pass.drawIndexed(this.terr.n);
     pass.setPipeline(this.pTree); for (let i = 0; i < this.treeCats.length; i++) this.drawCat(pass, this.treeCats[i]);
     pass.setPipeline(this.pProp); this.drawCat(pass, this.rockCat); this.drawCat(pass, this.shrubCat); this.drawCat(pass, this.mushCat);
+    this.drawCat(pass, this.rosCat); this.drawCat(pass, this.lanCat); this.drawCat(pass, this.reedCat); this.drawCat(pass, this.tuftCat);
     pass.setPipeline(this.pFern); this.drawCat(pass, this.fernCat);
     pass.setPipeline(this.pFan); this.drawCat(pass, this.fanCat);
     pass.setPipeline(this.pSpi); this.drawCat(pass, this.spiCat);
     pass.setPipeline(this.pPad); this.drawCat(pass, this.padCat);
     pass.setPipeline(this.pLotus); this.drawCat(pass, this.lotusCat);
     pass.setPipeline(this.pFish); pass.setVertexBuffer(0, this.fishM.vb); pass.setVertexBuffer(1, this.fishB); pass.setIndexBuffer(this.fishM.ib, 'uint32'); pass.drawIndexed(this.fishM.n, this.nFish);
-    pass.setPipeline(this.pFrog); pass.setVertexBuffer(0, this.frogM.vb); pass.setIndexBuffer(this.frogM.ib, 'uint32'); pass.drawIndexed(this.frogM.n, 4);
+    pass.setPipeline(this.pFrog); pass.setVertexBuffer(0, this.frogM.vb); pass.setIndexBuffer(this.frogM.ib, 'uint32'); pass.drawIndexed(this.frogM.n, 6);
     pass.setPipeline(this.pPetal); pass.draw(6, 36);
     pass.setPipeline(this.pSky); pass.draw(3);
   },
@@ -483,12 +544,13 @@ export default {
     p.setViewport(0, 0, w, h, 0, 1); p.setScissorRect(0, 0, w, h);
     p.setBindGroup(0, ctx.globalsBindGroup); p.setBindGroup(1, this.cBG);
     p.setPipeline(this.pFall); p.setVertexBuffer(0, this.fallM.vb); p.setIndexBuffer(this.fallM.ib, 'uint32'); p.drawIndexed(this.fallM.n, 2);
-    p.setPipeline(this.pPuff); p.draw(6, 28 + 220);
+    p.setPipeline(this.pPuff); p.draw(6, 276);
+    p.setPipeline(this.pFishGlow); p.setVertexBuffer(0, this.fishB); p.draw(6, this.nFish);
     p.setPipeline(this.pSpore); p.draw(6, this.nSpore + this.nFly);
     p.end();
   },
 
-  lastPlip: new Int32Array([-1, -1, -1, -1]),
+  lastPlip: new Int32Array([-1, -1, -1, -1, -1, -1]),
   plip(a, x, z) {
     const s = this.sp || (this.sp = a.spatial({ pos: [x, 0, z], ref: 4, reverb: 0.5, gain: 1 }));
     s.setPos(x, 0.2, z);

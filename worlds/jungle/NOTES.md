@@ -1,32 +1,48 @@
 # jungle — Bioluminescent jungle with a lily lagoon
 
 ## Files
-- `world.js` — layout, CPU terrain (`terrain()`), placement, lightmap bake, CPU culling, frogs/ripples/palette update, audio.
-- `geo.js` — mesh builders (48-byte vertex: pos, nrm, uv, attr). Trees (twisted trunk, buttress fins, branches, leaf clusters, vines),
-  fern frond / fan / spiral templates (shaped in the vertex shader), lotus, Victoria pad, koi, frog, mushrooms, fractal shrub.
-- `common.wgsl` — world uniforms `U`, baked maps (height, glow lightmap, tileable noise), palette slots, `pulse()` waves, `glowAt()`, `shadeJ()`.
-- `opaque.wgsl` — terrain, trees, props, ferns, fans, spirals, pads, lotus, koi, frogs, petals, sky (drawn last, only where depth = 0).
-- `fx.wgsl` — water (renderTransparent), deferred mist pass (afterScene, reads depth: height mist + haze + glow scattered from the
-  lightmap + analytic moon shafts), additive FX pass with read-only depth (waterfall sheets, spray/mist puffs, spores, fireflies).
-- `postcard.wgsl` — spawn view: cliff + waterfall ahead, glowing forest silhouettes, mirror lagoon with lotus glows.
+- `world.js` — layout, CPU terrain (`terrain()`), placement (hue zones `zs()`), lightmap bake, CPU culling, frogs/ripples/lotus/palette
+  update, audio.
+- `geo.js` — mesh builders (48-byte vertex: pos, nrm, uv, attr). Trees (twisted trunk, buttress fins, two tiers of branches and leaf
+  clusters, sagging/dangling vines with small leaves), fern frond / fan / spiral / lotus templates (shaped in the vertex shader),
+  Victoria pad (thin upturned rim), koi, frog, mushrooms (stem, cap, gills), candelabra shrub, rosette, lantern plant, reeds, ground tufts.
+- `common.wgsl` — world uniforms `U` (172 floats, offsets listed in the struct), baked maps (height, glow lightmap, tileable noise),
+  palette slots, `pulse()` waves, `glowAt()`, `shadeJ()`, `fishPos()`.
+- `opaque.wgsl` — terrain (moss, pebbles, cobbled path with glowing joints and beaded edge moss, door moss ring), trees (bark bump,
+  veins with core + halo, moonlit rim, leaf veins and translucency, vines with a travelling pulse), generic props (`fsProp`, type in
+  instance `b.w`: 0 rock, 1 shrub, 2 mushroom, 3 rosette, 4 lantern, 5 reed, 6 tuft), ferns, fans, spirals, pads, lotus, koi, frogs,
+  petals, sky.
+- `fx.wgsl` — water (renderTransparent: 4 ripple layers, fresnel, reflections of sky/moon, shore glow, waterfall and each lotus),
+  deferred mist pass (afterScene, reads depth: height mist + haze + glow scattered from the lightmap + analytic moon shafts), additive
+  FX pass with read-only depth (waterfall sheets, mist billows, spray, lotus and frog halos, koi glow on the water, spores, fireflies).
+- `postcard.wgsl` — the spawn view, all soft: canopy with a moon gap, cliff and waterfall ahead, glowing trunks at the sides, the
+  lagoon as an ellipse on the ground plane (reflections only there), mossy shore.
 
 ## Layout
 Lagoon centre (0, −36), radii 21 × 13. Cliff arcs around the back (≈15 m), waterfall at x = 2.5. Clearing around (0, −4).
-Spawn (0, −9) faces the lagoon; door to `sky-mountains` at (9.5, 17), ~27 m behind, next to the glowing path (`PATH`).
+Spawn (0, −9) faces the lagoon; door to `sky-mountains` at (9.5, 17), ~27 m behind, next to the cobbled path (`PATH`, with a
+stepping-stone spur `SPUR` to the door). The door is framed by lantern plants, rosettes, shrubs and mushrooms, has a moss ring at
+its foot and its own moon shaft.
 Wading: `heightAt` is clamped smoothly at −0.55 in the lagoon; lily pads are walkable (`padsW`). `sdf` = cliff + tree trunks (grid).
 
 ## Light / colour
-Fog density in `env` is 0 on purpose (the door uses core fog); all fog/mist happens in the deferred mist pass.
-4 palette slots (cyan, magenta, violet, lime) rotate over ~14 min (`update`). Every emitter is splatted into a 160² slot-weight
-lightmap at load; surfaces, water reflections and mist read it, modulated by `pulse()` (two slow travelling wave fronts).
-Touch response: `touch()` brightens plants within ~4 m; ferns unfurl fiddleheads, fans open, spirals uncoil.
+Fog density in `env` is 0 on purpose (the door uses core fog); all fog/mist happens in the deferred mist pass (thinner when the
+camera is low over the water).
+4 palette slots (cyan, magenta, violet, lime) rotate over ~14 min (`update`). Plants take their slot from hue zones (`zs`): groves of
+cyan, violet or magenta with a neighbouring hue mixed in, lime as a rare accent. Every emitter is splatted into a 256² slot-weight
+lightmap at load (small radii = light pools); terrain, water, mist and rims read it, modulated by `pulse()`.
+Touch response: `touch()` brightens plants within ~4 m; ferns unfurl fiddleheads, fans open, spirals uncoil, props sway more.
 
 ## Tunables
-`U.misc` = (moon strength, mist density, haze density, glow gain) in init. Counts per quality in init (trees, ferns, fans,
-spirals, shrubs, pads, spores, fireflies). Shafts list in init. Post in the module (`exposure 1.35, bloom 0.16`).
+`U.misc` = (moon strength, mist density, haze density, glow gain) in init. Counts per quality in init (trees, ferns, fans, spirals,
+shrubs, rosettes, lanterns, reeds, tuft clumps, pads, spores, fireflies). Shafts list in init (x, z, radius, intensity).
+Post in the module (`exposure 1.35, bloom 0.2`). Puff instance ranges in `vsPuff` (40 billows, 220 spray, 10 lotus halos, 6 frog halos).
 
 ## Perf
-GPU at scale 1 (Medium, 1080p) ≈ 6–7 ms in probes. CPU frustum/distance culling with 2 LODs per instanced category.
+PERF_PLACEHOLDER
+CPU frustum/distance culling with 2 LODs per instanced category.
 
 ## Known issues / next
-Canopy leaves are flat polygons (read as silhouettes). Water has no true reflections (sky + glow lightmap + waterfall streak only).
+Water has no true reflections of geometry (sky, moon glitter, lightmap glow, waterfall and lotus streaks only). Koi are opaque meshes
+under an alpha-blended surface (no refraction). `tools/shoot.mjs` samples three 0.5 s clips of the fly-through, so motion sheets
+always show three short segments.
