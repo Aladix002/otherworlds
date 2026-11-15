@@ -31,7 +31,9 @@ fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = ce
   let p = in.w; let n = normalize(in.n);
   let N1 = nz(p.xz * 0.021); let N2 = nz(p.xz * 0.13 + 0.3);
   let slope = 1.0 - n.y;
-  var alb = mix(hex(0x14231c), hex(0x243824), N1.x) * (0.7 + 0.5 * N2.y);
+  let N3 = nz(p.xz * 0.47);
+  var alb = mix(hex(0x14231c), hex(0x2b4228), N1.x) * (0.6 + 0.5 * N2.y) * (0.65 + 0.7 * N3.x);
+  alb = mix(alb, hex(0x3a2a22), smoothstep(0.6, 0.75, N3.y) * 0.7);
   alb = mix(alb, hex(0x2a1f2c), smoothstep(0.55, 0.75, N1.y + N2.x * 0.2) * 0.6);
   let rockM = smoothstep(0.38, 0.62, slope + (N2.z - 0.5) * 0.3);
   alb = mix(alb, mix(hex(0x221e2a), hex(0x34303a), N2.w), rockM);
@@ -85,17 +87,19 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
     alb = mix(hex(0x1e1620), hex(0x3a2c2a), N.x) * (0.75 + 0.5 * nz(q * vec2f(1.3, 0.25)).y);
     alb = mix(alb, hex(0x1f3a26), smoothstep(0.25, 0.7, n.y + N.z * 0.4) * 0.8);
     // spiral vein network flowing up the trunk and along the buttress fins
-    let w1 = abs(fract((q.x + q.y * 0.42) / 1.7 + N.y * 0.5) - 0.5);
-    let w2 = abs(fract((q.x - q.y * 0.3) / 2.3 + N.w * 0.6) - 0.5);
-    let fw = max(fwidth(q.x) + fwidth(q.y), 1e-4) * 0.35;
-    let line = max(smoothstep(0.05 + fw, 0.0, w1), smoothstep(0.035 + fw, 0.0, w2) * 0.7) * smoothstep(1.2, 0.35, fw * 10.0);
+    let Nw = nz(q * vec2f(0.11, 0.025));
+    let u1 = (q.x + q.y * 0.42) / 1.7 + (Nw.y - 0.5) * 0.9 + (N.y - 0.5) * 0.12;
+    let u2 = (q.x - q.y * 0.3) / 2.3 + (Nw.w - 0.5) * 1.1;
+    let w1 = abs(fract(u1) - 0.5); let w2 = abs(fract(u2) - 0.5);
+    let f1 = fwidth(u1) * 0.8 + 1e-4; let f2 = fwidth(u2) * 0.8 + 1e-4;
+    let line = max(smoothstep(0.022 + f1, 0.022 - f1, w1) * smoothstep(0.3, 0.1, f1), smoothstep(0.016 + f2, 0.016 - f2, w2) * 0.7 * smoothstep(0.3, 0.1, f2));
     let hy = p.y - in.b.w;
     let wave = pow(0.5 + 0.5 * sin(hy * 0.55 - G.time * 1.05 + in.b.z * 9.0), 3.0);
     let hm = 1.0 - smoothstep(3.0, 13.0, hy);
     e = sl * line * (0.35 + 1.5 * wave) * hm * 0.9;
     // luminous lichen spots
-    let ls = smoothstep(0.74, 0.86, nz(q * vec2f(0.6, 0.18) + 0.5).z) * hm;
-    e += slotOf(in.b.y + 1.0) * ls * 0.25;
+    let ls = dotGlow(q * vec2f(3.0, 2.2), 0.18, 0.18).x * hm;
+    e += slotOf(in.b.y + 1.0) * ls * 0.5;
     ao = 0.55 + 0.45 * smoothstep(-0.2, 2.0, hy);
   } else if (m < 1.5) {
     let x = in.at.z; let vv = in.at.y;
@@ -322,9 +326,10 @@ fn bloomOf(b: vec4f) -> f32 {
   let ring = v.at.x;
   var lp = v.p; var ln = v.n;
   if (ring < 2.5) {
-    let tc = select(select(-0.32, -0.18, ring < 1.5), 0.02, ring < 0.5);
+    let tc = select(select(-0.4, -0.28, ring < 1.5), -0.14, ring < 0.5);
     let to = select(select(0.5, 0.95, ring < 1.5), 1.38, ring < 0.5);
     let tilt = mix(tc, to, bl) + 0.04 * sin(G.time * 0.6 + v.at.w * 6.0);
+    lp.x *= mix(0.55, 1.0, bl);
     let rx = rotX(-tilt);
     lp = rx * lp; ln = rx * ln;
     let ry = rotY(v.at.y);

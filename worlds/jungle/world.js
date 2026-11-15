@@ -67,7 +67,7 @@ export default {
   spawn: { pos: SPAWN, yaw: 0, pitch: 0.02 },
   poses: [
     { pos: hp(-15, -15, 2.8), yaw: yawTo(-15, -15, 2.5, -50), pitch: 0.06, t: 14 },
-    { pos: hp(-6.5, -25.5, 1.15), yaw: yawTo(-6.5, -25.5, -3, -31), pitch: -0.42, t: 31 },
+    { pos: hp(-5, -26.2, 1.15), yaw: yawTo(-5, -26.2, -1.8, -30), pitch: -0.24, t: 31 },
     { pos: hp(3.5, 26, 1.65), yaw: yawTo(3.5, 26, -2.5, 43), pitch: -0.06, t: 22 },
     { pos: hp(-28, 6.5, 1.6), yaw: 0.9, pitch: 0.95, t: 40 },
     { pos: hp(-9, -1, 1.9), yaw: yawTo(-9, -1, -26, 6), pitch: -0.08, t: 52 },
@@ -75,7 +75,7 @@ export default {
   ],
   flythrough: [
     { pos: hp(0, -9, 1.8), yaw: 0, pitch: 0 }, { pos: hp(-8, -20, 1.8), yaw: -0.3, pitch: -0.05 },
-    { pos: hp(-6, -30, 1.3), yaw: -0.6, pitch: -0.15 }, { pos: hp(6, -38, 1.3), yaw: 0.2, pitch: 0.15 },
+    { pos: hp(-6, -30, 1.6), yaw: -0.6, pitch: -0.15 }, { pos: hp(6, -38, 1.6), yaw: 0.2, pitch: 0.15 },
     { pos: hp(16, -34, 2), yaw: 1.2, pitch: 0.05 }, { pos: hp(22, -14, 1.8), yaw: 2.2, pitch: -0.05 },
     { pos: hp(10, 4, 1.8), yaw: 2.9, pitch: 0 }, { pos: hp(5, 20, 1.7), yaw: 3.2, pitch: 0 },
     { pos: hp(0, 38, 1.7), yaw: 3.4, pitch: 0.1 }, { pos: hp(-14, 30, 1.8), yaw: 4.6, pitch: 0.3 },
@@ -87,7 +87,7 @@ export default {
   bounds: { center: [0, 0, -10], radius: 72 },
   env: {
     sunDir: [-0.45, 0.62, -0.5], sunColor: [0.16, 0.18, 0.34], fogColor: [0.016, 0.03, 0.045], fogDensity: 0,
-    ambientSky: [0.03, 0.045, 0.085], ambientGround: [0.02, 0.014, 0.03],
+    ambientSky: [0.035, 0.05, 0.095], ambientGround: [0.025, 0.018, 0.035],
   },
   post: { exposure: 1.35, bloom: 0.16, bloomThreshold: 0.75, bloomKnee: 0.7, vignette: 0.3, saturation: 1.12, contrast: 1.04 },
   clearColor: [0.01, 0.015, 0.03],
@@ -198,13 +198,13 @@ export default {
         if (ring && R() < 0.75) { const t = trees[R() * trees.length | 0]; const a = R() * TAU, r = 2.5 + R() * 5; x = t[0] + Math.cos(a) * r; z = t[1] + Math.sin(a) * r; }
         else { const a = R() * TAU, r = Math.sqrt(R()) * 64; x = Math.cos(a) * r; z = -10 + Math.sin(a) * r; }
         if (Math.hypot(x, z + 10) > 70 || !near(x, z, 1.12)) continue;
-        if (inClearing(x, z) < 0.75 && R() < 0.85) continue;
+        if (inClearing(x, z) < 0.75 && R() < 0.55) continue;
         const [rc, am, edge] = cliffInfo(x, z); if (am > 0.05 && rc > edge - 0.5) continue;
         return [x, z];
       }
       return null;
     };
-    const fern = [], nFern = [130, 230, 320][q];
+    const fern = [], nFern = [150, 270, 360][q];
     for (let i = 0; i < nFern; i++) {
       const s = spot(true); if (!s) continue;
       const [x, z] = s, y = this.hAt(x, z) - 0.05, slot = (R() * 4 | 0) + (R() < 0.3 ? 0.5 : 0), sc = 0.9 + R() * 1.5, n = 5 + (R() * 4 | 0), y0 = R() * TAU;
@@ -274,9 +274,10 @@ export default {
       pads.push([x, z, r]);
     }
     const lot = [[-1.6, -29.0, 0.95], [-5.4, -31.4, 0.8]];
+    const FP = this.flythrough, segD = (x, z) => { let d = 1e9; for (let i = 0; i < FP.length - 1; i++) { const a = FP[i].pos, b = FP[i + 1].pos, vx = b[0] - a[0], vz = b[2] - a[2], h = Math.min(1, Math.max(0, ((x - a[0]) * vx + (z - a[2]) * vz) / (vx * vx + vz * vz + 1e-6))); d = Math.min(d, Math.hypot(x - a[0] - vx * h, z - a[2] - vz * h)); } return d; };
     for (let tries = 0; lot.length < 10 && tries < 3000; tries++) {
       const a = R() * TAU, rr = Math.sqrt(R()) * 0.8, x = LAG[0] + Math.cos(a) * LAG[2] * rr, z = LAG[1] + Math.sin(a) * LAG[3] * rr;
-      if (Math.hypot(x - WFX, z + 47) < 6 || pads.some((p) => Math.hypot(p[0] - x, p[1] - z) < p[2] + 0.7) || lot.some((p) => Math.hypot(p[0] - x, p[1] - z) < 3)) continue;
+      if (Math.hypot(x - WFX, z + 47) < 6 || this.flythrough.some((f) => Math.hypot(f.pos[0] - x, f.pos[2] - z) < 4) || segD(x, z) < 2.5 || pads.some((p) => Math.hypot(p[0] - x, p[1] - z) < p[2] + 0.7) || lot.some((p) => Math.hypot(p[0] - x, p[1] - z) < 3)) continue;
       lot.push([x, z, 0.65 + R() * 0.4]);
     }
     this.padsW = new Float32Array(pads.length * 4);

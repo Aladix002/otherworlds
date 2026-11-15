@@ -62,7 +62,7 @@ fn skyRefl(rd: vec3f) -> vec3f {
   e += U.slot[0].rgb * (rippleE * 0.25 + tw * 0.25 * (0.6 + 0.4 * sin(dw * 2.0 - t * 1.7)));
   // plankton sparkles stirred near the falls and ripples
   let sp = nz(p.xz * 1.7 + vec2f(t * 0.02, 0.0));
-  e += U.slot[3].rgb * smoothstep(0.86, 0.95, sp.x) * (tw * 2.0 + rippleE) * fd * 0.6;
+  e += mix(U.slot[3].rgb, U.slot[0].rgb, sp.y) * smoothstep(0.86, 0.95, sp.x) * (tw * 2.0 + rippleE + 0.12 + 0.2 * pulse(p)) * fd * 0.6;
   let col = refl * F + body * (1.0 - F) + e;
   let a = clamp(mix(1.0 - T * 0.8, 1.0, F), 0.0, 1.0);
   return vec4f(col, a);

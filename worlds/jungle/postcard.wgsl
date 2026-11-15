@@ -14,8 +14,10 @@ fn pcJungle_scene(d: vec3f, t: f32, refl: bool) -> vec3f {
   let sil = 0.29 + 0.03 * fbm2(vec2f(az * 6.0, 1.0), 3) + side * (0.35 + 0.15 * fbm2(vec2f(az * 9.0, 4.0), 3)) - smoothstep(0.08, 0.0, abs(az - 0.06)) * 0.02;
   let inSil = smoothstep(0.004, -0.004, h - sil);
   let pul = 0.6 + 0.4 * sin(az * 5.0 - t * 0.45);
-  let vn = voronoi2(vec2f(az * 30.0, h * 30.0));
-  let vein = (1.0 - smoothstep(0.0, 0.06, vn.y - vn.x)) * side * smoothstep(sil, sil - 0.3, h);
+  let vn = voronoi2(vec2f(az * 26.0, h * 26.0));
+  let col = abs(fract(az * 7.0 + 0.3 * fbm2(vec2f(h * 3.0, az * 2.0), 2)) - 0.5);
+  let trunk = smoothstep(0.1, 0.05, col) * smoothstep(sil - 0.05, sil - 0.2, h);
+  let vein = ((1.0 - smoothstep(0.0, 0.07, vn.x)) * step(0.75, vn.z) + trunk * smoothstep(0.03, 0.0, abs(col - 0.07)) * 0.6) * side * smoothstep(sil, sil - 0.3, h);
   let vc = mix(vec3f(1.0, 0.15, 0.7), vec3f(0.1, 0.85, 1.0), step(0.5, fract(vn.z * 3.7)));
   c = mix(c, vec3f(0.008, 0.012, 0.02) + vc * vein * 0.6 * pul, inSil);
   // waterfall
