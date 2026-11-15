@@ -1,0 +1,13 @@
+# Core TODO (collected from world critics; fix in one core pass for all worlds)
+
+- Door looks too new: desaturate wood, grey-silver weathering, darker grime at bottom, dark (not bright) iron hardware. (astral-ocean critic r1)
+- Door has no contact shadow / AO with arbitrary world ground — add a soft AO decal at the base. (astral-ocean critic r1)
+- Door lighting should pick up world ambient/rim (cool nebula) better; warm spill from the open doorway onto ground. (astral-ocean critic r1)
+- door-through: left/right edges show ghosted see-through dark strips (frame half-faded) during the transition — fade fully or clip. (astral-ocean critic r1)
+- shoot.mjs motion frames: make sure they span a long enough continuous window of the flythrough (critic saw 3 near-static shots with hard cuts).
+- Door frame/cornice reads as outhouse/wardrobe from back/side — slimmer frame & cap. Pick up world colored ambient (cyan/magenta), portal light spill onto ground & door edges. (jungle critic r1)
+- shoot.mjs: door-arrival screenshot is taken 3 frames after requesting the postcard pipeline — often not compiled yet, so shot shows plain scene. Await pipeline readiness (or N frames after compile). (jungle r1)
+- shoot.mjs: motion frames are 3 separate 0.5 s clips → critics read hard cuts as defects. Consider one continuous clip spanning several seconds, or label the clips. (jungle r1)
+- Perf gate noise under multi-agent load (load avg ~16–20) — worlds hit scale floor 0.6; final gate runs should be on a quiet machine.
+- Perf gate gap: flythrough may skip the door area (astral islet measured ~9–12 ms at the door, unconfirmed). perf.mjs should also probe spawn + each door position, or worlds must route the flythrough past the door. Re-check astral islet on a quiet GPU.
+- Core door texture has a green smear at the door bottom (moss?) that reads wrong in snow worlds — make moss tint world-tunable or subtler. (aurora-fjord r1)

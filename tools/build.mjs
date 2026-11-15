@@ -32,22 +32,23 @@ export function minifyWGSL(src) {
 const listWorlds = () => readdirSync(WORLDS_DIR, { withFileTypes: true })
   .filter((d) => d.isDirectory() && existsSync(join(WORLDS_DIR, d.name, 'world.js'))).map((d) => d.name).sort();
 
-function postcardsModule(minify) {
+function postcardsModule(minify, only = null) {
   const map = {};
   if (existsSync(WORLDS_DIR)) for (const d of readdirSync(WORLDS_DIR)) {
     const f = join(WORLDS_DIR, d, 'postcard.wgsl');
+    if (only && !only.includes(d)) continue;
     if (existsSync(f)) { const t = readFileSync(f, 'utf8'); map[d] = minify ? minifyWGSL(t) : t; }
   }
   return 'export default ' + JSON.stringify(map) + ';';
 }
 
-function owPlugin(id, minify) {
+function owPlugin(id, minify, only = null) {
   return {
     name: 'ow',
     setup(b) {
       b.onResolve({ filter: /^ow:/ }, (a) => ({ path: a.path, namespace: 'ow' }));
       b.onLoad({ filter: /.*/, namespace: 'ow' }, (a) => {
-        if (a.path === 'ow:postcards') return { contents: postcardsModule(minify), loader: 'js' };
+        if (a.path === 'ow:postcards') return { contents: postcardsModule(minify, only), loader: 'js' };
         if (a.path === 'ow:entry') {
           const w = JSON.stringify(join(WORLDS_DIR, id, 'world.js')), m = JSON.stringify(join(ROOT, 'core/src/main.js'));
           return { contents: `import world from ${w};\nimport { run } from ${m};\nif (!world.id) world.id = ${JSON.stringify(id)};\nrun(world);\n`, loader: 'js', resolveDir: ROOT };
@@ -63,32 +64,33 @@ function owPlugin(id, minify) {
 
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-export async function buildWorld(id, { readable = false, quiet = false } = {}) {
+export async function buildWorld(id, { readable = false, quiet = false, released = null, outDir = DIST } = {}) {
   const worldFile = join(WORLDS_DIR, id, 'world.js');
   if (!existsSync(worldFile)) throw new Error(`no world at worlds/${id}/world.js`);
   const minify = !readable;
   const r = await esbuild.build({
     entryPoints: ['ow:entry'], bundle: true, write: false, format: 'iife', target: 'es2022',
-    minify, legalComments: 'none', charset: 'utf8', plugins: [owPlugin(id, minify)], logLevel: 'silent',
+    minify, legalComments: 'none', charset: 'utf8', plugins: [owPlugin(id, minify, released)], logLevel: 'silent',
+    define: released ? { __OW_RELEASED__: JSON.stringify(released) } : {},
   });
   const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
   const src = readFileSync(worldFile, 'utf8');
   const title = (src.match(/title\s*:\s*['"`]([^'"`]+)['"`]/) || [])[1] || id;
   const html = `<!doctype html><html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(title)} · OtherWorlds</title><style>html,body{margin:0;height:100%;background:#0b0d12}</style></head><body><script>${js}</script></body></html>`;
-  mkdirSync(DIST, { recursive: true });
-  const out = join(DIST, id + '.html');
+  mkdirSync(outDir, { recursive: true });
+  const out = join(outDir, id + '.html');
   writeFileSync(out, html);
   const size = Buffer.byteLength(html), gz = gzipSync(html, { level: 9 }).length;
   if (!quiet) console.log(`${id.padEnd(16)} ${(size / 1024).toFixed(1).padStart(7)} KB  (gzip ${(gz / 1024).toFixed(1)} KB)${size > SOFT_BUDGET ? '  OVER 150 KB soft budget' : ''}`);
   return { id, out, size, gzip: gz, title };
 }
 
-async function buildIndex(built) {
+export async function buildIndex(built, { outDir = DIST, released = null } = {}) {
   const { WORLDS } = await import(pathToFileURL(join(ROOT, 'core/src/worlds.js')).href);
-  const have = new Set(listWorlds().filter((id) => existsSync(join(DIST, id + '.html'))));
+  const have = new Set(released || listWorlds().filter((id) => existsSync(join(outDir, id + '.html'))));
   const items = WORLDS.map((w, i) => have.has(w.id)
     ? `<a class="w" href="${w.id}.html"><span>${String(i + 1).padStart(2, '0')}</span>${esc(w.title)}</a>`
-    : `<div class="w off"><span>${String(i + 1).padStart(2, '0')}</span>${esc(w.title)}</div>`).join('\n');
+    : `<div class="w off"><span>${String(i + 1).padStart(2, '0')}</span>${esc(w.title)}${released ? ' <small>· čoskoro</small>' : ''}</div>`).join('\n');
   const html = `<!doctype html><html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OtherWorlds</title>
 <style>
 html,body{margin:0;min-height:100%;background:radial-gradient(ellipse at 50% 30%,#262a3a 0%,#0d0f15 70%) fixed;color:#ebe5d6;font:16px/1.5 system-ui,sans-serif}
@@ -102,8 +104,8 @@ a.w:hover{background:rgba(255,255,255,.06)}
 footer{margin-top:48px;font-size:13px;opacity:.4}footer a{color:inherit}
 </style></head><body><main><h1>OtherWorlds</h1><p>Pokojné, otvorené, magické svety. Medzi nimi sa chodí cez obyčajné drevené dvere.</p>
 ${items}
-<footer>${have.has('_test') ? '<a href="_test.html">testovací svet</a>' : ''}</footer></main></body></html>`;
-  writeFileSync(join(DIST, 'index.html'), html);
+<footer>${released ? 'Potrebuje prehliadač s WebGPU (Chrome alebo Edge na počítači, nové Safari). Najlepšie so slúchadlami.' : have.has('_test') ? '<a href="_test.html">testovací svet</a>' : ''}</footer></main></body></html>`;
+  writeFileSync(join(outDir, 'index.html'), html);
   console.log(`index.html       ${built.length} built, ${have.size} available`);
 }
 

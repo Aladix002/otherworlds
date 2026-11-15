@@ -4,6 +4,7 @@ import WRAP from '../wgsl/postcard-wrap.wgsl';
 import DEFAULT_PC from '../wgsl/postcard-default.wgsl';
 import { trsY, mul4, m4, easeInOut, clamp } from './math.js';
 import { sphere, cylinder, torus } from './mesh.js';
+import { resolveTarget, nextWorld } from './worlds.js';
 
 export const OPEN_W = 0.96, OPEN_H = 2.05, FRAME_W = 0.14, FRAME_D = 0.16;
 const MAX_DOORS = 4, OPEN_TIME = 1.6, SWING = 100 * Math.PI / 180;
@@ -122,8 +123,9 @@ export function createDoors(ctx, world, postcards) {
     doors.length = 0;
     (list || []).slice(0, MAX_DOORS).forEach((d, i) => {
       const pos = Float32Array.from([d.pos[0], d.pos[1] ?? (heightAt ? heightAt(d.pos[0], d.pos[2]) : 0), d.pos[2]]);
-      const door = { index: i, pos, yaw: d.yaw || 0, to: d.to, open: 0, phase: 0, target: 0, side: 1,
-        frameM: m4(), leafM: m4(), tmpM: m4(), lx: 0, ly: 0, lz: 0, prevLz: 0, near: false, pc: postcardPipes(d.to) };
+      const to = resolveTarget(world.id, d.to || nextWorld(world.id));
+      const door = { index: i, pos, yaw: d.yaw || 0, to, open: 0, phase: 0, target: 0, side: 1,
+        frameM: m4(), leafM: m4(), tmpM: m4(), lx: 0, ly: 0, lz: 0, prevLz: 0, near: false, pc: postcardPipes(to) };
       trsY(door.frameM, pos[0], pos[1], pos[2], door.yaw);
       doors.push(door);
     });

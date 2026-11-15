@@ -1,5 +1,5 @@
 // DOM UI: loading screen, start overlay, Esc menu, door hint, perf overlay. Slovak texts.
-import { WORLDS } from './worlds.js';
+import { WORLDS, isOpen } from './worlds.js';
 
 const CSS = `
 html,body{margin:0;height:100%;overflow:hidden;background:#0b0d12;color:#eae6dc;font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-user-select:none;user-select:none}
@@ -46,7 +46,7 @@ export function createUI(world, { shot, via }) {
   const dot = el('ow-dot', 'ow-hide');
   const perf = el('ow-perf', 'ow-hide');
   const menu = el('ow-menu', 'ow-hide', `<div class="ow-panel"><div class="ow-worlds"><h2 class="ow-serif">Svety</h2>${WORLDS.map((w) =>
-    `<a href="${w.id}.html" class="${w.id === world.id ? 'cur' : ''}">${w.title}</a>`).join('')}</div>
+    isOpen(w.id) ? `<a href="${w.id}.html" class="${w.id === world.id ? 'cur' : ''}">${w.title}</a>` : `<a class="soon" style="opacity:.35;pointer-events:none">${w.title} · čoskoro</a>`).join('')}</div>
     <div class="ow-set"><h2 class="ow-serif">Nastavenia</h2>
     <label>Kvalita <select data-k="quality"><option value="low">Nízka</option><option value="medium">Stredná</option><option value="high">Vysoká</option></select></label>
     <label>Hlasitosť <input type="range" min="0" max="1" step="0.01" data-k="volume"></label>
