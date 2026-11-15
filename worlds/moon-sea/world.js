@@ -119,7 +119,7 @@ export default {
   spawn: { pos: [0, 1.6, 0], yaw: 0, pitch: 0.07 },
   poses: [
     { pos: [0, 1.6, 0], yaw: 0, pitch: 0.07, t: 24 },                                           // mirror horizon with the moon
-    { pos: [3, 1.5, -24], yaw: yawTo(3, -24, 13, -48), pitch: 0.2, t: 47 },                           // lanterns rising
+    { pos: [19, 1.5, -6], yaw: -0.03, pitch: 0.2, t: 47 },                           // lanterns rising
     { pos: P0(66.5, -40, 1.5), yaw: yawTo(66.5, -40, 82, 30), pitch: -0.04, t: 33 },                  // glowing shore waves
     { pos: [-6, 1.6, 9], yaw: 1.75, pitch: -1.02, t: 20 },                                            // straight down: stars underfoot
     { pos: [-14.4, 1.45, -24.6], yaw: yawTo(-14.4, -24.6, -16.3, -34), pitch: 0.13, t: 12 },          // the lone tree
@@ -147,6 +147,7 @@ export default {
   fov: 62,
 
   heightAt(x, z) { return walkH(x, z); },
+  sdf(x, y, z) { return Math.hypot(x - TREE[0], z - TREE[1]) - 0.3; },
 
   async init(ctx, progress) {
     const dev = ctx.device, q = ctx.q.level, R = makeRng(9117), M = ctx.mesh;
@@ -203,7 +204,7 @@ export default {
     // ---------- rocks ----------
     const rk = [];
     const rock = (x, z, s, sink = 0.2) => rk.push(x, terrain(x, z) + s * (0.3 - sink), z, s, R() * TAU, R(), 0.5 + R() * 0.4, 0);
-    for (const [lx, lz, s] of [[1.25, 0.5, 0.2], [1.7, -0.35, 0.34], [2.5, 0.3, 0.16], [-1.3, -0.45, 0.26], [-1.9, 0.55, 0.42], [-2.7, -0.2, 0.15], [-1.15, 1.0, 0.13], [1.55, 1.3, 0.24]]) rock(DOOR[0] - lx, DOOR[1] - lz, s, 0.1);
+    for (const [lx, lz, s] of [[1.25, 0.5, 0.2], [1.7, -0.35, 0.34], [2.5, 0.3, 0.16], [-1.3, -0.45, 0.26], [-1.75, -0.9, 0.42], [-2.7, -0.2, 0.15], [-1.15, 1.0, 0.13], [1.55, 1.3, 0.24]]) rock(DOOR[0] - lx, DOOR[1] - lz, s, 0.1);
     for (const [x, z, s] of [[-9.5, -31, 0.7], [-11.5, -29.5, 0.32], [-22.5, -37.5, 0.85], [-20.5, -31.2, 0.4], [-13.5, -37.6, 0.5], [-18.8, -36.8, 0.28], [-12.3, -32.6, 0.22], [-24, -35.2, 0.3]]) rock(x, z, s);
     for (const [x, z, s] of [[5.5, -11.6, 0.45], [9.4, -13.6, 0.3], [7.2, -14.3, 0.2], [10.6, -11.9, 0.16], [-3.4, -7.2, 0.24], [-4.3, -8, 0.13], [2.6, 5.2, 0.17], [-7, 10.6, 0.22], [-5.1, 7.4, 0.12]]) rock(x, z, s);
     for (let i = 0; i < 14; i++) { const a = R() * TAU, r = 14 + R() * 42, x = Math.cos(a) * r, z = Math.sin(a) * r - 8; if (Math.hypot(x - DOOR[0], z - DOOR[1]) > 5) rock(x, z, 0.12 + R() * R() * 0.5); }
@@ -246,9 +247,9 @@ export default {
     const nL = [44, 64, 90][q], ld = [];
     const LS = 0.78;
     ld.push(hang[0], hang[2], 0, 0.31, 1, hang[1] - 0.69 * LS, LS, 0.0);
-    ld.push(DOOR[0] + 2.3, DOOR[1] - 0.4, 0, 0.77, 1, 0.015, 0.62, 1);
+    ld.push(DOOR[0] + 2.9, DOOR[1] + 0.9, 0, 0.77, 1, 0.015, 0.62, 1);
     ld.push(DOOR[0] - 2.4, DOOR[1] + 1.3, 0, 0.13, 1, 0.015, 0.56, 1);
-    this.U.set([hang[0], hang[1] - 0.4, hang[2], 1.5, DOOR[0] + 2.3, 0.35, DOOR[1] - 0.4, 1.0, DOOR[0] - 2.4, 0.32, DOOR[1] + 1.3, 0.8], 16);
+    this.U.set([hang[0], hang[1] - 0.4, hang[2], 1.5, DOOR[0] + 2.9, 0.35, DOOR[1] + 0.9, 1.0, DOOR[0] - 2.4, 0.32, DOOR[1] + 1.3, 0.8], 16);
     const pts = [];
     for (let tries = 0; pts.length < nL && tries < 5000; tries++) {
       const a = R() * TAU, r = Math.sqrt(R()) * LAUNCH[2], x = LAUNCH[0] + Math.cos(a) * r, z = LAUNCH[1] + Math.sin(a) * r;
@@ -312,7 +313,7 @@ export default {
     this.si = 0; this.acc = 0; this.side = 1; this.lx = ctx.camera.pos[0]; this.lz = ctx.camera.pos[2];
     for (let i = 0; i < 12; i++) this.U[28 + i * 4 + 2] = -100;
     // a short trail behind the "look down" pose, so the still shows how the water answers to steps
-    this.U.set([-5.75, 8.85, 18.3, 1, -5.1, 9.2, 16.9, 1, -4.2, 8.9, 15.4, 1], 28 + 36);
+    this.U.set([-6.85, 9.05, 18.7, 1, -7.45, 9.6, 17.5, 1, -7.0, 8.3, 16.2, 1], 28 + 36);
     this.spl = { dur: 0.34, f0: 420, f1: 1500, q: 0.8, gain: 0.02, peak: 0.18, bus: null };
     await progress(1);
   },
