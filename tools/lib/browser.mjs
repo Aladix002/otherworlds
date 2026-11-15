@@ -23,7 +23,7 @@ export function parseArgs(argv) {
 export async function launch({ width = 1920, height = 1080 } = {}) {
   const profile = join(ROOT, '.chrome-profile-' + randomBytes(5).toString('hex'));
   mkdirSync(profile, { recursive: true });
-  const cleanup = () => { try { rmSync(profile, { recursive: true, force: true }); } catch (_) { /* */ } };
+  const cleanup = () => { try { rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch (_) { /* */ } };
   const onSig = () => { cleanup(); process.exit(130); };
   process.once('SIGINT', onSig); process.once('SIGTERM', onSig);
   let browser;
