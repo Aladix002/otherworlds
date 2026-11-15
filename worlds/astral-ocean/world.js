@@ -166,7 +166,7 @@ export default {
     const { device } = ctx, q = ctx.q.level, M = ctx.mesh;
     this.q = q;
     // ---- nebula cubemaps baked on the GPU ----
-    const S1 = [512, 768, 1024][q], S2 = [384, 512, 512][q];
+    const S1 = [512, 1024, 1024][q], S2 = [384, 768, 768][q];
     const TU = GPUTextureUsage;
     const cubeTex = (S) => ctx.texture(S, S, 'rgba16float', TU.TEXTURE_BINDING | TU.STORAGE_BINDING, { depth: 6 });
     this.farTex = cubeTex(S1); this.wispTex = cubeTex(S2);
@@ -202,13 +202,13 @@ export default {
     const wg = M.computeNormals(whaleGeo(q));
     this.whaleMesh = M.upload(wg);
     this.whale = ctx.pipeline({ code: UTIL + COMMON + WHALE, buffers: [M.layout], layouts: [pathL], blend: 'premul', label: 'ao-whale' });
-    this.NT = [350, 600, 900][q];
+    this.NT = [350, 800, 1000][q];
     this.trail = ctx.pipeline({ code: UTIL + COMMON + TRAIL, layouts: [pathL], blend: 'add', cull: 'none', constants: { NT: this.NT }, label: 'ao-trail' });
 
     // ---- fish ----
     const NF = [1024, 2048, 4096][q], NH = NF / 2, rng = ctx.rng;
     const fd = new Float32Array(NF * 16);
-    for (let i = 0; i < NF; i++) { fd[i * 16 + 3] = rng() * 100; fd[i * 16 + 7] = 9 * Math.pow(rng(), 0.9); }
+    for (let i = 0; i < NF; i++) { fd[i * 16 + 3] = rng() * 100; fd[i * 16 + 7] = 10 * rng(); }
     this.fishBuf = ctx.buffer(fd, 'storage');
     this.NF = NF;
     const fishSimL = ctx.layout(['storage', 'storage-rw']), fishDrawL = ctx.layout(['storage', 'storage']);

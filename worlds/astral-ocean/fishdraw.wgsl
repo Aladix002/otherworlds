@@ -17,13 +17,14 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   o.pos = G.viewProj * vec4f(p + ax * c.x * ls + ay * c.y * ws, 1.0);
   o.c = c;
   let shoal = select(0.0, 1.0, ii >= NHALF);
-  let col = mix(vec3f(0.3, 1.35, 1.15), vec3f(1.55, 1.0, 0.35), shoal);
+  let col = mix(vec3f(0.35, 1.2, 1.15), vec3f(1.45, 0.95, 0.4), shoal);
   let sh = 0.65 + 0.35 * sin(G.time * (1.1 + f.d.w * 0.01) + f.d.w * 7.0);
-  o.col = col * sh * (len * wid) / (ls * ws) * 1.6 * smoothstep(0.4, 1.5, d) * mix(1.0, 0.3, smoothstep(30.0, 160.0, d));
+  o.col = col * sh * (0.35 + 0.65 * fract(f.d.w * 3.7)) * (len * wid) / (ls * ws) * 1.6 * smoothstep(0.4, 1.5, d) * mix(1.0, 0.3, smoothstep(30.0, 160.0, d));
   return o;
 }
 @fragment fn fs(in: VO) -> @location(0) vec4f {
   let x = in.c.x; let y = in.c.y;
-  let a = exp(-y * y * 3.0 - x * x * 2.2) * (0.55 + 0.45 * x) - 0.012;
+  let w = 0.22 + 0.78 * smoothstep(-0.95, 0.1, x) * smoothstep(1.0, 0.45, x) + 0.5 * smoothstep(-0.7, -1.0, x);
+  let a = exp(-(y * y) / (w * w) * 2.5) * smoothstep(1.0, 0.8, x) * smoothstep(-1.0, -0.85, x) * (0.45 + 0.55 * smoothstep(-0.6, 0.5, x)) - 0.01;
   return vec4f(in.col * max(a, 0.0), 0.0);
 }

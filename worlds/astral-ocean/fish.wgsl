@@ -4,14 +4,21 @@ struct Fish { d: vec4f, v: vec4f, p: vec4f, f: vec4f };   // d = deviation + see
 @group(1) @binding(1) var<storage, read_write> fish: array<Fish>;
 override NHALF: u32 = 1024u;
 
-fn aoTarget(i: u32, lag: f32, t: f32) -> vec3f {
+fn aoTarget(i: u32, lag0: f32, t: f32) -> vec3f {
   let P = paths[select(3u, 4u, i >= NHALF)];
-  let F = aoFrame(P, t - lag, 0.0);
   let h = hash3u(vec3u(i, 3u, 1u));
-  let w = (0.9 + 1.7 * sin(3.14159 * clamp(lag / 9.0, 0.0, 1.0))) * (0.8 + 0.25 * sin(t * 0.21 + lag * 0.7));
-  let an = h.x * TAU + lag * 0.5 + t * 0.08;
-  let rho = sqrt(h.y) * w;
-  return F.p + F.r * cos(an) * rho * 1.7 + F.u * sin(an) * rho * 0.6;
+  let h2 = hash3u(vec3u(i, 8u, 5u));
+  // clumps along the ribbon
+  let lag = 10.0 * (floor(lag0 / 10.0 * 7.0) + 0.5 + 0.42 * (h2.x - 0.5) + 0.25 * (h2.y - 0.5)) / 7.0;
+  let F = aoFrame(P, t - lag, 0.0);
+  let w = (0.6 + 2.2 * sin(3.14159 * clamp(lag / 10.0, 0.0, 1.0))) * (0.75 + 0.3 * sin(t * 0.17 + lag * 0.6));
+  let an = lag * 0.7 + t * 0.12;                         // twisting band
+  let b = (h.x * 2.0 - 1.0) * w;
+  let th = (h.y - 0.5) * 0.7 * (0.5 + 0.5 * w);
+  let ax = F.r * cos(an) + F.u * sin(an);
+  let ay = F.u * cos(an) - F.r * sin(an);
+  let wave = F.u * sin(lag * 0.8 - t * 0.45) * 1.6 + F.r * sin(lag * 0.5 - t * 0.3 + 1.0) * 1.2;
+  return F.p + ax * b + ay * th + wave;
 }
 
 @compute @workgroup_size(64) fn sim(@builtin(global_invocation_id) id: vec3u) {
