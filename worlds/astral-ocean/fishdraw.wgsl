@@ -28,7 +28,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   col = mix(col, vec3f(1.0, 0.8, 1.2), step(0.95, h.z));
   let sh = 0.7 + 0.3 * sin(G.time * (0.8 + h.z) + f.d.w * 7.0);
   let en = min(1.0, (len * wid) / (ls * ws));
-  o.col = col * sh * (0.3 + 0.7 * h.z * h.z) * en * 0.95 * smoothstep(2.0, 7.0, d) * exp(-d * 0.012);
+  o.col = col * sh * (0.3 + 0.7 * h.z * h.z) * en * 0.95 * smoothstep(2.0, 7.0, d) * exp(-d * 0.022);
   o.wig = sin(G.time * (2.2 + h.x) + f.d.w * 11.0);
   return o;
 }

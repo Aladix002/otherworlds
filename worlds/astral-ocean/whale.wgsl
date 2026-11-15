@@ -2,6 +2,8 @@
 // uv.x = part (0 body, +-1 flippers, 2 fluke, 3 dorsal), uv.y = span fraction of the fin.
 // Drawn as: aura sprites (vsh/fsh) -> depth prepass (vs only) -> colour at depth 'equal' (premul), so a whale is a
 // single clean shell of light (no far flipper showing through) and correctly hides what swims behind it.
+@group(1) @binding(1) var farTex: texture_cube<f32>;
+@group(1) @binding(2) var fsamp: sampler;
 struct VO {
   @invariant @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) l: vec3f,
   @location(3) @interpolate(flat) k: u32, @location(4) part: vec2f,
@@ -23,6 +25,7 @@ struct VO {
   let F = aoFrame(P, t, s);
   let wv = aoWave(s, t, ph);
   let slope = (aoWave(s + 0.01, t, ph) - wv) * 100.0;
+  if (uv.x == 2.0) { lp.y += (lp.z - 0.9) * slope * 1.6; }   // the fluke pitches with the stroke, showing its blade
   var o: VO;
   o.w = F.p + (F.r * lp.x + F.u * (lp.y + wv)) * L;
   let nl = vec3f(n.x, n.y, n.z - slope * n.y);
@@ -33,7 +36,7 @@ struct VO {
 }
 
 fn aoLine(d: f32, w: f32, fw: f32) -> f32 { return (1.0 - smoothstep(0.0, w + fw, d)) * w / (w + fw); }
-const WRM = 0.095;
+const WRM = 0.108;
 fn aoStar(cid: vec2f, k: f32) -> vec3f {   // xy = position in cell space, z = 1 if present
   let h = hash33(vec3f(cid, k));
   return vec3f(cid + 0.2 + 0.6 * h.xy, select(0.0, 1.0, h.z < 0.42));
@@ -65,15 +68,15 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   // faint volume: cool top light + a warm kiss from the nebula core, so head-on views keep their form
   let up = n.y * 0.5 + 0.5;
   let sun = pow(clamp(dot(n, G.sunDir) * 0.5 + 0.5, 0.0, 1.0), 2.0);
-  var e = vec3f(0.006, 0.013, 0.04) * (0.3 + 0.7 * up) + vec3f(0.05, 0.022, 0.032) * sun * 0.55;
+  var e = vec3f(0.004, 0.009, 0.03) * (0.3 + 0.7 * up) + vec3f(0.05, 0.022, 0.032) * sun * 0.45;
   // nebula drifting inside the body
   let q = lm * 0.17 + vec3f(kf * 7.0, 0.0, t * 0.015);
   let nb = fbm3(q, 3);
   let nh = vnoise3(q * 0.55 + 4.0);
-  e += mix(vec3f(0.015, 0.085, 0.13), vec3f(0.1, 0.03, 0.15), smoothstep(-0.35, 0.35, nh)) * smoothstep(-0.15, 0.6, nb) * nd * 0.75;
+  e += mix(vec3f(0.015, 0.085, 0.13), vec3f(0.1, 0.03, 0.15), smoothstep(-0.35, 0.35, nh)) * smoothstep(-0.15, 0.6, nb) * nd * 0.75 * (0.35 + 0.65 * body);
   // rim of light; fins grow out of the body glow instead of meeting it at a seam
   let root = select(smoothstep(0.0, 0.22, in.part.y), 1.0, isBody || in.part.x == 2.0);
-  e += ICE * (pow(fres, 2.6) * 0.5 + pow(fres, 6.0) * 1.7) * (0.25 + 0.75 * root);
+  e += ICE * (pow(fres, 2.4) * 0.3 * body + pow(fres, 5.0) * 1.3) * (0.25 + 0.75 * root);
 
   // flowing lines: spine + lateral lines with light travelling toward the tail
   let tr = 0.22 + 0.78 * pow(0.5 + 0.5 * sin(t * 0.5 - s * 11.0 + kf * 2.0), 6.0);
@@ -95,8 +98,13 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let er = 0.0045 * L;
   let ed = length(ev) / er;
   e += vec3f(1.5, 1.25, 0.9) * body * (exp(-ed * ed) * 1.6 + exp(-ed * ed * 0.08) * 0.12) * lod;
-  // fins: soft glow toward the tips
-  e += ICE * (1.0 - body) * (0.03 + 0.1 * pow(in.part.y, 2.0)) * nd;
+  // head tubercles: rows of small light points on the rostrum and along the jaw
+  let tq = vec2f(s * 46.0, aa * 4.2);
+  let tc = floor(tq);
+  let th = hash22(tc + kf * 7.0);
+  let tv = (tq - tc - 0.3 - 0.4 * th) * vec2f(L / 46.0, WRM * L / 4.2);
+  let tr2 = dot(tv, tv) / (0.000016 * L * L);
+  e += vec3f(0.9, 1.1, 1.5) * body * lod * exp(-tr2) * step(th.x, 0.7) * smoothstep(0.012, 0.03, s) * smoothstep(0.17, 0.12, s) * smoothstep(1.45, 1.75, aa) * 1.3;
 
   // constellations: warm points joined by faint lines
   let sk = select(vec2f(lm.z, lm.x), vec2f(lm.z, ang * WRM * L), isBody) / 3.4;
@@ -122,11 +130,13 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let tw = 0.75 + 0.25 * sin(t * 0.6 + dot(cid, vec2f(3.1, 1.7)));
   e += (mix(vec3f(1.5, 1.0, 0.55), vec3f(1.3, 1.15, 1.0), hs.y) * c * tw + vec3f(1.0, 0.8, 0.6) * cl * 0.45) * lod;
 
-  var a = 0.3 + 0.5 * fres;
+  var a = 0.13 + 0.42 * fres + 0.16 * (1.0 - body);
+  e += ICE * (1.0 - body) * 0.03;
   // depth haze: far whales sink into the nebula
   let hz = 1.0 - exp(-dist * 0.0032);
-  e = e * (1.0 - 0.72 * hz) + vec3f(0.022, 0.013, 0.045) * hz * a;
-  a *= 1.0 - 0.45 * hz;
+  let bg = textureSampleLevel(farTex, fsamp, -V, 0.0).rgb;   // haze takes the colour of the nebula behind
+  e = e * (1.0 - 0.72 * hz) + (bg * 0.9 + vec3f(0.012, 0.008, 0.028)) * hz * (0.25 + a);
+  a *= 1.0 - 0.35 * hz;
   let fade = smoothstep(3.0, 12.0, dist);
   return vec4f(e * fade, a * fade);
 }
@@ -147,7 +157,7 @@ struct HO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   var o: HO;
   o.pos = G.viewProj * vec4f(billboard(p, c, vec2f(r)), 1.0);
   o.c = c;
-  o.col = vec3f(0.012, 0.03, 0.085) * smoothstep(6.0, 30.0, d) * exp(-d * 0.0035);
+  o.col = vec3f(0.012, 0.03, 0.085) * smoothstep(6.0, 30.0, d) * exp(-d * 0.0015);
   return o;
 }
 @fragment fn fsh(in: HO) -> @location(0) vec4f {

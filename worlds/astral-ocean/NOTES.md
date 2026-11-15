@@ -38,11 +38,29 @@ islet at (0,−2,26), behind the spawn.
 `PATHS`, `JGROUPS`, `WP` (fly-through), counts per quality in `init`. Thin things clamp to ≥ ~1.6–2.4 px and scale
 intensity by area, so they stay temporally stable.
 
+## Round 3 changes (what moved since the notes above)
+- Whale mesh: bulkier front third, arched back, dorsal hump + fin, deep tail stock (height profile `hB`, width narrows
+  instead), flippers ~30 % of body length with a wavy leading edge, wide notched fluke that pitches with the stroke
+  (`uv.x == 2` in `vs`). Shader: lower opacity (0.13 + rim), head tubercles as light points, haze sampled from the far
+  nebula cube behind the whale (bindings 1/2 of the whale group), fins get a little extra opacity so they do not vanish.
+- Whale paths are wider (whale 0 R 112, whale 1 R 60) so bodies no longer bend into a C; whale 0 swims the other way.
+- Jellies: per-jelly offset `d` written from `update()` each frame (damped push away from whale spines); hue range
+  pink/peach/violet/cyan/teal, per-jelly bell height, softer ribs, stronger sway and frills.
+- Sky: stars use the true angular distance to the star direction (round discs); soft peach/rose wisps and a wide glow
+  around the core instead of the cellular lanes; dark veins softened. Puffs: 60 on Medium, rgba16f 384² density
+  texture, colour mostly taken from the backdrop cube behind each puff.
+- Islet: three stepped tiers (`TIER`, also injected into the shader as `TIERS` for step AO), stone feet at the jambs
+  (the creeping roots were removed: they read as cables), worn rune strokes instead of the line, contact AO under the
+  threshold, crystals with inner light + bright edges, cooler slate rock with finer grain, broken-up under-glow.
+- Layout: the fly-through now starts at the door on the islet, so the perf run covers it. Clip 1 = whale + fish
+  ribbon, clip 2 = jellies with whale 0 gliding past whole, clip 3 = close whale in profile. Pose 4 = under the great
+  whale, pose 5 = islet off-centre with jellies behind.
+
 ## Perf (Barcelo iGPU, 1920×1080)
-Medium: avg 4.9 ms, p99 10.8 ms, scale 1.0 over the fly-through. Low: avg 2.7 ms. Standing at the islet costs more
-(roughly 8–10 ms at scale 1: the rock shader fills the lower half of the screen).
+Medium: avg 5.7 ms, p99 13.9 ms, min scale 0.95 over the fly-through (the first seconds at the islet are the heavy part:
+about 11–13 ms at scale 1, then 4–6 ms). Low: avg 2.7 ms, p99 8.6 ms.
 
 ## Known issues / ideas
 - Whale depth prepass: things behind a whale are fully hidden, not dimmed (reads as volume; fine at these distances).
-- The fly-through does not pass the islet; probe it with `__ow.doorView` when touching `islet.wgsl`.
-- Roots on the steps are plain tubes; a bark normal pattern would help up close.
+- The islet rock shader is the most expensive thing in the world when it fills the screen.
+- The framing search in `layout.js` is weak (its score is dominated by unavoidable terms); key views were tuned by hand.

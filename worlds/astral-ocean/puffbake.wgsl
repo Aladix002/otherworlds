@@ -1,4 +1,4 @@
-@group(1) @binding(0) var outTex: texture_storage_2d<rgba8unorm, write>;
+@group(1) @binding(0) var outTex: texture_storage_2d<rgba16float, write>;
 @compute @workgroup_size(8, 8) fn bake(@builtin(global_invocation_id) id: vec3u) {
   let S = textureDimensions(outTex).x;
   if (id.x >= S || id.y >= S) { return; }

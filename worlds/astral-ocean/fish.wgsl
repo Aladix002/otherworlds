@@ -10,7 +10,7 @@ fn aoTarget(i: u32, lag: f32, t: f32) -> vec3f {
   let h = hash3u(vec3u(i, 3u, 1u));
   let F = aoFrame(P, t - lag, 0.0);
   let env = sin(3.14159 * clamp(lag / 10.0, 0.0, 1.0));
-  let w = (0.5 + 2.0 * env) * (0.8 + 0.25 * sin(t * 0.17 + lag * 0.6));
+  let w = (0.4 + 1.3 * env) * (0.8 + 0.25 * sin(t * 0.17 + lag * 0.6));
   let an = lag * 0.55 + t * 0.1;                         // slowly twisting band
   let gr = sqrt(-2.0 * log(max(h.x, 1e-4)));
   let b = gr * cos(h.y * TAU) * w * 0.5;

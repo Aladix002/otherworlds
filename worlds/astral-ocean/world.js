@@ -16,25 +16,29 @@ import GLOW from './glow.wgsl';
 import ISLET from './islet.wgsl';
 
 import { DOOR, CORE, PATHS, JGROUPS, POSES, FLY, FLY_DUR, frame, spine } from './layout.js';
-const _sp = [0, 0, 0];
+const _sp = [0, 0, 0], _ws = new Float32Array(54);
 
 // ---------- geometry ----------
-export const WRM = 0.095;
+export const WRM = 0.108;
 const wBase = (s) => s < 0.25 ? Math.pow(Math.sin(s / 0.25 * Math.PI / 2), 0.5) : Math.max(0.03, 1 - 0.93 * Math.pow((s - 0.25) / 0.7, 1.3));
 function whaleGeo(q) {
   const P = [], I = [], UV = [];
   const NS = [56, 96, 120][q], NR = [20, 36, 44][q], Rm = WRM;
   const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  const topAt = (s) => Rm * wBase(s) * 0.86 * (1 - 0.22 * (1 - sm(0.02, 0.2, s)));
+  // height profile keeps a deep tail stock (laterally compressed, like a real peduncle); width narrows instead
+  const hB = (s) => s < 0.25 ? wBase(s) : Math.max(0.24, 1 - 0.8 * Math.pow((s - 0.25) / 0.7, 1.6));
+  const arch = (s) => 0.02 * Math.sin(Math.PI * Math.min(1, s / 0.95)) - 0.012 * sm(0.75, 0.95, s);
+  const topAt = (s) => Rm * hB(s) * 0.86 * (1 - 0.22 * (1 - sm(0.02, 0.2, s))) * (1 + 0.16 * Math.exp(-(((s - 0.4) / 0.17) ** 2)) + 0.22 * Math.exp(-(((s - 0.66) / 0.05) ** 2))) + arch(s);
   for (let j = 0; j <= NS; j++) {
     const v = j / NS, s = 0.95 * (v < 0.5 ? 0.5 * Math.pow(2 * v, 1.25) : 1 - 0.5 * Math.pow(2 - 2 * v, 1.15));
     const b = Rm * wBase(s);
-    const wid = b * (1 - 0.45 * sm(0.68, 0.92, s));
-    const top = topAt(s);
-    const bot = b * (0.92 + 0.22 * Math.exp(-(((s - 0.22) / 0.13) ** 2)));
+    const wid = b * (1 + 0.1 * Math.exp(-(((s - 0.3) / 0.15) ** 2))) * (1 - 0.3 * sm(0.7, 0.93, s));
+    const end = 1 - 0.7 * sm(0.9, 0.95, s);
+    const top = topAt(s) * end;
+    const bot = (Rm * hB(s) * (0.92 + 0.3 * Math.exp(-(((s - 0.24) / 0.14) ** 2))) - arch(s)) * end;
     for (let i = 0; i < NR; i++) {
       const a = i / NR * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
-      const y = ca > 0 ? top * ca : bot * ca;
+      const y = ca > 0 ? top * Math.pow(ca, 0.85) : -bot * Math.pow(-ca, 0.85);
       P.push(wid * sa, y - 0.12 * b * (1 - sm(0.0, 0.3, s)), s); UV.push(0, 0);
     }
   }
@@ -67,13 +71,13 @@ function whaleGeo(q) {
   // humpback flippers: long, curved back, tapered, knobbly leading edge
   for (const side of [-1, 1]) {
     const s0 = 0.26, b0 = Rm * wBase(s0), secs = [];
-    const cen = (t) => [side * (0.5 * b0 + 0.215 * t - 0.05 * t * t), -0.45 * b0 - 0.055 * t - 0.03 * t * t, s0 + 0.06 * t + 0.13 * t * t];
+    const cen = (t) => [side * (0.5 * b0 + 0.25 * t - 0.07 * t * t), -0.5 * b0 - 0.04 * t - 0.06 * t * t, s0 + 0.05 * t + 0.17 * t * t];
     for (let j = 0; j <= NF; j++) {
       const t = j / NF, A = cen(t + 0.01), B = cen(t - 0.01), T = nrm([A[0] - B[0], A[1] - B[1], A[2] - B[2]]);
       const zd = [0, 0.2, 1], k = zd[0] * T[0] + zd[1] * T[1] + zd[2] * T[2];
       const cd = nrm([zd[0] - T[0] * k, zd[1] - T[1] * k, zd[2] - T[2] * k]), td = cross(T, cd);
-      const bump = 0.0035 * (0.5 + 0.5 * Math.sin(t * 30)) * (1 - t) * sm(0.05, 0.2, t);
-      const ch = (0.052 * Math.pow(1 - t, 0.6) * (0.62 + 0.38 * sm(0, 0.3, t)) + 0.004 + bump) * (j === NF ? 0.3 : 1);
+      const bump = 0.007 * (0.5 + 0.5 * Math.sin(t * 34)) * (1 - 0.7 * t) * sm(0.05, 0.2, t);
+      const ch = (0.062 * Math.pow(1 - t, 0.55) * (0.62 + 0.38 * sm(0, 0.3, t)) + 0.004 + bump) * (j === NF ? 0.3 : 1);
       const C = cen(t); for (let c = 0; c < 3; c++) C[c] -= cd[c] * bump * 0.5;
       secs.push([C, cd, td, ch, ch * 0.26 * (1 - 0.4 * t), t]);
     }
@@ -82,17 +86,17 @@ function whaleGeo(q) {
   // horizontal falcate fluke with a median notch
   const fl = [], NFL = [20, 32, 40][q];
   for (let j = 0; j <= NFL; j++) {
-    const x = (j / NFL * 2 - 1) * 0.165, ax = Math.abs(x) / 0.165;
-    const zle = 0.9 + 0.135 * Math.pow(ax, 1.3), zte = 0.985 + 0.055 * ax * ax - 0.024 * Math.exp(-((x / 0.014) ** 2));
-    const ch = Math.max(0.004, zte - zle);
-    fl.push([[x, 0.002 * ax, zle + ch * 0.5], [0, 0, 1], [0, 1, 0], ch, 0.02 * Math.pow(1 - ax, 0.8) + 0.0015, ax]);
+    const x = (j / NFL * 2 - 1) * 0.15, ax = Math.abs(x) / 0.15;
+    const zle = 0.885 + 0.12 * Math.pow(ax, 1.5), zte = 1.0 + 0.04 * ax * ax - 0.035 * Math.exp(-((x / 0.016) ** 2));
+    const ch = Math.max(0.005, (zte - zle) * (1 - 0.6 * Math.pow(ax, 6)));
+    fl.push([[x, -0.012 * ax * ax, zle + ch * 0.5], [0, 0, 1], [0, 1, 0], ch, 0.034 * Math.pow(1 - ax, 0.7) + 0.003, ax]);
   }
   loft(fl, NA, 2);
   // small dorsal hump on the midline
   const df = [];
   for (let j = 0; j <= 6; j++) {
-    const t = j / 6, z = 0.652 + 0.04 * t, ch = 0.075 * Math.pow(1 - t, 0.8) + 0.004;
-    df.push([[0, topAt(0.66) - 0.012 + 0.03 * Math.pow(t, 0.8), z + ch * 0.1], [0, 0, 1], [1, 0, 0], ch, ch * 0.3, t]);
+    const t = j / 6, z = 0.64 + 0.05 * t, ch = 0.085 * Math.pow(1 - t, 0.8) + 0.004;
+    df.push([[0, topAt(0.66) - 0.014 + 0.042 * Math.pow(t, 0.8), z + ch * 0.1], [0, 0, 1], [1, 0, 0], ch, ch * 0.3, t]);
   }
   loft(df, NA, 3);
   return { pos: Float32Array.from(P), nrm: new Float32Array(P.length), uv: Float32Array.from(UV), idx: Uint32Array.from(I) };
@@ -175,14 +179,16 @@ export default {
     const wg = M.computeNormals(whaleGeo(q));
     this.whaleMesh = M.upload(wg);
     const whaleMod = ctx.shader(UTIL + COMMON + WHALE, 'ao-whale');
-    this.whalePre = ctx.pipeline({ module: whaleMod, fs: 'fsd', writeMask: 0, buffers: [M.layout], layouts: [pathL], label: 'ao-whale-depth' });
-    this.whale = ctx.pipeline({ module: whaleMod, buffers: [M.layout], layouts: [pathL], blend: 'premul', depthCompare: 'equal', label: 'ao-whale' });
-    this.whaleAura = ctx.pipeline({ module: whaleMod, vs: 'vsh', fs: 'fsh', layouts: [pathL], blend: 'add', cull: 'none', label: 'ao-aura' });
+    const whaleL = ctx.layout(['storage', 'texture-cube', 'sampler']);
+    this.whaleBG = ctx.bindGroup(whaleL, [this.pathBuf, cubeView(this.farTex), ctx.samplers.linear]);
+    this.whalePre = ctx.pipeline({ module: whaleMod, fs: 'fsd', writeMask: 0, buffers: [M.layout], layouts: [whaleL], label: 'ao-whale-depth' });
+    this.whale = ctx.pipeline({ module: whaleMod, buffers: [M.layout], layouts: [whaleL], blend: 'premul', depthCompare: 'equal', label: 'ao-whale' });
+    this.whaleAura = ctx.pipeline({ module: whaleMod, vs: 'vsh', fs: 'fsh', layouts: [whaleL], blend: 'add', cull: 'none', label: 'ao-aura' });
     this.NT = [900, 2200, 3200][q];
     this.trail = ctx.pipeline({ code: UTIL + COMMON + TRAIL, layouts: [pathL], blend: 'add', cull: 'none', constants: { NT: this.NT }, label: 'ao-trail' });
 
     // ---- fish ----
-    const NF = [1536, 3072, 5120][q], FA = Math.round(NF * 0.42), FB = Math.round(NF * 0.8), rng = ctx.rng;
+    const NF = [1152, 2176, 3584][q], FA = Math.round(NF * 0.42), FB = Math.round(NF * 0.8), rng = ctx.rng;
     const fd = new Float32Array(NF * 16);
     for (let i = 0; i < NF; i++) { fd[i * 16 + 3] = rng() * 100; fd[i * 16 + 7] = 10 * rng(); }
     this.fishBuf = ctx.buffer(fd, 'storage');
@@ -202,7 +208,7 @@ export default {
       this.jgroups.push([x, by + H * 0.5, z]);
       const placed = [];
       for (let i = 0; i < cnt; i++) {
-        const size = 0.45 + Math.pow(rng(), 2) * 1.1;
+        const size = 0.4 + Math.pow(rng(), 2.2) * 1.5;
         let jx = 0, jz = 0;
         // every jelly keeps its own column: bells never nest, tentacles have room
         for (let tr = 0, ok = false; tr < 300 && !ok; tr++) {
@@ -211,11 +217,12 @@ export default {
           ok = placed.every(([px, pz, ps]) => Math.hypot(px - jx, pz - jz) > (ps + size) * 1.15 + 1.2);
         }
         placed.push([jx, jz, size]);
-        jd.push(x + jx, by, z + jz, size, 3.2 + rng() * 2.2, h0 + (h1 - h0) * rng(), rng(), rng(), H, 0.8 + rng() * 0.5, 0, 0);
+        jd.push(x + jx, by, z + jz, size, 3.2 + rng() * 2.2, h0 + (h1 - h0) * rng(), rng(), rng(), H, 0.8 + rng() * 0.5, 0.65 + 0.75 * rng(), 0, 0, 0, 0, 0);
       }
     }
-    this.NJ = jd.length / 12;
-    this.jelBuf = ctx.buffer(Float32Array.from(jd), 'storage');
+    this.NJ = jd.length / 16;
+    this.jd = Float32Array.from(jd);
+    this.jelBuf = ctx.buffer(this.jd, 'storage');
     const jelL = ctx.layout(['storage']);
     this.jelBG = ctx.bindGroup(jelL, [this.jelBuf]);
     const bell = M.lathe([[0.84, -0.07], [0.97, 0.0], [1.0, 0.1], [0.97, 0.25], [0.88, 0.42], [0.72, 0.58], [0.5, 0.7], [0.25, 0.77], [0.0, 0.79]], [16, 24, 32][q]);
@@ -231,31 +238,31 @@ export default {
     this.motes = ctx.pipeline({ code: UTIL + MOTES, blend: 'add', cull: 'none', label: 'ao-motes' });
 
     // ---- puffs ----
-    const ptex = ctx.texture(256, 256, 'rgba8unorm', TU.TEXTURE_BINDING | TU.STORAGE_BINDING);
+    const ptex = ctx.texture(384, 384, 'rgba16float', TU.TEXTURE_BINDING | TU.STORAGE_BINDING);
     {
-      const L = ctx.layout(['storage-texture:rgba8unorm']);
+      const L = ctx.layout(['storage-texture:rgba16float']);
       const pipe = ctx.compute({ code: PUFFBAKE, entry: 'bake', layouts: [L] });
       const enc = device.createCommandEncoder(), cp = ctx.beginCompute(enc);
-      cp.setPipeline(pipe); cp.setBindGroup(1, ctx.bindGroup(L, [ptex.createView()])); cp.dispatchWorkgroups(32, 32); cp.end();
+      cp.setPipeline(pipe); cp.setBindGroup(1, ctx.bindGroup(L, [ptex.createView()])); cp.dispatchWorkgroups(48, 48); cp.end();
       device.queue.submit([enc.finish()]);
     }
     // clusters of overlapping cards, 3-10x apart in scale, so they merge into larger structures instead of single puffs
-    const NPF = [18, 30, 40][q], pf = [];
+    const NPF = [30, 60, 78][q], pf = [];
     const pcols = [[0.10, 0.04, 0.22], [0.18, 0.03, 0.14], [0.03, 0.11, 0.17], [0.2, 0.05, 0.13], [0.06, 0.06, 0.2]];
     for (let i = 0, cx = 0, cy = 0, cz = 0, cs = 0, ci = 0; i < NPF; i++) {
-      if (i % 5 === 0) {
+      if (i % 6 === 0) {
         do { const a = rng() * Math.PI * 2, b = (rng() - 0.5) * 1.4, d = 80 + rng() * 150; cx = Math.cos(a) * Math.cos(b) * d; cy = Math.sin(b) * d * 0.6; cz = Math.sin(a) * Math.cos(b) * d - 15; }
         while (Math.hypot(cx - DOOR[0], cy - DOOR[1], cz - DOOR[2]) < 70);
         cs = 55 + rng() * 50; ci = Math.floor(rng() * 5);
         pf.push(cx, cy, cz, cs, ...pcols[ci], i + 4 * Math.floor(rng() * 50));
       } else {
-        const s = cs * (0.12 + 0.5 * rng()), o = cs * 0.75, c = pcols[(ci + (rng() < 0.3 ? 1 : 0)) % 5];
+        const s = cs * (0.25 + 0.55 * rng()), o = cs * 0.8, c = pcols[(ci + (rng() < 0.3 ? 1 : 0)) % 5];
         pf.push(cx + (rng() - 0.5) * 2 * o, cy + (rng() - 0.5) * o, cz + (rng() - 0.5) * 2 * o, s, c[0], c[1], c[2], i + 4 * Math.floor(rng() * 50));
       }
     }
     this.NPF = NPF;
-    const puffL = ctx.layout(['storage', 'texture', 'sampler']);
-    this.puffBG = ctx.bindGroup(puffL, [ctx.buffer(Float32Array.from(pf), 'storage'), ptex.createView(), ctx.samplers.linear]);
+    const puffL = ctx.layout(['storage', 'texture', 'sampler', 'texture-cube']);
+    this.puffBG = ctx.bindGroup(puffL, [ctx.buffer(Float32Array.from(pf), 'storage'), ptex.createView(), ctx.samplers.linear, cubeView(this.farTex)]);
     this.puffs = ctx.pipeline({ code: UTIL + PUFFS, layouts: [puffL], blend: 'premul', cull: 'none', label: 'ao-puffs' });
 
     // ---- islet: floating rock under the door. Stone steps carry the threshold, roots climb the frame, the rim is
@@ -265,13 +272,14 @@ export default {
       const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
       // door-local frame = world - D (the door plane is z = 0); everything here is mirror-symmetric enough not to care about yaw
       const sdR = (x, z, hx, hz) => { const qx = Math.abs(x) - hx, qz = Math.abs(z) - hz; return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0); };
-      const GY = -0.26, RT = 3.2;
+      const GY = -0.46, RT = 3.2;
+      const TIER = [[0.95, 0.5, 0], [1.3, 0.85, -0.16], [1.65, 1.2, -0.32]];     // half-extents and top of the three steps
       const topH = (x, z) => {
-        const sd = sdR(x, z, 1.25, 0.75), r = Math.hypot(x, z);
+        const sd = sdR(x, z, 1.65, 1.2), r = Math.hypot(x, z);
         const lump = Math.max(0, fbm2(x * 0.7 + 9, z * 0.7 + 2, 3) + 0.15);
-        return GY + sm(0.85, 1.5, sd) * (0.07 * fbm2(x * 1.9 + 3, z * 1.9, 4) + 0.42 * sm(1.1, 2.4, sd) * lump + 0.1 * sm(2.5, 3.1, r));
+        return GY + sm(0.05, 0.6, sd) * (0.08 * fbm2(x * 1.9 + 3, z * 1.9, 4) + 0.5 * sm(0.3, 1.5, sd) * lump + 0.12 * sm(2.5, 3.1, r));
       };
-      const gh = (x, z) => { const sd = sdR(x, z, 1.25, 0.75); return sd < 0 ? 0 : sd < 0.5 ? -0.115 : topH(x, z); };
+      const gh = (x, z) => { for (const [hx, hz, y] of TIER) if (sdR(x, z, hx, hz) < 0) return y; return topH(x, z); };
       const under = [[0.0, -7.4], [0.35, -7.0], [0.8, -5.9], [1.3, -4.8], [1.9, -3.6], [2.5, -2.3], [3.0, -1.2], [3.3, -0.72], [3.36, -0.45], [RT, GY]];
       const prof = [];
       for (let k = 0; k < under.length - 1; k++) for (let m = 0; m < 3; m++) { const a = under[k], b = under[k + 1], t = m / 3; prof.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
@@ -323,23 +331,29 @@ export default {
         if (glow) glows.push(pos[0] + dir[0] / l * h, pos[1] + dir[1] / l * h, pos[2] + dir[2] / l * h, h * glow, ...(col < 0.5 ? [0.04, 0.12, 0.26] : [0.15, 0.06, 0.24]), 0);
       };
       const rng = ctx.rng;
-      // stone steps: a dais of three slabs under the threshold and a lower ring of blocks
+      // three clearly stepped tiers of stone blocks carry the threshold
       const slab = (x0, x1, z0, z1, top, h) => {
-        const g = M.box(x1 - x0 - 0.014, h, z1 - z0 - 0.014);
-        m4.fill(0); const a = (rng() - 0.5) * 0.03, c = Math.cos(a), s = Math.sin(a);
+        const g = M.box(x1 - x0 - 0.012, h, z1 - z0 - 0.012);
+        m4.fill(0); const a = (rng() - 0.5) * 0.02, c = Math.cos(a), s = Math.sin(a);
         m4.set([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, D[0] + (x0 + x1) / 2, D[1] + top - h / 2, D[2] + (z0 + z1) / 2, 1]);
         parts.push(flag(M.transform(g, m4), 7, rng()));
       };
-      slab(-1.25, -0.42, -0.75, 0.75, -0.004, 0.32); slab(-0.42, 0.4, -0.75, 0.75, 0, 0.32); slab(0.4, 1.25, -0.75, 0.75, -0.006, 0.32);
-      for (const sz of [-1, 1]) {
-        let x = -1.75; const cuts = [-0.85 + 0.2 * rng(), 0.05 * rng(), 0.8 + 0.2 * rng(), 1.75];
-        for (const c of cuts) { slab(x, c, sz > 0 ? 0.75 : -1.25, sz > 0 ? 1.25 : -0.75, -0.115 - 0.012 * rng(), 0.22); x = c; }
-        const zc = (rng() - 0.5) * 0.4;
-        slab(sz > 0 ? 1.25 : -1.75, sz > 0 ? 1.75 : -1.25, -0.75, zc, -0.115 - 0.012 * rng(), 0.22);
-        slab(sz > 0 ? 1.25 : -1.75, sz > 0 ? 1.75 : -1.25, zc, 0.75, -0.115 - 0.012 * rng(), 0.22);
-      }
+      const row = (x0, x1, z0, z1, n, top, alongX) => {
+        let a = alongX ? x0 : z0; const e = alongX ? x1 : z1;
+        for (let k = 1; k <= n; k++) {
+          const b = k === n ? e : a + (e - a) / (n - k + 1) * (0.8 + 0.4 * rng()), t = top - 0.008 * rng();
+          if (alongX) slab(a, b, z0, z1, t, 0.22); else slab(x0, x1, a, b, t, 0.22);
+          a = b;
+        }
+      };
+      row(-0.95, 0.95, -0.5, 0.5, 3, 0, true);
+      TIER.slice(1).forEach(([hx, hz, y], k) => {
+        const [ix, iz] = TIER[k];
+        row(-hx, hx, iz, hz, 3 + k, y, true); row(-hx, hx, -hz, -iz, 3 + k, y, true);
+        row(ix, hx, -iz, iz, 2, y, false); row(-hx, -ix, -iz, iz, 2, y, false);
+      });
       // nothing may stand in the leaf swing or on the steps
-      const free = (x, z, m = 0.25) => Math.hypot(x, z) < 3.0 && sdR(x, z, 1.75, 1.25) > m;
+      const free = (x, z, m = 0.25) => Math.hypot(x, z) < 3.0 && sdR(x, z, 1.65, 1.2) > m;
       // boulders and standing stones break up the rim silhouette (the approach along z stays open)
       for (let i = 0; i < 16; i++) {
         const a = i / 16 * Math.PI * 2 + rng() * 0.3, r = 2.5 + 0.65 * rng(), x = Math.cos(a) * r, z = Math.sin(a) * r;
@@ -381,8 +395,10 @@ export default {
         lights.push(...W3(x, y + 0.3, z), c);
       }
       // roots: hanging under the islet, and creeping over the steps to climb the door posts
-      const root = (path, r0, r1, glow) => {
-        parts.push(flag(M.tube(path, (t) => r0 + (r1 - r0) * Math.pow(t, 0.7), 6), 3));
+      const root = (path, rad, glow) => {
+        const g = M.tube(path, rad, 10);
+        for (let i = 0; i < g.uv.length; i += 2) g.uv[i] = 3 + g.uv[i] * 0.9;     // 3 + angle around the root (for the light strands)
+        parts.push(g);
         const e = path[path.length - 1]; if (glow) glows.push(e[0], e[1], e[2], glow, 0.05, 0.16, 0.26, 0);
       };
       for (let i = 0; i < 9; i++) {
@@ -391,28 +407,13 @@ export default {
           const t = k / 12, rr = r0 * (1 - 0.3 * t) + 0.4 * Math.sin(t * 5 + i), aa = a + 0.3 * Math.sin(t * 3 + i);
           path.push(W3(Math.cos(aa) * rr, y0 - t * len, Math.sin(aa) * rr));
         }
-        root(path, 0.13, 0.015, 0.4);
+        root(path, (t) => 0.13 - 0.115 * Math.pow(t, 0.7), 0.4);
       }
-      for (const sx of [-1, 1]) for (let m = 0; m < 3; m++) {
-        const zb = [-0.07, 0.07, 0.0][m] * sx, rb = [0.05, 0.04, 0.032][m], Hc = [0.14, 0.24, 0.36][m];
-        const S = [sx * (2.3 + 0.5 * rng()), [-1.0, 0.9, 0.1][m] * sx + (rng() - 0.5) * 0.3], B = [sx * (0.62 + rb * 0.8), zb];
-        const pts = [], NG = 22;
-        for (let k = 0; k <= NG; k++) {
-          const u = k / NG, wob = Math.sin(u * 6.5 + m * 2 + sx) * 0.2 * Math.sin(Math.PI * u);
-          const x = S[0] + (B[0] - S[0]) * u, z = S[1] + (B[1] - S[1]) * u + wob;
-          pts.push([x, 0, z]);
-        }
-        for (let k = 0; k <= NG; k++) {            // drape over the steps: smoothed ground height
-          let h = 0, n = 0;
-          for (let o = -2; o <= 2; o++) { const p = pts[Math.min(NG, Math.max(0, k + o))]; h += gh(p[0], p[2]); n++; }
-          pts[k][1] = Math.max(h / n, gh(pts[k][0], pts[k][2])) + rb * (0.4 + 0.5 * k / NG) - (k < 3 ? (3 - k) * 0.04 : 0);
-        }
-        const path = pts.map((p) => W3(...p));
-        for (let k = 1; k <= 10; k++) {            // climb the outer face of the post, then lean onto its front
-          const v = k / 10, tw = sm(0.45, 1, v) * (m === 2 ? 0 : 1), zs = m === 0 ? -sx : sx;
-          path.push(W3(sx * (0.62 + rb * 0.55 * (1 - 0.6 * v) - tw * 0.06), v * Hc + rb * 0.4, zb + 0.05 * Math.sin(v * 5 + m) * (1 - tw) + zs * tw * (0.082 + rb * 0.2)));
-        }
-        root(path, rb * 1.25, 0.014, 0);
+      // a worn stone foot hugs the outside of each jamb, so the frame is set into the masonry
+      for (const sx of [-1, 1]) {
+        const g = M.rock(120 + sx, 2, 0.25);
+        M.scale(g, 0.17, 0.2, 0.25); M.translate(g, ...W3(sx * 0.76, 0.03, 0));
+        parts.push(flag(g, 7, 0.4 + 0.3 * rng()));
       }
       // curled tendrils (fiddleheads) with a light in the curl
       for (let i = 0, n = 0; i < 400 && n < [10, 18, 22][q]; i++) {
@@ -433,7 +434,7 @@ export default {
         const NTF = [50, 100, 130][q];
         for (let i = 0, n = 0; i < 900 && n < NTF; i++) {
           let x = (rng() - 0.5) * 6.2, z = (rng() - 0.5) * 6.2;
-          if (i % 3 === 0) { const a = rng() * 6.28, r = 0.55 + 0.25 * rng(); x = Math.cos(a) * (1.75 + r) * 0.9; z = Math.sin(a) * (1.25 + r); }   // hug the foot of the steps
+          if (i % 3 === 0) { const a = rng() * 6.28, r = 0.55 + 0.25 * rng(); x = Math.cos(a) * (1.65 + r) * 0.95; z = Math.sin(a) * (1.2 + r); }   // hug the foot of the steps
           if (!free(x, z, 0.06) || Math.hypot(x, z) > 2.95) continue; n++;
           const nb = 5 + Math.floor(rng() * 5), th = 0.1 + 0.2 * rng();
           for (let b = 0; b < nb; b++) {
@@ -454,10 +455,11 @@ export default {
         M.scale(r, sc, sc * 0.8, sc); M.translate(r, ...W3(Math.cos(a) * d, -1 - rng() * 6, Math.sin(a) * d));
         parts.push(flag(r, 2, i * 1.7));
       }
-      glows.push(D[0], D[1] - 7.2, D[2], 6, 0.05, 0.1, 0.26, 0);
+      glows.push(D[0], D[1] - 6.6, D[2], 3.6, 0.035, 0.07, 0.18, 0, D[0] + 0.9, D[1] - 5.2, D[2] - 0.6, 2.2, 0.03, 0.03, 0.1, 0, D[0] - 0.8, D[1] - 4.4, D[2] + 0.7, 1.8, 0.015, 0.05, 0.09, 0);
       this.isletMesh = M.upload(M.merge(parts));
       const CLS = 'const CL = array<vec4f, 4>(' + [0, 1, 2, 3].map((k) => 'vec4f(' + lights.slice(k * 4, k * 4 + 4).map((v) => v.toFixed(3)).join(',') + ')').join(',') + ');\n';
-      this.islet = ctx.pipeline({ code: CLS + ISLET, buffers: [M.layout], constants: { DX: DOOR[0], DY: DOOR[1], DZ: DOOR[2] }, label: 'ao-islet' });
+      const TRS = 'const TIERS = array<vec3f, 3>(' + TIER.map((v) => 'vec3f(' + v.map((x) => x.toFixed(3)).join(',') + ')').join(',') + ');\n';
+      this.islet = ctx.pipeline({ code: CLS + TRS + ISLET, buffers: [M.layout], constants: { DX: DOOR[0], DY: DOOR[1], DZ: DOOR[2] }, label: 'ao-islet' });
       const glL = ctx.layout(['storage']);
       this.NG = glows.length / 8;
       this.glowBG = ctx.bindGroup(glL, [ctx.buffer(Float32Array.from(glows), 'storage')]);
@@ -469,6 +471,23 @@ export default {
 
   update(ctx, dt, t, cam) {
     this.t = t;
+    // jellies drift out of the whales' way (a slow, damped push away from each whale's spine); twin of aoJel's position
+    const jd = this.jd, kd = 1 - Math.exp(-dt / 0.8);
+    if (kd > 0) {
+      for (let k = 0; k < 3; k++) for (let j = 0; j < 6; j++) { spine(PATHS[k], t, 0.04 + j * 0.184, _sp); _ws[(k * 6 + j) * 3] = _sp[0]; _ws[(k * 6 + j) * 3 + 1] = _sp[1]; _ws[(k * 6 + j) * 3 + 2] = _sp[2]; }
+      for (let i = 0; i < this.NJ; i++) {
+        const o = i * 16, H = jd[o + 8], ph = t / jd[o + 4] + jd[o + 6], fl = Math.floor(ph), f = ph - fl;
+        const st = Math.min(1, Math.max(0, (f - 0.03) / 0.52)), yy = (jd[o + 7] * H + (fl + st * st * (3 - 2 * st)) * 0.3 * jd[o + 3] + t * 0.05) / H;
+        const px = jd[o], py = jd[o + 1] + (yy - Math.floor(yy)) * H, pz = jd[o + 2];
+        let tx = 0, ty = 0, tz = 0;
+        for (let w = 0; w < 18; w++) {
+          const R = PATHS[(w / 6) | 0][11] * 0.15 + 4 + jd[o + 3] * 2, dx = px - _ws[w * 3], dy = py - _ws[w * 3 + 1], dz = pz - _ws[w * 3 + 2], d = Math.hypot(dx, dy, dz) + 1e-3;
+          if (d < R) { const u = Math.min(1, (R - d) / (R * 0.6)), s = u * u * (3 - 2 * u) * R * 0.8 / d; tx += dx * s; ty += dy * s; tz += dz * s; }
+        }
+        jd[o + 12] += (tx - jd[o + 12]) * kd; jd[o + 13] += (ty - jd[o + 13]) * kd; jd[o + 14] += (tz - jd[o + 14]) * kd;
+      }
+      ctx.write(this.jelBuf, jd);
+    }
     let m = 1e9;
     for (let i = 0; i < this.jgroups.length; i++) {
       const g = this.jgroups[i];
@@ -491,10 +510,11 @@ export default {
   renderTransparent(ctx, pass) {
     pass.setPipeline(this.puffs); pass.setBindGroup(1, this.puffBG); pass.draw(6, this.NPF);
     // whales: aura, depth prepass, then one shell of light at equal depth; later things are hidden behind them
-    pass.setBindGroup(1, this.pathBG);
+    pass.setBindGroup(1, this.whaleBG);
     pass.setPipeline(this.whaleAura); pass.draw(6, 21);
     pass.setPipeline(this.whalePre); this.whaleMesh.draw(pass, 3);
     pass.setPipeline(this.whale); this.whaleMesh.draw(pass, 3);
+    pass.setBindGroup(1, this.pathBG);
     pass.setPipeline(this.trail); pass.draw(6, this.NT * 3);
     pass.setBindGroup(1, this.jelBG);
     pass.setPipeline(this.jhalo); pass.draw(6, this.NJ);

@@ -29,7 +29,7 @@ fn aoSpiral(d: vec3f) -> vec3f {
   let ca = cos(0.5); let sa = sin(0.5);
   p = vec2f(ca * p.x - sa * p.y, sa * p.x + ca * p.y);
   p.y /= 0.52;
-  p /= 0.12;
+  p /= 0.085;
   let r = length(p);
   let th = atan2(p.y, p.x);
   let lr = log(max(r, 1e-3));
@@ -43,7 +43,7 @@ fn aoSpiral(d: vec3f) -> vec3f {
   col += mix(vec3f(0.35, 0.45, 1.1), vec3f(0.7, 0.55, 1.1), r) * disc * (0.12 + arm * 1.1);
   col += vec3f(1.4, 0.45, 0.9) * knots * disc * 1.4;
   col *= 1.0 - 0.75 * arm2 * smoothstep(0.08, 0.3, r) * disc * 2.0;   // dust lanes on the inner arm edge
-  return col * 0.4 * smoothstep(0.96, 0.975, c);
+  return col * 0.26 * smoothstep(0.96, 0.975, c);
 }
 
 fn aoFar(d: vec3f) -> vec3f {
@@ -64,17 +64,19 @@ fn aoFar(d: vec3f) -> vec3f {
   var col = mix(blue, viol, smoothstep(0.2, 0.5, hue));
   col = mix(col, mag, smoothstep(0.5, 0.75, hue));
   col = mix(col, teal, smoothstep(0.6, 0.9, fbm3(q * 0.8 - 5.0, 3) * 0.5 + 0.5) * 0.85);
-  col = mix(col, vec3f(1.1, 0.46, 0.3), core * smoothstep(0.4, 0.9, n));
+  col = mix(col, vec3f(1.05, 0.4, 0.45), core * 0.7);
   // dark dust lanes
   let lane = 1.0 - abs(fbm3(q * 2.1 + 4.0, 5));
-  dens *= 1.0 - 0.8 * smoothstep(0.82, 0.97, lane) * smoothstep(0.1, 0.5, band + core);
+  dens *= 1.0 - 0.35 * smoothstep(0.7, 0.98, lane) * smoothstep(0.1, 0.5, band + core);
+  // around the core the gas turns to soft, low-frequency peach and rose wisps that melt into the magenta
+  let cn = fbm3(d * 2.6 + 2.0, 3) * 0.5 + 0.5;
+  let near = pow(cw, 45.0);
+  dens = mix(dens, (0.35 + 0.65 * cn) * 0.95, near);
+  col = mix(col, mix(vec3f(0.95, 0.3, 0.5), vec3f(1.25, 0.62, 0.45), pow(cw, 120.0)), near);
   var e = col * dens * 0.32;
-  let cn = fbm3(d * 9.0 + 2.0, 5) * 0.5 + 0.5;
-  let lanes = smoothstep(0.7, 0.95, 1.0 - abs(fbm3(d * 16.0 + 5.0, 4))) * smoothstep(0.2, 0.8, cn);
-  e += vec3f(1.5, 0.66, 0.42) * pow(cw, 60.0) * 0.3 * smoothstep(0.3, 0.85, cn) * (0.3 + n);
+  e += vec3f(1.5, 0.74, 0.52) * pow(cw, 90.0) * 0.2 * (0.5 + 0.5 * cn) + vec3f(1.2, 0.5, 0.6) * pow(cw, 20.0) * 0.035;
   // the core itself: a soft roll-off instead of a clipped disc
   e += vec3f(1.7, 1.1, 0.72) * (pow(cw, 250.0) * 0.22 + pow(cw, 1200.0) * 0.7 + pow(cw, 6000.0) * 1.6);
-  e *= 1.0 - 0.75 * lanes * pow(cw, 25.0);
   e += vec3f(0.9, 0.3, 0.55) * pow(cw, 4.0) * 0.03;
   // second, cooler glow region
   let c2 = max(dot(d, normalize(vec3f(0.7, -0.35, -0.2))), 0.0);
@@ -107,8 +109,8 @@ fn aoWisp(d: vec3f) -> vec4f {
   let dk = smoothstep(0.25, 0.75, fbm3(q * 1.1 - 7.0, 5));
   let hue = fbm3(q * 0.5 - 2.0, 2) * 0.5 + 0.5;
   let col = mix(vec3f(0.12, 0.45, 0.75), vec3f(0.75, 0.2, 0.7), smoothstep(0.3, 0.7, hue));
-  var e = col * (fil * m * 0.3 + m * 0.05) * (1.0 - 0.85 * dk);
-  let a = clamp(m * 0.25 + fil * m * 0.15 + dk * m * 0.4, 0.0, 0.6);
+  var e = col * (fil * m * 0.3 + m * 0.05) * (1.0 - 0.5 * dk);
+  let a = clamp(m * 0.22 + fil * m * 0.12 + dk * m * 0.16, 0.0, 0.5);
   return vec4f(e, a);
 }
 

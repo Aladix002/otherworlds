@@ -15,10 +15,10 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   // emitter in whale-local L = 1 coords (x, y, s)
   var lp: vec3f;
   let e = h.y;
-  if (e < 0.6) { let x = fract(e * 37.0) * 2.0 - 1.0; lp = vec3f(x * 0.16, 0.0, 0.985 + 0.05 * x * x); }
+  if (e < 0.6) { let x = fract(e * 37.0) * 2.0 - 1.0; lp = vec3f(x * 0.15, -0.012 * x * x, 1.0 + 0.04 * x * x); }
   else if (e < 0.85) {
     let fl = sin(tb * 0.5 + ph) * 0.6 + sin(tb * 0.29 + ph * 1.7) * 0.4;
-    lp = vec3f(select(-0.21, 0.21, e < 0.725), -0.125 + 0.055 * fl, 0.45);
+    lp = vec3f(select(-0.23, 0.23, e < 0.725), -0.15 + 0.055 * fl, 0.48);
   }
   else { lp = vec3f(0.0, 0.0, 0.55 + 0.4 * fract(e * 10.0)); }
   let F = aoFrame(P, tb, lp.z);
@@ -27,16 +27,17 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   p += curl3(p * 0.03 + h2.zxy * 3.0) * age * 0.14 + vec3f(0.0, 0.03, 0.0) * age;
   let d = distance(p, G.camPos);
   let px = aoPix(d);
-  let r = 0.05 + 0.11 * h2.z * h2.z * h2.z;
-  let rs = max(r, px * 2.4);
+  let big = step(h2.y, 0.7);
+  let r = mix(0.05 + 0.08 * h2.z, 0.12 + 0.22 * h2.z, big);
+  let rs = max(r, px * 2.6);
   let c = aoCorner(vi);
   var o: VO;
   o.pos = G.viewProj * vec4f(billboard(p, c, vec2f(rs)), 1.0);
   o.c = c;
   let env = smoothstep(0.0, 1.2, age) * pow(1.0 - age / life, 2.0);
   let tw = 0.65 + 0.35 * sin(G.time * (0.5 + 0.8 * h2.y) + h.x * 60.0);
-  let tint = mix(vec3f(0.5, 0.8, 1.6), vec3f(1.5, 1.1, 0.7), step(0.72, h2.x));
-  o.col = tint * env * tw * (r / rs) * (r / rs) * 2.2 * smoothstep(1.0, 4.0, d) * exp(-d * 0.004);
+  let tint = mix(vec3f(1.5, 1.05, 0.65), vec3f(0.6, 0.85, 1.6), step(0.75, h2.x));
+  o.col = tint * env * tw * (r / rs) * (r / rs) * mix(1.8, 0.2, big) * smoothstep(1.0, 4.0, d) * exp(-d * 0.004);
   return o;
 }
 @fragment fn fs(in: VO) -> @location(0) vec4f {
