@@ -87,11 +87,26 @@ export default {
     { pos: [0, -95, -255], yaw: 0, pitch: 0.2 },
   ],
   flythrough: [
-    { pos: [2, -6.5, 80], yaw: 0, pitch: -0.08 }, { pos: [10, -8, 62], yaw: 0.3, pitch: -0.05 },
-    { pos: [12, -9, 36], yaw: 0.6, pitch: 0 }, { pos: [-2, -14, 8], yaw: 0.2, pitch: -0.1 },
-    { pos: [-10, -22, -38], yaw: 0.1, pitch: 0.1 }, { pos: [6, -20, -75], yaw: -0.3, pitch: 0 },
-    { pos: [4, -27, -126], yaw: 0, pitch: -0.3 }, { pos: [0, -50, -182], yaw: 0, pitch: -0.25 },
-    { pos: [0, -95, -255], yaw: 0, pitch: 0.05 },
+    { pos: [-16, -6.5, 100], yaw: -0.6, pitch: -0.05 },
+    { pos: [2, -6.5, 82], yaw: 0, pitch: -0.05 },
+    { pos: [12, -8, 66], yaw: 0.5, pitch: 0 },
+    { pos: [2, -9, 64], yaw: 0.1, pitch: 0.05 },
+    { pos: [-12.5, -11, 50], yaw: -1.0, pitch: 0.05 },
+    { pos: [-12.5, -11.5, 40], yaw: -1.3, pitch: 0.05 },
+    { pos: [-22, -11, 20], yaw: -0.3, pitch: 0 },
+    { pos: [-8, -14, 0], yaw: 0, pitch: 0 },
+    { pos: [-30, -17, -22], yaw: 0.5, pitch: 0.1 },
+    { pos: [-30, -18.5, -42], yaw: 0.0, pitch: 0.1 },
+    { pos: [-14, -18, -50], yaw: -0.6, pitch: 0.05 },
+    { pos: [-5, -18, -58], yaw: -0.86, pitch: 0.08 },
+    { pos: [-4, -19, -66], yaw: -1.0, pitch: 0.08 },
+    { pos: [-4, -21, -84], yaw: -1.9, pitch: 0.1 },
+    { pos: [4, -30, -140], yaw: 0, pitch: -0.3 },
+    { pos: [-2, -88, -242], yaw: 0, pitch: -0.15 },
+    { pos: [0, -93, -262], yaw: 0.15, pitch: 0.1 },
+    { pos: [6, -92, -280], yaw: 0.5, pitch: 0.1 },
+    { pos: [10, -90, -292], yaw: 0.7, pitch: 0.1 },
+    { pos: [-4, -88, -300], yaw: 1.4, pitch: 0.05 },
   ],
   flythroughDuration: 60,
   doors: [{ pos: [DOORX, null, DOORZ], yaw: Math.PI, to: 'jungle' }],
@@ -183,6 +198,7 @@ export default {
     // --- kelp forest
     {
       const rng = ctx.math.makeRng(11), nK = [200, 380, 520][ctx.q.level], K = [], C = [];
+      const keep = [...this.poses, ...this.flythrough].map((p) => p.pos);
       const cluster = (x, z) => {
         C.push(x, z);
         const ns = 2 + (rng() < 0.6 ? 1 : 0) + (rng() < 0.3 ? 1 : 0), top = 1 + rng() * 5;
@@ -196,7 +212,7 @@ export default {
       for (let tries = 0; C.length < nK * 2 && tries < 40000; tries++) {
         const x = rng() * 230 - 115, z = rng() * -142 - 6;
         const zone = ss(-6, -20, z) * (1 - ss(-130, -147, z)) * ss(-0.35, 0.15, N.fbm2(x * 0.02 + 9, z * 0.02, 2));
-        if (rng() > zone || Math.hypot(x - 10, z + 70) < 17 || Math.abs(x) > 105) continue;
+        if (rng() > zone || Math.hypot(x - 10, z + 70) < 17 || Math.abs(x) > 105 || keep.some((k) => Math.hypot(k[0] - x, k[2] - z) < 4.5)) continue;
         let ok = true;
         for (let i = 0; i < C.length; i += 2) if (Math.hypot(C[i] - x, C[i + 1] - z) < 3.0) { ok = false; break; }
         if (!ok) continue;
@@ -281,7 +297,7 @@ export default {
     await progress(0.7);
     // --- god rays + particles
     this.nShafts = [24, 40, 56][ctx.q.level];
-    this.shafts = ctx.pipeline({ code: COMMON + SHAFTS, layouts: [this.envL], blend: 'add', cull: 'none', constants: this.consts, label: 'uw-shafts' });
+    this.shafts = ctx.pipeline({ code: COMMON + SHAFTS, layouts: [this.envL], blend: 'add', cull: 'none', topology: 'triangle-strip', constants: this.consts, label: 'uw-shafts' });
     {
       const NM = this.nMotes = [2048, 4096, 8192][ctx.q.level], rng = ctx.math.makeRng(5), md = new Float32Array(NM * 8);
       for (let i = 0; i < NM; i++) md.set([rng() * 36 - 18, -6 - rng() * 30, rng() * 36 + 62, i, 0, 0, 0, 0], i * 8);
@@ -348,7 +364,7 @@ export default {
 
   renderTransparent(ctx, pass) {
     pass.setBindGroup(1, this.envBG);
-    pass.setPipeline(this.shafts); pass.draw(6, this.nShafts);
+    pass.setPipeline(this.shafts); pass.draw(22, this.nShafts);
     if (ctx.camera.eye[1] < -22) {
       pass.setBindGroup(2, this.deepBG);
       pass.setPipeline(this.chain); pass.draw(12, 5 * 70);

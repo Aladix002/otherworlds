@@ -3,8 +3,7 @@ override NS: f32 = 40.0;
 const CELL = 64.0;
 struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) a: vec3f };
 @vertex fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VO {
-  var cs = array<vec2f, 6>(vec2f(-1, 0), vec2f(1, 0), vec2f(-1, 1), vec2f(-1, 1), vec2f(1, 0), vec2f(1, 1));
-  let c = cs[vi];
+  let c = vec2f(f32(vi % 2u) * 2.0 - 1.0, f32(vi / 2u) / 10.0);
   let h = hash3u(vec3u(ii, 7u, 31u));
   let cy = G.camPos.y;
   // position at the camera's depth, wrapped into a cell around the camera
@@ -22,9 +21,11 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) a
   let edge = 1.0 - uss(CELL * 0.28, CELL * 0.48, max(abs(rel.x), abs(rel.y)));
   let ax = G.camPos - mid; let dAxis = length(ax - SUN * dot(ax, SUN));
   let near = uss(3.0, 12.0, dAxis);
+  let axisP = bot + SUN * (len * c.y);
+  let ground = uss(0.5, 4.0, axisP.y - terrainH(axisP.xz));
   var o: VO;
   o.c = vec2f(c.x, c.y * len);
-  o.a = vec3f(br * edge * near * (1.0 - G.params.z) * (0.35 + 0.65 * G.params.w + 0.0), len, cy + SUN.y * (len * c.y - len + topT) );
+  o.a = vec3f(br * edge * near * ground * (1.0 - G.params.z) * (0.35 + 0.65 * G.params.w), len, cy + SUN.y * (len * c.y - len + topT) );
   o.pos = G.viewProj * vec4f(wp, 1.0);
   return o;
 }
