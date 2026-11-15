@@ -58,8 +58,8 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let w = waterAt(wp.y);
   let ao = mix(0.35, 1.0, smoothstep(0.0, 0.7, in.k.x));
   let mu = max(dot(v, SUN), 0.0);
-  let trans = (0.35 + 2.2 * mu * mu * mu) * blade;
+  let trans = (0.3 + 3.0 * mu * mu * mu + 0.6 * max(-n.y * sign(dot(v, SUN)), 0.0)) * blade;
   let dif = wrapDiffuse(n, SUN, 0.5);
-  let c = alb * (L * (dif * 0.45 + trans * 0.6) * ao + w * mix(0.6, 1.6, n.y * 0.5 + 0.5) * (0.5 + 0.5 * ao)) + vec3f(0.06, 0.035, 0.0) * L * blade * ao;
+  let c = alb * (L * (dif * 0.4 + trans * 0.55) * ao + w * mix(0.3, 0.9, n.y * 0.5 + 0.5) * (0.4 + 0.6 * ao)) + vec3f(0.1, 0.05, 0.0) * L * trans * ao;
   return vec4f(uwFog(c, wp), 1.0);
 }

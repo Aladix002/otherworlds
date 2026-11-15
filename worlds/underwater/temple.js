@@ -3,7 +3,7 @@
 const TAU = Math.PI * 2;
 
 // column-major mat4 from Euler (X then Y then Z applied as Rz*Ry*Rx), translation and uniform scale
-function mat(rx, ry, rz, tx, ty, tz, s = 1) {
+export function mat(rx, ry, rz, tx, ty, tz, s = 1) {
   const cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry), cz = Math.cos(rz), sz = Math.sin(rz);
   // R = Ry * Rx * Rz
   const r00 = cy * cz + sy * sx * sz, r01 = -cy * sz + sy * sx * cz, r02 = sy * cx;
@@ -99,24 +99,24 @@ export function buildTemple(M, heightAt, PADY, door, rng) {
   }
 
   // ---- statues (kouros, arms broken off) ----
-  const statue = (m, pedestal) => {
+  const statue = (m, pedestal, head) => {
     const g = [];
     const ell = (rx, ry, rz, x, y, z) => g.push(M.translate(M.scale(M.sphere(1, 2), rx, ry, rz), x, y, z));
     for (const s of [-1, 1]) g.push(M.translate(M.cylinder(0.075, 0.115, 0.85, 10, 2), 0.11 * s, 0.05, s * 0.04));
     for (const s of [-1, 1]) g.push(M.translate(M.cylinder(0.11, 0.13, 0.08, 10), 0.11 * s, 0.0, 0.08 * s + 0.04));
     ell(0.22, 0.2, 0.15, 0, 0.98, 0); ell(0.24, 0.32, 0.15, 0, 1.3, 0); ell(0.27, 0.12, 0.16, 0, 1.55, 0);
     for (const s of [-1, 1]) ell(0.075, 0.12, 0.075, 0.27 * s, 1.5, 0);
-    g.push(M.translate(M.cylinder(0.06, 0.055, 0.14, 10), 0, 1.62, 0));
-    ell(0.11, 0.14, 0.12, 0, 1.86, 0.01);
+    g.push(M.translate(M.cylinder(0.06, 0.055, head ? 0.14 : 0.07, 10), 0, 1.62, 0));
+    if (head) ell(0.11, 0.14, 0.12, 0, 1.86, 0.01);
     if (pedestal) g.push(M.translate(M.box(0.8, 0.9, 0.8), 0, -0.45, 0));
     const s = M.merge(g); M.computeNormals(s);
     return add(s, m);
   };
   const sx = 9.4, sz = TZ + 15.5, sy = heightAt(sx, sz) + 0.75;
-  statue(mat(0, -0.4, 0, sx, sy, sz, 1.35), true);
+  statue(mat(0, -0.4, 0, sx, sy, sz, 1.35), true, false);
   boxes.push([sx, sy, sz, 0.5, 1.5, 0.5, 0]);
   const fx = -10.5, fz = TZ + 13;
-  statue(mat(-Math.PI / 2 + 0.08, 2.2, 0.1, fx, heightAt(fx, fz) + 0.18, fz, 1.3), false);
+  statue(mat(-Math.PI / 2 + 0.08, 2.2, 0.1, fx, heightAt(fx, fz) + 0.18, fz, 1.3), false, true);
 
   // ---- amphorae ----
   const amph = () => {

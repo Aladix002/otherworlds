@@ -44,7 +44,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let m = nb.w;
   var alb = mix(vec3f(0.86, 0.82, 0.70), vec3f(0.95, 0.9, 0.78), smoothstep(0.35, 0.7, m));
   alb *= 0.9 + 0.2 * nf.z;
-  let kel = mix(vec3f(0.55, 0.45, 0.30), vec3f(0.42, 0.36, 0.27), smoothstep(0.4, 0.7, nf.w + m * 0.4));
+  let kel = mix(vec3f(0.66, 0.48, 0.28), vec3f(0.5, 0.38, 0.26), smoothstep(0.4, 0.7, nf.w + m * 0.4));
   alb = mix(alb, kel, kelp);
   alb = mix(alb, vec3f(0.26, 0.28, 0.32) * (0.8 + 0.4 * nf.z), deep);
   let rock = smoothstep(0.55, 0.35, n.y);
