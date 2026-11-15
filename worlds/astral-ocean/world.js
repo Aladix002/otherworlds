@@ -241,7 +241,7 @@ export default {
     }
     // clusters of overlapping cards, 3-10x apart in scale, so they merge into larger structures instead of single puffs
     const NPF = [18, 30, 40][q], pf = [];
-    const pcols = [[0.10, 0.04, 0.22], [0.18, 0.03, 0.14], [0.03, 0.11, 0.17], [0.2, 0.065, 0.1], [0.06, 0.06, 0.2]];
+    const pcols = [[0.10, 0.04, 0.22], [0.18, 0.03, 0.14], [0.03, 0.11, 0.17], [0.2, 0.05, 0.13], [0.06, 0.06, 0.2]];
     for (let i = 0, cx = 0, cy = 0, cz = 0, cs = 0, ci = 0; i < NPF; i++) {
       if (i % 5 === 0) {
         do { const a = rng() * Math.PI * 2, b = (rng() - 0.5) * 1.4, d = 80 + rng() * 150; cx = Math.cos(a) * Math.cos(b) * d; cy = Math.sin(b) * d * 0.6; cz = Math.sin(a) * Math.cos(b) * d - 15; }
@@ -394,7 +394,7 @@ export default {
         root(path, 0.13, 0.015, 0.4);
       }
       for (const sx of [-1, 1]) for (let m = 0; m < 3; m++) {
-        const zb = [-0.07, 0.07, 0.0][m] * sx, rb = [0.05, 0.04, 0.032][m], Hc = [0.28, 0.45, 0.7][m];
+        const zb = [-0.07, 0.07, 0.0][m] * sx, rb = [0.05, 0.04, 0.032][m], Hc = [0.14, 0.24, 0.36][m];
         const S = [sx * (2.3 + 0.5 * rng()), [-1.0, 0.9, 0.1][m] * sx + (rng() - 0.5) * 0.3], B = [sx * (0.62 + rb * 0.8), zb];
         const pts = [], NG = 22;
         for (let k = 0; k <= NG; k++) {
@@ -412,7 +412,7 @@ export default {
           const v = k / 10, tw = sm(0.45, 1, v) * (m === 2 ? 0 : 1), zs = m === 0 ? -sx : sx;
           path.push(W3(sx * (0.62 + rb * 0.55 * (1 - 0.6 * v) - tw * 0.06), v * Hc + rb * 0.4, zb + 0.05 * Math.sin(v * 5 + m) * (1 - tw) + zs * tw * (0.082 + rb * 0.2)));
         }
-        root(path, rb * 1.25, 0.008, 0);
+        root(path, rb * 1.25, 0.014, 0);
       }
       // curled tendrils (fiddleheads) with a light in the curl
       for (let i = 0, n = 0; i < 400 && n < [10, 18, 22][q]; i++) {

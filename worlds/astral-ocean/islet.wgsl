@@ -61,11 +61,10 @@ fn aoGlowCol(h: f32) -> vec3f { return mix(vec3f(0.25, 0.75, 1.4), vec3f(0.95, 0
     let tt = in.uv.y;
     let bark = vec3f(0.035, 0.028, 0.045) * (0.6 + 0.6 * vnoise3(in.o * vec3f(14.0, 5.0, 14.0)));
     var c = litSpec(bark, n, in.w, 12.0, 0.05) * cao + bark * spill * 4.0;
-    let vn = snoise3(in.o * 2.6 + 5.0);
-    let vein = 1.0 - smoothstep(0.02, 0.06 + dist * 0.004, abs(vn));
-    let pul = 0.25 + 0.75 * pow(0.5 + 0.5 * sin(tt * 9.0 - t * 0.7 + in.o.x * 2.0), 4.0);
-    c += vec3f(0.22, 0.8, 1.1) * vein * pul * (0.2 + 0.8 * tt) * 0.45;
-    c += vec3f(0.22, 0.8, 1.1) * smoothstep(0.85, 1.0, tt) * 0.25 + vec3f(0.3, 0.45, 1.1) * fres * 0.08;
+    // soft pulses of light travel along the root
+    let pul = pow(0.5 + 0.5 * sin(tt * 11.0 - t * 0.6 + in.o.y * 3.0), 6.0);
+    c += vec3f(0.22, 0.8, 1.1) * pul * (0.15 + 0.85 * tt) * 0.16;
+    c += vec3f(0.22, 0.8, 1.1) * smoothstep(0.85, 1.0, tt) * 0.1 + vec3f(0.3, 0.45, 1.1) * fres * 0.05;
     return vec4f(applyFog(c, in.w), 1.0);
   }
 
@@ -84,9 +83,8 @@ fn aoGlowCol(h: f32) -> vec3f { return mix(vec3f(0.25, 0.75, 1.4), vec3f(0.95, 0
   var alb = mix(vec3f(0.022, 0.02, 0.04), vec3f(0.15, 0.125, 0.18), smoothstep(-0.5, 0.6, hv)) * (0.8 + 0.4 * g3);
   alb *= 0.82 + 0.18 * strata * side;
   // cracks
-  let vo = voronoi3(q * vec3f(1.25, 2.0, 1.25) + g1.w * 0.25);
-  let edge = vo.y - vo.x;
-  let crack = 1.0 - smoothstep(0.0, 0.07, edge);
+  let edge = abs(snoise3(q * vec3f(1.0, 1.7, 1.0) + g1.w * 0.3 + 20.0));   // zero-crossings of a warped noise = crack lines
+  let crack = 1.0 - smoothstep(0.0, 0.08, edge);
   alb *= 1.0 - 0.6 * crack;
   if (step7) { alb = mix(alb, vec3f(0.15, 0.13, 0.185) * (0.75 + 0.5 * in.uv.y), 0.65) * (1.0 - 0.35 * crack); }
   // moss and lichen settle in the hollows of up-facing rock
@@ -105,8 +103,8 @@ fn aoGlowCol(h: f32) -> vec3f { return mix(vec3f(0.25, 0.75, 1.4), vec3f(0.95, 0
   var c = litSpec(alb, n, in.w, 20.0, 0.1) * vec3f(0.75, 0.8, 1.0) * ao + alb * spill * 5.0;
   // light seeping through cracks: strong underneath, sparse on top
   let under = smoothstep(0.2, -0.6, geoUp);
-  let vm = smoothstep(-0.15, 0.35, fbm3(q * 0.4 - 2.0, 2));
-  let vein = (1.0 - smoothstep(0.0, 0.012 + dist * 0.0012, edge)) * vm;
+  let vm = smoothstep(-0.1, 0.4, g1.w);
+  let vein = (1.0 - smoothstep(0.0, 0.02 + dist * 0.002, edge)) * vm;
   c += vec3f(0.25, 0.75, 1.5) * vein * (0.12 + 0.88 * under) * (0.7 + 0.3 * sin(t * 0.6 + in.w.y * 1.5)) * (1.0 - moss) * select(1.0, 0.0, step7);
   // tiny glowing lichen specks
   let sp = q.xz * 13.0;

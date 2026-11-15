@@ -9,19 +9,24 @@ fn pcAstral_whale(rd: vec3f, t: f32) -> vec3f {
   let c = normalize(vec3f(-0.5, -0.2, -1.0));
   let k = dot(rd, c);
   if (k < 0.955) { return vec3f(0.0); }
-  var p = (rd.xy - c.xy * k) / k / 0.14;
+  var p = (rd.xy - c.xy * k) / k / 0.12;
   p.x += 0.1 * sin(t * 0.05);
-  let s = clamp(p.x * 0.5 + 0.5, 0.0, 1.0);             // 0 head (left) .. 1 tail
-  let wv = 0.06 * sin(s * 5.0 - t * 0.6) * s * s;
-  let y = p.y - wv;
-  let r = 0.17 * sqrt(sin(3.14159 * pow(s, 0.55))) * (1.0 - 0.6 * s) + 0.006;
-  var d = max(abs(y + 0.03 * (1.0 - s)) - r, abs(p.x) - 1.0);
-  d = min(d, pcAstral_seg(p, vec2f(-0.46, -0.1), vec2f(-0.08, -0.4), 0.05, 0.008));          // flipper
-  d = min(d, pcAstral_seg(vec2f(p.x, y), vec2f(0.94, 0.0), vec2f(1.13, 0.035), 0.012, 0.03)); // fluke, edge-on
+  let s = clamp((p.x + 1.0) * 0.5, 0.0, 0.95);             // 0 head (left) .. tail
+  let y = p.y - 0.05 * sin(s * 5.0 - t * 0.6) * s * s;
+  // same humpback profile as the real mesh: flat back, deep throat, slender tail stock
+  var wb = max(0.03, 1.0 - 0.93 * pow(max(s - 0.25, 0.0) / 0.7, 1.3));
+  if (s < 0.25) { wb = sqrt(sin(s * 6.2832)); }
+  let top = 0.19 * wb * 0.86 * (0.78 + 0.22 * smoothstep(0.02, 0.2, s));
+  let bot = 0.19 * wb * (0.92 + 0.22 * exp(-pow((s - 0.22) / 0.13, 2.0)));
+  let yc = y + 0.023 * wb * (1.0 - smoothstep(0.0, 0.3, s));
+  var d = max(max(yc - top, -yc - bot), abs(p.x + 0.05) - 0.95);
+  let q = vec2f(p.x, y);
+  d = min(d, min(pcAstral_seg(q, vec2f(-0.46, -0.14), vec2f(-0.2, -0.4), 0.06, 0.035), pcAstral_seg(q, vec2f(-0.2, -0.4), vec2f(0.04, -0.5), 0.035, 0.006)));   // flipper
+  d = min(d, min(pcAstral_seg(q, vec2f(0.88, 0.0), vec2f(1.1, 0.1), 0.03, 0.005), pcAstral_seg(q, vec2f(0.88, 0.0), vec2f(1.1, -0.07), 0.03, 0.005)));          // fluke
   let body = smoothstep(0.012, -0.012, d);
   let rim = body * exp(d * 26.0);
   let halo = (1.0 - body) * exp(-max(d, 0.0) * 9.0) * 0.07;
-  return vec3f(0.34, 0.62, 1.4) * (body * 0.03 + rim * 0.5 + halo) * smoothstep(0.955, 0.97, k);
+  return vec3f(0.34, 0.62, 1.4) * (body * 0.025 + rim * 0.4 + halo) * smoothstep(0.955, 0.97, k);
 }
 fn postcard(rd: vec3f, t: f32) -> vec3f {
   let core = normalize(vec3f(-0.316, 0.163, -0.935));

@@ -4,35 +4,45 @@ Fly mode (speed ×0.7). Spawn (0,0,0) looks −Z at the warm nebula core; the do
 islet at (0,−2,26), behind the spawn.
 
 ## Files
-- `layout.js` — pure layout: `PATHS`, `JGROUPS`, poses and fly-through. Creature phases (`u0`) are solved at load so
-  life is in frame for the spawn view and the motion-clip times (9 / 30 / 49 s); `flyCam` mirrors the core spline.
-  Paths keep ≥ 47 m between whales and ≥ 20 m from jelly columns, the islet and spawn.
-- `world.js` — whale mesh builder (humpback profile, airfoil flippers, notched fluke), jelly/puff/islet data, pipelines, audio. Poses and fly-through are computed at
-  module load from the creatures' analytic paths (JS twin `pathPos`/`frame`).
-- `common.wgsl` — path storage + `aoPathPos`/`aoFrame` (spine frame at body fraction s, body follows head) + `aoWave`.
-  **Keep in sync with `pathPos` in world.js.**
+- `layout.js` — pure layout: `PATHS` (0–2 whales, 3–4 shoals, 5 = escort shoal riding beside whale 1), `JGROUPS`, poses
+  and fly-through. Phases (`u0`) are solved at load: whale 0 for the spawn view, whale 1 so it passes the camera in
+  profile at the last motion clip (49.2 s), shoals for clips 1/2, and whale 2 by a small search so that in every key
+  view it is either whole in frame or clearly out and never overlaps another whale. `flyCam`/`wpTimes` mirror the core
+  spline timing. `spine()` is the allocation-free twin used by `sdf` (whales gently push the camera aside).
+- `world.js` — whale mesh builder (humpback profile; curved, tapered, knobbly flippers; falcate notched horizontal fluke;
+  small midline dorsal), jelly placement with enforced column spacing, clustered puffs, islet builder, pipelines, audio.
+- `common.wgsl` — path storage + `aoPathPos`/`aoFrame` (spine frame at body fraction s) + `aoWave`.
+  **Keep in sync with `pathPos` in layout.js.**
 - `util.wgsl` — `aoPix` (meters per pixel), `aoCorner` (quad corners).
-- `nebula.wgsl` + `bake.wgsl` — far nebula (band, warm core, dust lanes, galaxies, spiral landmark) and mid "wisp"
-  layer, baked at load into two rgba16f cubemaps, one face per submit.
-- `sky.wgsl` — per-frame sky: far cube + two parallax shells (r 420 / 210, ray-sphere) sampling the wisp cube, plus two
-  layers of procedural, pixel-stable gaussian stars.
-- `whale.wgsl` (premul) — L = 1 mesh bent along path, vertical travelling body wave, flipper flap; fresnel rim, noise veins
-  with travelling pulses, throat pleats, constellation dots + lines, all AA'd via fwidth with energy conservation.
-- `trail.wgsl` — stateless stardust shed from whale skin (born at t − age, curl drift).
-- `jelly.wgsl` — bells (lathe, asymmetric pulse: fast contract / slow relax, stepwise upward thrust) and procedural
-  ribbon tentacles + oral arms with light beads travelling down after each pulse.
-- `fish.wgsl` / `fishdraw.wgsl` — compute: each fish targets a lagged point of the shoal path (clumped, twisting,
-  undulating ribbon) + damped deviation that parts around the camera and wanders on curl noise.
-- `motes.wgsl` (stateless camera-wrapped dust), `puffs.wgsl`/`puffbake.wgsl` (local gas cards from a baked 4-channel
-  density texture), `glow.wgsl` (islet halos), `islet.wgsl`, `postcard.wgsl`.
+- `nebula.wgsl` + `bake.wgsl` — far nebula (continuous low-frequency haze everywhere, band, rose-gold core with soft
+  roll-off, dust lanes, galaxies, spiral landmark) and mid "wisp" layer, baked at load into two rgba16f cubemaps.
+- `sky.wgsl` — far cube + two parallax shells + two layers of procedural stars (power-law magnitudes, larger = softer,
+  windowed inside their cell, dimmed behind dense gas).
+- `whale.wgsl` — three draws: aura sprites (`vsh/fsh`), depth prepass (`vs/fsd`, colour mask 0), colour at depth `equal`
+  (premul). One clean shell: dark glassy centre (alpha ~0.3) with inner drifting nebula, strong fresnel rim, spine and
+  lateral lines with travelling pulses, mouth line, eye, ventral pleats (fade with fwidth → no moiré), warm constellation
+  points with irregular links, distance haze. Everything drawn after the whales is depth-tested against them.
+- `trail.wgsl` — stateless stardust shed from the whole fluke edge, flipper tips and tail stock.
+- `jelly.wgsl` — bells (asymmetric pulse, inner glow that swells with the pulse), halo sprite (`vsg`), 10 swaying
+  tapered tentacles + 4 frilly oral arms (`vst`), distance haze (`aoHaze`).
+- `fish.wgsl` / `fishdraw.wgsl` — compute: each fish targets a lagged point of its shoal path (continuous ribbon) +
+  damped deviation that parts around the camera and whales. Drawn as small additive comets (bright head, fading tail),
+  capped to ~22 px and dissolved within 7 m of the camera; teal → cyan → violet per fish.
+- `motes.wgsl`, `puffs.wgsl`/`puffbake.wgsl`, `glow.wgsl`, `postcard.wgsl` (same nebula + a rim-lit whale silhouette
+  using the mesh profile, low-left so it never sits on the real whales during the arrival dissolve).
+- `islet.wgsl` — materials by `uv.x`: rock (bump from noise gradients, strata, crack lines, moss in hollows, lichen
+  specks, AO, crystal light spill from `CL`), crystal, debris, root (travelling light pulses), tendril, grass, worked
+  stone steps (inlaid line of light around the threshold).
 
 ## Tunables
-`PATHS` (whale/shoal loops: center, radius, ellipse, height wave, yaw, speed, u0, dir, length), `JGROUPS`, counts per
-quality in `init` (cube sizes, fish, trail particles, jellies, tentacle segments, motes, puffs). Thin things all clamp to
-≥ ~1.3 px and scale intensity by area, so they stay temporally stable.
+`PATHS`, `JGROUPS`, `WP` (fly-through), counts per quality in `init`. Thin things clamp to ≥ ~1.6–2.4 px and scale
+intensity by area, so they stay temporally stable.
 
-## Perf
-Medium ≈ 3.6 ms avg GPU at scale 1.0 on the Barcelo iGPU (core post included). Heaviest: sky pass and close whales.
+## Perf (Barcelo iGPU, 1920×1080)
+Medium: avg 4.9 ms, p99 10.8 ms, scale 1.0 over the fly-through. Low: avg 2.7 ms. Standing at the islet costs more
+(roughly 8–10 ms at scale 1: the rock shader fills the lower half of the screen).
 
 ## Known issues / ideas
-- Fish steer around whale spines on the GPU; jellies rely on the static layout separation.
+- Whale depth prepass: things behind a whale are fully hidden, not dimmed (reads as volume; fine at these distances).
+- The fly-through does not pass the islet; probe it with `__ow.doorView` when touching `islet.wgsl`.
+- Roots on the steps are plain tubes; a bark normal pattern would help up close.

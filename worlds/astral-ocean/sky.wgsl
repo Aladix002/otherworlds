@@ -30,7 +30,7 @@ fn aoStars(rd: vec3f, cells: f32, dens: f32, bright: f32, pa: f32, grow: f32) ->
   let tw = 0.88 + 0.12 * sin(G.time * (0.4 + 0.9 * h.x) + h.y * 40.0);
   let tint = mix(mix(vec3f(0.65, 0.8, 1.3), vec3f(1.0, 0.97, 0.95), smoothstep(0.2, 0.5, h.x)), vec3f(1.3, 0.9, 0.62), smoothstep(0.7, 0.95, h.x));
   let gs = exp(-dpx * dpx / (2.0 * sig * sig));
-  return tint * gs * smoothstep(0.25, 0.1, dc) * bright * (0.07 + 3.2 * mag) * tw;
+  return tint * gs * smoothstep(0.25, 0.1, dc) * bright * (0.07 + 1.9 * mag) * tw;
 }
 
 struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
@@ -42,7 +42,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
   var col = textureSampleLevel(farTex, samp, rotY(t * 0.0015) * rd, 0.0).rgb;
   // stars sink behind dense gas
   let sd = 1.0 / (1.0 + 16.0 * dot(col, vec3f(0.3, 0.5, 0.2)));
-  col += (aoStars(rd, 56.0, 0.16, 1.15, pa, 0.6) + aoStars(rd, 150.0, 0.08, 0.36, pa, 0.2)) * sd;
+  col += (aoStars(rd, 56.0, 0.16, 1.15, pa, 0.45) + aoStars(rd, 150.0, 0.08, 0.36, pa, 0.2)) * sd;
   // mid shell (r = 420), drifting slowly
   let d1 = aoShell(G.camPos - vec3f(0.0, 0.0, -40.0), rd, 420.0);
   let w1 = textureSampleLevel(wispTex, samp, rotY(t * 0.004) * d1, 0.0);

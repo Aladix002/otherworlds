@@ -103,16 +103,16 @@ const wpTimes = () => {
   }
   const c9 = flyCam(9.2);
   solvePhase(3, 9.2 - 5, 0, add(c9.pos, c9.fwd, 9));
-  solvePhase(0, 10, 0.45, add([0, 0, 0], norm([0.12, 0.34, -1]), 95));
+  solvePhase(0, 10, 0.45, add([0, 0, 0], norm([0.0, 0.46, -1]), 95));
   solvePhase(4, 30 - 5, 0, add(G0c, [9, -6, 6]));
 }
 {
   const P = POSES;
   // 1: the close whale in profile, on a third with lead room
   const W1 = frame(PATHS[1], 40, 0.45);
-  Object.assign(P[1], lookAt(add(add(W1.p, W1.r, 37), W1.u, 3), add(W1.p, W1.f, 9)), { t: 40 });
+  Object.assign(P[1], lookAt(add(add(W1.p, W1.r, 45), W1.u, 3), add(W1.p, W1.f, 5)), { t: 40 });
   // 2: jellies backlit by the core
-  Object.assign(P[2], lookAt(add(G0c, CORE, -22), add(G0c, [0, 2, 0])), { t: 14 });
+  Object.assign(P[2], lookAt(add(G0c, CORE, -22), add(G0c, [5, 3, -1.6])), { t: 14 });
   // 3: the fish ribbon flowing past
   const c3 = flyCam(9.4);
   Object.assign(P[3], lookAt(c3.pos, add(c3.pos, c3.fwd)), { t: 9.4 });
@@ -140,8 +140,8 @@ const wpTimes = () => {
   PATHS[2][9] = bu;
   // 4: looking up through the rising jellies at the great whale far overhead
   const W2 = frame(PATHS[2], 70, 0.45).p, top = add(G0c, [0, 6, 0]), d4 = norm([W2[0] - top[0], W2[1] - top[1], W2[2] - top[2]]);
-  const c4 = add(add(top, d4, -26), [0, -4, 0]);
-  Object.assign(P[4], lookAt(c4, add(c4, norm(add(d4, [0, -0.12, 0])), 50)), { t: 70 });
+  const s4 = norm([-d4[2], 0, d4[0]]), c4 = add(add(add(top, d4, -26), s4, 13), [0, -6, 0]);
+  Object.assign(P[4], lookAt(c4, add(add(c4, d4, 60), s4, -9)), { t: 70 });
   Object.assign(P[5], lookAt([-7.5, 0.6, 12.5], [0.6, -2.6, 26]), { t: 26 });
 }
 
