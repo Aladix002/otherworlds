@@ -66,12 +66,12 @@ export function islandTop(I, x, z) {
 function islandFn(I) {
   return (u, v, o) => {
     const th = u * TAU, c = Math.cos(th), s = Math.sin(th), ol = outl(I, th);
-    const rr = v <= 0.5 ? Math.pow(v * 2, 0.75) : 1 - Math.pow((v - 0.5) * 2, 1.15);
+    const rr = v <= 0.5 ? Math.pow(v * 2, 0.75) : 1 - Math.pow((v - 0.5) * 2, 1.5);
     const x = rr * ol * I.rx * c, z = rr * ol * I.rz * s;
     let y = islandTop(I, x, z), ao = 1;
     if (v > 0.5) {
       const q = 1 - rr, n = fbm2(x * 0.06 + I.sd * 3, z * 0.06, 2), sp = ridge2(x * 0.09 + I.sd, z * 0.09, 2);
-      y = islandTop(I, ol * I.rx * c * 0.999, ol * I.rz * s * 0.999) - 1.2 - I.dep * Math.pow(q, 0.62) * (0.75 + 0.45 * n) - I.dep * 0.5 * sp * sp * sp * Math.pow(q, 0.4);
+      y = islandTop(I, ol * I.rx * c * 0.999, ol * I.rz * s * 0.999) - 1.2 * ss(0, 0.03, q) - I.dep * Math.pow(q, 0.62) * (0.75 + 0.45 * n) - I.dep * 0.5 * sp * sp * sp * Math.pow(q, 0.4);
       ao = 0.82 - 0.2 * sp;
     }
     o[0] = x; o[1] = y; o[2] = z; o[3] = ao; o[4] = 0;
@@ -84,7 +84,8 @@ export function island(I, nu, nv, nVines) {
     f(R(), root ? 0.62 + R() * 0.2 : 0.515 + R() * 0.07, o);
     const L = (root ? 0.25 + R() * 0.3 : 0.12 + R() * 0.35) * I.dep + 2, r0 = (root ? 0.3 + R() * 0.3 : 0.12 + R() * 0.1) * Math.sqrt(I.rx / 20);
     const p1 = R() * TAU, p2 = R() * TAU, w = root ? 2.2 : 1.3, path = [];
-    for (let j = 0; j <= 8; j++) { const t = j / 8; path.push([o[0] + w * t * Math.sin(t * 4 + p1), o[1] + 0.6 - L * t, o[2] + w * t * Math.sin(t * 3.3 + p2)]); }
+    const ww = w + 0.09 * L;                                 // roots wander and curl at the tip instead of hanging straight
+    for (let j = 0; j <= 14; j++) { const t = j / 14, cu = ww * 0.45 * t * t; path.push([o[0] + ww * t * Math.sin(t * 4.6 + p1) + cu * Math.sin(t * 13 + p2), o[1] + 0.6 - L * (t - 0.1 * t * t * t), o[2] + ww * t * Math.sin(t * 3.7 + p2) + cu * Math.cos(t * 13 + p2)]); }
     parts.push(setUV(tube(path, (t) => r0 * (1 - 0.8 * t) + 0.015, root ? 6 : 4), 0.8, (t) => 1 + 0.98 * t * t * (root ? 0.4 : 1)));
   }
   return merge(parts);

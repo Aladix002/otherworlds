@@ -53,3 +53,21 @@ const QC = array<vec2f, 6>(vec2f(-1, -1), vec2f(1, -1), vec2f(-1, 1), vec2f(-1, 
   let a = band * max(1.0 - dot(in.c, in.c), 0.0) * exp(-hd * hd / 700.0) * 0.26 * smoothstep(15.0, 50.0, d) * (1.0 - smoothstep(300.0, 450.0, d));
   return vec4f(mix(vec3f(1.0), hsv2rgb(vec3f(0.75 * (1.0 - x), 1.0, 1.0)), 0.6) * a, 0.0);
 }
+
+// glowing seeds rising in slow spirals. instance a = (column foot, radius + index / 1000)
+@vertex fn vsSpir(@builtin(vertex_index) vi: u32, @location(3) a: vec4f) -> EO {
+  let r = floor(a.w * 10.0) / 10.0; let i = (a.w - r) * 1000.0;
+  let h = hash3u(vec3u(u32(i + 0.5), u32(r * 10.0), 77u));
+  let ph = fract(h.x + G.time * 0.011 * (0.7 + 0.6 * h.y));
+  let ang = floor(i % 3.0) * 2.094 + ph * 9.0 + G.time * 0.1 + 0.25 * sin(G.time * 0.3 + h.z * 20.0);
+  let p = a.xyz + vec3f(cos(ang), 0.0, sin(ang)) * (r * (0.85 + 0.4 * ph)) + vec3f(0.0, ph * r * 7.0 + 0.3 * sin(G.time * 0.5 + h.y * 30.0), 0.0);
+  let d = distance(p, G.camPos);
+  var o: EO;
+  o.c = QC[vi]; o.w = billboard(p, o.c, vec2f((0.07 + 0.07 * h.z) * (1.0 + d * 0.03)));
+  o.k = mix(vec3f(1.6, 0.95, 0.35), vec3f(0.5, 1.2, 1.3), smoothstep(0.3, 1.0, ph) * h.z) * (pow(sin(ph * PI), 0.6) * (0.6 + 0.4 * sin(G.time * (0.7 + h.x) + h.y * 40.0)) * (1.0 - smoothstep(250.0, 400.0, d)));
+  o.pos = G.viewProj * vec4f(o.w, 1.0);
+  return o;
+}
+@fragment fn fsSpir(in: EO) -> @location(0) vec4f {
+  return vec4f(in.k * max(exp(-dot(in.c, in.c) * 4.0) - 0.0183, 0.0), 0.0);
+}

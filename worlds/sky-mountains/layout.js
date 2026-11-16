@@ -35,11 +35,14 @@ export const LOOPS = [[-50, 128, -210, 165, 9, 1], [110, 74, 30, 120, 7, 1], [30
 
 // ---- pillars: [x, y, z, sxz, yaw, seed, sy / sxz, 0] ; variant = index into PV / FV lists
 export const NVAR = 6, NFVAR = 3;
+// the upside-down pillar: [x, z, radius, flat underside y, pointed top y] (its pines hang down)
+export const INV = [-6, -60, 7, 88, 132];
 export function buildLayout(q) {
-  const R = makeRng(90210), L = { pil: [], fpil: [], col: [] };
+  const R = makeRng(90210), L = { pil: [], fpil: [], col: [], ipil: [INV[0], INV[4], INV[1], INV[2], 2.1, 0.37, (INV[3] - INV[4]) / INV[2], 0] };
   for (let v = 0; v < NVAR; v++) L.pil.push([]);
   for (let v = 0; v < NFVAR; v++) L.fpil.push([]);
-  const placed = [];
+  const placed = [[INV[0], INV[1], INV[2] + 6]];
+  L.col.push(INV[0], INV[1], INV[2] * 1.2, INV[4] - 5, INV[3]);
   const ok = (x, z, r, top) => {
     for (const I of ISL) { const m = Math.max(I.rx, I.rz) * 1.2 + r + (I === HERO ? 26 : 10); if (Math.hypot(x - I.x, z - I.z) < m) return 0; }
     for (const p of placed) if (Math.hypot(x - p[0], z - p[1]) < (r + p[2]) * 1.35 + 5) return 0;
@@ -142,9 +145,9 @@ export function fragments(R, out) {
 // waterfalls: [x, y, z, length, width, seed, outward angle, kind]
 export function falls() {
   const out = [];
-  for (const [i, th, w] of [[1, 1.72, 1.5], [1, 2.55, 0.9], [0, 3.35, 0.7], [2, 0.9, 2.4], [5, 1.3, 3.0], [5, 2.2, 2.0], [7, 2.6, 1.3], [3, 4.4, 1.0]]) {
+  for (const [i, th, w, up] of [[1, 1.72, 1.5], [1, 2.55, 0.9], [0, 5.05, 0.8, -46], [2, 0.9, 2.4], [5, 1.3, 3.0], [5, 2.2, 2.0], [7, 2.6, 1.3], [3, 4.4, 1.0]]) {
     const I = ISL[i], p = rim(I, th, 0.985), y = topY(I, p[0], p[1]) + 0.1, a = Math.atan2(Math.sin(th) * I.rz, Math.cos(th) * I.rx);
-    out.push([p[0], y, p[1], y - 20, w, out.length * 0.37, a]);
+    out.push([p[0], y, p[1], up || y - 20, w, out.length * 0.37, a]);   // a negative length rises (the hero island's fall flows up into a small cloud)
   }
   return out;
 }

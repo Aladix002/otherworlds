@@ -3,7 +3,7 @@ import { pcg, u2f } from '../../core/src/noise.js';
 import { makeRng } from '../../core/src/math.js';
 import { merge } from '../../core/src/mesh.js';
 import { ss, pillar, island, pine, crane, tuft, flower, stone } from './geo.js';
-import { SUN, CLOUD_FLOOR, ISL, HERO, DOOR, SPAWN, LOOPS, NVAR, NFVAR, HERO_TREES, HERO_STONES, topY, yawTo, buildLayout, pillarTrees, heroCover, islandTrees, fragments, falls, makeSdf } from './layout.js';
+import { INV, SUN, CLOUD_FLOOR, ISL, HERO, DOOR, SPAWN, LOOPS, NVAR, NFVAR, HERO_TREES, HERO_STONES, topY, yawTo, buildLayout, pillarTrees, heroCover, islandTrees, fragments, falls, makeSdf } from './layout.js';
 import COMMON from './common.wgsl';
 import SCENE from './scene.wgsl';
 import FX from './fx.wgsl';
@@ -36,7 +36,7 @@ function binBatch(b, ctx, cam, tx, ty, kx, ky) {
   if (b.bs) { const d = Math.hypot(ex - b.bs[0], ey - b.bs[1], ez - b.bs[2]); if (d > b.bs[3]) return; }
   const D = b.d;
   for (let i = 0; i < n; i++) {
-    const k = i * 8, s = src[k + 3], h = src[k + 6], rad = s * (h > 1 ? h : 1) * b.rk;
+    const k = i * 8, s = src[k + 3], h = src[k + 6], rad = s * Math.max(h, -h, 1) * b.rk;
     const dx = src[k] - ex, dy = src[k + 1] + s * h * b.ck - ey, dz = src[k + 2] - ez;
     const z = dx * f[0] + dy * f[1] + dz * f[2];
     if (z < -rad) continue;
@@ -147,6 +147,11 @@ export default {
       pushTrees(out);
     });
     for (const I of ISL) { const out = []; islandTrees(I, R, out); pushTrees(out); }
+    { // the upside-down pillar: its pines hang from the ledges and the flat underside
+      const out = [], R3 = makeRng(4242);
+      pillarTrees(L.ipil, 0, 0, 1, R3, out, 16);
+      for (let i = 0; i < out.length; i += 8) { out[i + 1] += 0.5 * out[i + 3]; out[i + 6] = -1; trees[i / 8 % 3].push(...out.slice(i, i + 8)); }
+    }
     for (const [x, z, s, v] of HERO_TREES) trees[v].push(x, topY(HERO, x, z) - 0.2 * s, z, s, x * 1.7 + z, 0.5 + 0.5 * Math.sin(x * 3 + z), 1, 0);
     const stones = [];
     for (const [x, z, s, fl, sink] of HERO_STONES) stones.push(x, topY(HERO, x, z) - sink * s + (fl < 0.3 ? 0.06 : 0), z, s, x * 2.3 + z * 1.1, 0.5, fl, -2);
@@ -191,11 +196,13 @@ export default {
     this.rockB = []; this.vegB = [];
     for (const fl of [0, 1]) for (let v = 0; v < (fl ? NFVAR : NVAR); v++) {
       const inst = (fl ? L.fpil : L.pil)[v];
-      if (inst.length) this.rockB.push(add(lods((l) => pillar(v + (fl ? 21 : 1), fl, PD[l][0], PD[l][1])), inst, { d: [15, 48, 1e9], ck: 0.45, rk: 0.66 }));
+      const ms = lods((l) => pillar(v + (fl ? 21 : 1), fl, PD[l][0], PD[l][1]));
+      if (inst.length) this.rockB.push(add(ms, inst, { d: [15, 48, 1e9], ck: 0.45, rk: 0.66 }));
+      if (fl && !v) this.invB = add(ms, L.ipil, { d: [15, 48, 1e9], ck: 0.45, rk: 0.66 });
       await progress(0.3 + 0.03 * v + 0.2 * fl);
     }
     const isl = ISL.map((I, i) => {
-      const g = island(I, i ? 72 : 128, i ? 44 : 72, I.vines);
+      const g = island(I, i ? 112 : 128, i ? 48 : 72, I.vines);
       for (let k = 0; k < g.pos.length; k += 3) { g.pos[k] += I.x; g.pos[k + 1] += I.y; g.pos[k + 2] += I.z; }
       return g;
     });
@@ -235,7 +242,7 @@ export default {
     for (const f of this.fallList) {
       const tx = -Math.sin(f[6]), tz = Math.cos(f[6]);
       for (let k = -1; k <= 1; k++) { const o = k * f[4] * 0.55 + (R() - 0.5) * 0.2; fi.push(f[0] + tx * o, f[1], f[2] + tz * o, f[3] * (0.8 + 0.3 * R()), f[4] * (0.2 + 0.14 * R()), f[5] + k * 0.13, f[6], 0); }
-      for (let k = 0; k < 5; k++) pi.push(f[0], f[1], f[2], f[3], f[4], f[5], f[6], k);
+      for (let k = 0; k < (f[3] < 0 ? 12 : 5); k++) pi.push(f[0], f[1], f[2], f[3], f[4], f[5], f[6], k);
     }
     this.fallI = ctx.buffer(Float32Array.from(fi), 'vertex'); this.nFall = fi.length / 8;
     this.puffI = ctx.buffer(Float32Array.from(pi), 'vertex'); this.nPuff = pi.length / 8;
@@ -262,10 +269,15 @@ export default {
     this.mantaI = ctx.buffer(this.FM, 'vertex'); this.songI = ctx.buffer(Float32Array.from(fb), 'vertex');
     this.bflyI = ctx.buffer(Float32Array.from(LF.bfly), 'vertex'); this.nBfly = LF.bfly.length / 4;
     const bow = [];
-    for (const f of this.fallList) bow.push(f[0] + Math.cos(f[6]) * 7, f[1] - 30, f[2] + Math.sin(f[6]) * 7, -36);
+    for (const f of this.fallList) bow.push(f[0] + Math.cos(f[6]) * 7, f[1] - (f[3] < 0 ? -16 : 30), f[2] + Math.sin(f[6]) * 7, -36);
     this.globeI = ctx.buffer(Float32Array.from(LF.globes), 'vertex'); this.nGlobe = LF.globes.length / 4;
     this.bowI = ctx.buffer(Float32Array.from(bow), 'vertex'); this.nBow = bow.length / 4;
     this.nSeed = [200, 380, 600][q];
+    // glowing seeds rising in slow spirals: [x, y, z, radius] columns -> one instance per seed (xyz, radius + seed / 1000)
+    const sp = [], HT = HERO_TREES[0];
+    for (const [x, y, z, r] of [[HT[0], topY(HERO, HT[0], HT[1]), HT[1], 2.6], [LF.shrine[0], LF.shrine[1] - 4, LF.shrine[2], 5.5], [LF.nest[0], LF.nest[1] - 1, LF.nest[2], 2.2], [I3.x, I3.y + 1, I3.z, 5], [INV[0], INV[3] - 18, INV[1], 9]])
+      for (let i = 0; i < 44; i++) sp.push(x, y, z, r + i / 1000);
+    this.spirI = ctx.buffer(Float32Array.from(sp), 'vertex'); this.nSpir = sp.length / 4;
     ctx.env.params2.set(LF.nest);
     this.nest = LF.nest; this.shrine = LF.shrine; this.eggK = 0;
     await progress(0.8);
@@ -275,7 +287,7 @@ export default {
     const P = (d) => ctx.pipelineAsync({ layouts: [cL], ...d });
     this.dL = ctx.layout(['texture-depth']); this.rL = ctx.layout(['texture', 'sampler']);
     const CB = [{ arrayStride: 8, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }] }];
-    [this.pVeil, this.pPuff, this.pRock, this.pVeg, this.pBird, this.pCloud, this.pShell, this.pSky, this.pFall, this.pMote, this.pRay, this.pRayMix, this.pFly, this.pBfly, this.pSeed, this.pGlobe, this.pBow] = await Promise.all([
+    [this.pVeil, this.pPuff, this.pRock, this.pVeg, this.pBird, this.pCloud, this.pShell, this.pSky, this.pFall, this.pMote, this.pRay, this.pRayMix, this.pFly, this.pBfly, this.pSeed, this.pGlobe, this.pBow, this.pRockI, this.pSpir] = await Promise.all([
       P({ module: mod, vs: 'vsCloud', fs: 'fsVeil', buffers: CB, cull: 'none', blend: 'premul', label: 'veil' }),
       P({ module: fx, vs: 'vsPuff', fs: 'fsPuff', buffers: [IL], cull: 'none', blend: 'premul', label: 'puff' }),
       P({ module: mod, fs: 'fsRock', buffers: [M.layout, IL], label: 'rock' }),
@@ -293,6 +305,8 @@ export default {
       P({ module: fx, vs: 'vsSeed', fs: 'fsSeed', cull: 'none', blend: 'premul', label: 'seed' }),
       P({ module: fx, vs: 'vsGlobe', fs: 'fsSeed', buffers: [IL1], cull: 'none', blend: 'premul', label: 'globe' }),
       P({ module: fx, vs: 'vsGlobe', fs: 'fsBow', buffers: [IL1], cull: 'none', blend: 'add', label: 'bow' }),
+      P({ module: mod, fs: 'fsRock', buffers: [M.layout, IL], cull: 'front', label: 'rockI' }),
+      P({ module: fx, vs: 'vsSpir', fs: 'fsSpir', buffers: [IL1], cull: 'none', blend: 'add', label: 'spir' }),
     ]);
     const rt = ctx.texture(RW, RH, 'r8unorm', GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT);
     this.rBG = ctx.bindGroup(this.rL, [rt.createView(), ctx.samplers.linear]);
@@ -340,6 +354,7 @@ export default {
     pass.setBindGroup(1, this.cBG);
     pass.setPipeline(this.pRock);
     for (let i = 0; i < this.rockB.length; i++) drawBatch(this.rockB[i], pass);
+    pass.setPipeline(this.pRockI); drawBatch(this.invB, pass);
     pass.setPipeline(this.pVeg);
     for (let i = 0; i < this.vegB.length; i++) drawBatch(this.vegB[i], pass);
     pass.setPipeline(this.pBird);
@@ -365,6 +380,7 @@ export default {
     pass.setPipeline(this.pBow); pass.setVertexBuffer(0, this.bowI); pass.draw(6, this.nBow);
     pass.setPipeline(this.pGlobe); pass.setVertexBuffer(0, this.globeI); pass.draw(6, this.nGlobe);
     pass.setPipeline(this.pSeed); pass.draw(6, this.nSeed);
+    pass.setPipeline(this.pSpir); pass.setVertexBuffer(0, this.spirI); pass.draw(6, this.nSpir);
     pass.setPipeline(this.pMote); pass.draw(6, this.nMote);
   },
   afterScene(ctx, enc) {

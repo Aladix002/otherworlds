@@ -3,7 +3,7 @@
 fn fallCtr(a: vec4f, b: vec4f, s: f32) -> vec3f {
   let sway = 1.0 + 0.3 * sin(G.time * 0.23 + b.y * 20.0);
   return a.xyz + vec3f(cos(b.z), 0.0, sin(b.z)) * (1.1 * (1.0 - exp(-s * 5.0))) + vec3f(0.0, -a.w * (s * s * 0.85 + s * 0.15), 0.0)
-    + vec3f(0.8, 0.0, 0.55) * (s * s * a.w * 0.07 * sway);
+    + vec3f(0.8, 0.0, 0.55) * (s * s * abs(a.w) * 0.07 * sway);
 }
 struct WO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) w: vec3f, @location(2) @interpolate(flat) k: vec4f };
 const WSEG = 28.0;
@@ -27,7 +27,7 @@ fn fallLight(wp: vec3f, n: f32) -> vec3f {
 }
 @fragment fn fsFall(in: WO) -> @location(0) vec4f {
   let u = in.uv.x; let s = in.uv.y;
-  let ym = in.k.x * (s * s * 0.85 + s * 0.15);
+  let ym = abs(in.k.x) * (s * s * 0.85 + s * 0.15);     // metres from the lip (a negative length rises)
   let e = max(1.0 - u * u, 0.0);
   let xm = u * in.k.y;
   let n1 = textureSample(NT, NS, vec2f(xm * 0.22 + in.k.z, ym * 0.006 - G.time * 0.06)).a;
@@ -36,7 +36,11 @@ fn fallLight(wp: vec3f, n: f32) -> vec3f {
   let thr = mix(0.1, 0.66, s);                       // the strand erodes into droplets as it falls
   var a = pow(e, 1.6) * smoothstep(thr, thr + 0.32, n + 0.28 * e) * smoothstep(0.0, 0.012, s) * (1.0 - smoothstep(0.5, 1.0, s)) * 0.85;
   a *= 1.0 - smoothstep(900.0, 1500.0, distance(in.w, G.camPos));
-  return vec4f(fallLight(in.w, n1) * a, a);
+  // glassy blue threads with white foam where the water breaks up
+  let st = textureSample(NT, NS, vec2f(u * 1.9 + in.k.z * 5.0, ym * 0.0016 - G.time * 0.04)).a;
+  let foam = smoothstep(0.38, 0.75, st * 0.55 + n * 0.45 + s * 0.45);
+  a *= 0.5 + 0.75 * st;
+  return vec4f(fallLight(in.w, n1) * mix(vec3f(0.42, 0.62, 0.95), vec3f(1.05), foam) * (0.75 + 0.35 * e) * a, a);
 }
 // soft round mist puffs sinking through the lower part of each fall
 struct PO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) w: vec3f, @location(2) @interpolate(flat) k: vec2f };
@@ -44,11 +48,17 @@ struct PO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) w
   var cs = array<vec2f, 6>(vec2f(-1, -1), vec2f(1, -1), vec2f(-1, 1), vec2f(-1, 1), vec2f(1, -1), vec2f(1, 1));
   let ph = fract(G.time * 0.022 + b.w * 0.2 + b.y * 3.7);
   let s = 0.38 + 0.6 * ph;
-  let sz = (1.6 + 6.5 * ph) * (0.7 + 0.5 * b.x) * (0.8 + 0.4 * fract(b.w * 0.618 + b.y));
-  let ctr = fallCtr(a, b, s) + vec3f(cos(b.z), 0.0, sin(b.z)) * (sz * 0.5);
+  var sz = (1.6 + 6.5 * ph) * (0.7 + 0.5 * b.x) * (0.8 + 0.4 * fract(b.w * 0.618 + b.y));
+  var ctr = fallCtr(a, b, s) + vec3f(cos(b.z), 0.0, sin(b.z)) * (sz * 0.5);
+  var al = sin(ph * PI) * 0.2;
+  if (b.w > 4.5) {                                    // the small cloud a rising fall gathers into
+    let h = hash3u(vec3u(u32(b.w), 7u, 3u));
+    sz = 5.0 + 5.0 * h.x; al = 0.6;
+    ctr = fallCtr(a, b, 1.0) + (h - 0.5) * vec3f(17.0, 5.0, 17.0) + vec3f(0.0, 1.0 + 0.7 * sin(G.time * 0.13 + h.y * 6.0), 0.0);
+  }
   var o: PO;
   o.c = cs[vi]; o.w = billboard(ctr, o.c, vec2f(sz));
-  o.k = vec2f(sin(ph * PI) * 0.2, b.y * 7.0 + b.w);
+  o.k = vec2f(al, b.y * 7.0 + b.w);
   o.pos = G.viewProj * vec4f(o.w, 1.0);
   return o;
 }

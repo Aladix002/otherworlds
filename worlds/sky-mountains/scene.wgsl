@@ -159,11 +159,41 @@ struct SO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 
 // ---- cloud sea: camera-centred polar grid displaced by the height field; shells add translucent wisps ----
 struct CO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) @interpolate(flat) k: f32 };
+// giant koi of light swimming under the cloud sea on slow circles: xy = position (m), zw = heading
+fn koiAt(i: f32) -> vec4f {
+  let R = 105.0 + 55.0 * i; let dir = 1.0 - 2.0 * step(0.5, i) * step(i, 1.5);
+  let a = dir * G.time * 3.2 / R + 1.9 + i * 2.3;
+  return vec4f(vec2f(-70.0 + 135.0 * i - 60.0 * i * i, 40.0 - 55.0 * i * i - 60.0 * i) + R * vec2f(cos(a), sin(a)), dir * vec2f(-sin(a), cos(a)));
+}
+fn koi(p: vec2f) -> vec3f {
+  var g = vec3f(0.0);
+  for (var i = 0; i < 3; i++) {
+    let fi = f32(i); let k = koiAt(fi); let q = p - k.xy; let L = 44.0 + 9.0 * fi;
+    if (dot(q, q) > L * L * 2.6) { continue; }
+    let x = dot(q, k.zw) / L;
+    let t = x * 0.5 + 0.5;                              // 0 tail .. 1 nose
+    let y = abs(dot(q, vec2f(-k.w, k.z)) / L + 0.17 * sin(x * 2.6 + G.time * 0.6 + fi * 2.0) * smoothstep(0.75, -1.0, x) - 0.1 * x * x * (1.0 - 2.0 * step(0.5, fi) * step(fi, 1.5)));
+    let wb = 0.25 * pow(max(sin(PI * pow(clamp(t, 0.0, 1.0), 0.62)), 0.0), 0.8);
+    let tail = 0.36 * smoothstep(0.3, -0.05, t);
+    let fin = wb + 0.24 * exp(-pow((t - 0.6 + y * 0.35) / 0.085, 2.0)) + 0.1 * exp(-pow((t - 0.3 + y * 0.3) / 0.06, 2.0));
+    let ends = smoothstep(-0.12, 0.0, t) * (1.0 - smoothstep(0.98, 1.03, t));
+    let body = (1.0 - smoothstep(wb - 0.05, wb + 0.03, y)) * ends;
+    let veil = max(1.0 - smoothstep(fin - 0.1, fin + 0.02, y), (1.0 - smoothstep(tail - 0.12, tail + 0.02, y)) * smoothstep(0.1 * smoothstep(0.14, -0.1, t), 0.16 * smoothstep(0.14, -0.1, t) + 0.02, y)) * ends
+      * (0.55 + 0.45 * sin(y * 60.0 + t * 9.0));     // fin rays
+    let pt = textureSampleLevel(NT, NS, vec2f(x * 0.33 + fi * 0.37, y * 0.3 + fi * 0.61), 0.0);
+    let base = mix(vec3f(1.5, 1.2, 0.8), vec3f(0.7, 1.15, 1.5), step(0.5, fi) * step(fi, 1.5));
+    let col = mix(base, mix(vec3f(1.7, 0.42, 0.1), vec3f(1.5, 0.45, 0.85), step(0.5, fi) * step(fi, 1.5)), smoothstep(0.5, 0.58, pt.r * 0.6 + pt.a * 0.5));
+    g += col * body * (0.75 + 0.35 * (1.0 - y / max(wb, 0.02))) + base * (veil * (1.0 - body) * 0.5 + 0.2 * exp(-dot(q, q) / (L * L * 0.45)));
+  }
+  return g;
+}
 @vertex fn vsCloud(@location(0) p: vec2f, @builtin(instance_index) ii: u32) -> CO {
   var o: CO;
   let xz = G.camPos.xz + p;
   let k = f32(ii);
-  o.w = vec3f(xz.x, cloudHG(xz).x * select(1.0, 0.35, k > 10.0) + k * 2.3, xz.y); o.k = k;
+  var sw = 0.0;                                       // the cloud swells softly over each koi
+  for (var i = 0; i < 3; i++) { let q = xz - koiAt(f32(i)).xy; sw += exp(-dot(q, q) / 1500.0); }
+  o.w = vec3f(xz.x, (cloudHG(xz).x + 5.0 * sw) * select(1.0, 0.35, k > 10.0) + k * 2.3, xz.y); o.k = k;
   o.pos = G.viewProj * vec4f(o.w, 1.0);
   return o;
 }
@@ -187,6 +217,9 @@ fn cloudCol(wp: vec3f, k: f32) -> vec4f {
   let s = max(dot(v, G.sunDir), 0.0);
   var c = cloudShade(lit * (0.3 + 0.7 * crest), 0.28 + 0.72 * crest);
   c += vec3f(1.7, 0.9, 0.42) * ((pow(s, 6.0) * 0.8 + pow(s, 2.0) * 0.12) * crest * (0.3 + 0.7 * shd));
+  // pearly, slowly shifting pastel sheen on the mist; the koi glow through from below
+  c *= mix(vec3f(1.0), 0.62 + 0.7 * (0.5 + 0.5 * cos(TAU * (det * 1.2 + w1.r * 0.9 + dot(v, G.sunDir) * 0.8 + G.time * 0.004 + vec3f(0.0, 0.33, 0.67)))), 0.3 + 0.03 * k);
+  c += koi(p) * ((0.55 + 0.5 * det) * select(0.35, 0.85, k == 0.0));
   return vec4f(atmo(c, wp), det);
 }
 @fragment fn fsCloud(in: CO) -> @location(0) vec4f { return vec4f(cloudCol(in.w, 0.0).rgb, 1.0); }
