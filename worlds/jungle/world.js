@@ -1,7 +1,7 @@
 // Bioluminescent jungle with a waterfall lagoon. See NOTES.md.
 import { fbm2, pcg, u2f } from '../../core/src/noise.js';
 import { makeRng } from '../../core/src/math.js';
-import { VLAYOUT, ILAYOUT, tree, frond, fan, spiral, lotus, pad, fish, frog, mushrooms, shrub, rosette, lantern, reed, tuft, fromCore } from './geo.js';
+import { VLAYOUT, ILAYOUT, tree, frond, fan, spiral, lotus, pad, fish, frog, mushrooms, shrub, rosette, lantern, reed, tuft, fromCore, gmush, lemur, bird, snail, bridge, deckY } from './geo.js';
 import COMMON from './common.wgsl';
 import OPAQUE from './opaque.wgsl';
 import FX from './fx.wgsl';
@@ -12,6 +12,10 @@ const WFX = 2.5;                                     // waterfall x
 const DOOR = [9.5, 17];
 const PATH = [[-1, -20], [1.5, -6], [4, 6], [5.5, 18], [2.5, 31], [-2.5, 43], [-4, 56], [0.5, 70], [4, 84]];
 const SPUR = [[4.9, 12.5], [9.5, 15.2]];             // stepping stones from the path to the door
+// places beyond the lagoon: mushroom grove, ravine with a vine bridge (along x at z = BRZ), giant flower knoll, moon pool
+const GRV = [-44, 14], POOL = [31, 35, 7, 5.5], FLW = [56, -8], BRA = 35, BRB = 45, BRZ = -4;
+const RAV = [[36, -30], [39, -14], [40, -4], [42, 8], [47, 20]];
+const TRAILS = [[[0, -12], [-11, -5], [-22, 3], [-31, 8.5], [-38, 12.5]], [[2.5, 31], [11, 37], [19, 37.5], [24.5, 36]], [[2.2, -3], [12, -6], [22, -5], [30, -4.3], [35, -4]], [[45, -4], [50, -5.5], [53.5, -7]]];
 const ss = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
 
@@ -22,6 +26,12 @@ function cliffInfo(x, z) {
   const edge = 13.4 + 1.1 * fbm2(a * 2.5, 1.3, 2);
   return [rc, am, edge, a];
 }
+function polyD(x, z, P) { let d = 1e9; for (let i = 0; i < P.length - 1; i++) d = Math.min(d, segD(x, z, P[i], P[i + 1])); return d; }
+const poolE = (x, z) => Math.hypot((x - POOL[0]) / POOL[2], (z - POOL[1]) / POOL[3]);
+const trailD = (x, z) => Math.min(polyD(x, z, TRAILS[0]), polyD(x, z, TRAILS[1]), polyD(x, z, TRAILS[2]), polyD(x, z, TRAILS[3]));
+// spots the new places keep clear of the original scatter (c = clearance of the thing being placed; trees use > 3)
+const dead = (x, z, c) => polyD(x, z, RAV) < 5.4 + 0.4 * c || trailD(x, z) < c || poolE(x, z) < 1.1 + 0.08 * c || Math.hypot(x - FLW[0], z - FLW[1]) < 2.2 + c ||
+  (c > 3 && (Math.hypot(x - GRV[0], z - GRV[1]) < 12 || Math.hypot(x - POOL[0], z - POOL[1]) < 11 || Math.hypot(x - FLW[0], z - FLW[1]) < 9));
 function terrain(x, z) {
   let h = 0.3 + 0.75 * fbm2(x * 0.03, z * 0.03, 3) + 0.2 * fbm2(x * 0.13 + 5.2, z * 0.13 - 1.7, 2);
   const r = Math.hypot(x * 0.9, z + 8);
@@ -38,6 +48,17 @@ function terrain(x, z) {
   }
   const dd = Math.hypot(x - DOOR[0], z - DOOR[1]);
   if (dd < 7) h = mix(h, 0.55, 1 - ss(2.5, 7, dd));
+  if (x > 20) {
+    const rv = polyD(x, z, RAV);
+    if (rv < 8) h -= (5.2 + 1.2 * fbm2(x * 0.07, z * 0.07 + 4, 2)) * ss(4.8, 1.7, rv + 0.7 * fbm2(x * 0.16 + 3, z * 0.16, 2) * ss(2.5, 8, Math.abs(z - BRZ)));
+    const pd = Math.hypot(x - POOL[0], z - POOL[1]);
+    if (pd < 16) {
+      h = mix(h, 0.4, ss(16, 9, pd));
+      const e2 = poolE(x, z) + 0.07 * fbm2(x * 0.2, z * 0.2, 2);
+      h = mix(h, -0.25 - 0.9 * ss(0.95, 0.3, e2), ss(1.2, 0.9, e2));
+    }
+    h += 0.8 * Math.exp(-((x - FLW[0]) ** 2 + (z - FLW[1]) ** 2) / 30);
+  }
   return h;
 }
 const hp = (x, z, dy) => [x, Math.max(terrain(x, z), -0.55) + dy, z];
@@ -60,7 +81,7 @@ function toHalf(v) {
   if (e <= 0) return s; if (e >= 31) return s | 0x7c00; return s | (e << 10) | m;
 }
 
-const SPAWN = hp(0, -9, 1.6);
+const SPAWN = hp(0, -9, 1.6), YA = terrain(BRA, BRZ), YB = terrain(BRB, BRZ);
 export default {
   id: 'jungle',
   title: 'Bioluminiscenčná džungľa',
@@ -69,21 +90,27 @@ export default {
   poses: [
     { pos: hp(-15, -15, 2.8), yaw: yawTo(-15, -15, 2.5, -50), pitch: 0.06, t: 14 },
     { pos: hp(-5, -26.2, 1.15), yaw: yawTo(-5, -26.2, -1.8, -30), pitch: -0.24, t: 31 },
-    { pos: hp(3.5, 26, 1.65), yaw: yawTo(3.5, 26, -2.5, 43), pitch: -0.06, t: 22 },
-    { pos: hp(-28, 6.5, 1.6), yaw: 0.9, pitch: 0.95, t: 40 },
-    { pos: hp(-9, -1, 1.9), yaw: yawTo(-9, -1, -26, 6), pitch: -0.08, t: 52 },
-    { pos: hp(6.6, 8.2, 1.6), yaw: yawTo(6.6, 8.2, DOOR[0] + 0.3, DOOR[1]), pitch: -0.03, t: 18 },
+    { pos: hp(-32.5, 9.3, 1.6), yaw: yawTo(-32.5, 9.3, -42.5, 14.5), pitch: 0.2, t: 22 },
+    { pos: hp(33.4, -4.1, 1.7), yaw: yawTo(33.4, -4.1, 45, -4), pitch: -0.1, t: 40 },
+    { pos: hp(22.6, 36.4, 1.55), yaw: yawTo(22.6, 36.4, 31, 35), pitch: -0.12, t: 52 },
+    { pos: hp(47.6, -4.6, 1.6), yaw: yawTo(47.6, -4.6, FLW[0], FLW[1]), pitch: 0.02, t: 18 },
   ],
   flythrough: [
     { pos: hp(0, -9, 1.8), yaw: 0, pitch: 0 }, { pos: hp(-8, -20, 1.8), yaw: -0.3, pitch: -0.05 },
     { pos: hp(-6, -30, 1.6), yaw: -0.6, pitch: -0.15 }, { pos: hp(6, -38, 1.6), yaw: 0.2, pitch: 0.15 },
-    { pos: hp(16, -34, 2), yaw: 1.2, pitch: 0.05 }, { pos: hp(22, -14, 1.8), yaw: 2.2, pitch: -0.05 },
-    { pos: hp(10, 4, 1.8), yaw: 2.9, pitch: 0 }, { pos: hp(5, 20, 1.7), yaw: 3.2, pitch: 0 },
-    { pos: hp(0, 38, 1.7), yaw: 3.4, pitch: 0.1 }, { pos: hp(-14, 30, 1.8), yaw: 4.6, pitch: 0.3 },
-    { pos: hp(-26, 8, 1.8), yaw: 5.6, pitch: 0.05 }, { pos: hp(-18, -10, 2.2), yaw: 6.0, pitch: 0 },
-    { pos: hp(0, -9, 1.8), yaw: 6.28, pitch: 0 },
+    { pos: hp(16, -34, 2), yaw: 1.2, pitch: 0.05 }, { pos: hp(21, -16, 1.8), yaw: 2.6, pitch: -0.05 },
+    { pos: hp(24, -5.5, 1.8), yaw: 4.6, pitch: 0 }, { pos: hp(33, -4.2, 1.8), yaw: 4.7, pitch: -0.1 },
+    { pos: [40, YA + 1.3, BRZ], yaw: 4.7, pitch: -0.2 }, { pos: hp(47, -4.4, 1.8), yaw: 4.6, pitch: 0 },
+    { pos: hp(51.5, -3.5, 1.8), yaw: 4.0, pitch: 0 }, { pos: hp(52, 6, 2.2), yaw: 3.0, pitch: -0.1 },
+    { pos: [45, YB + 3, 16], yaw: 2.6, pitch: -0.3 }, { pos: hp(38, 28, 2), yaw: 2.4, pitch: -0.1 },
+    { pos: hp(26, 39, 1.7), yaw: 1.2, pitch: -0.1 }, { pos: hp(12, 37, 1.7), yaw: 1.5, pitch: 0 },
+    { pos: hp(4, 27, 1.7), yaw: 0.6, pitch: 0 }, { pos: hp(1, 12, 1.7), yaw: 0.9, pitch: 0 },
+    { pos: hp(-12, -3, 1.8), yaw: 1.2, pitch: 0.05 }, { pos: hp(-27, 6.5, 1.8), yaw: 1.2, pitch: 0.15 },
+    { pos: hp(-37, 13.5, 1.8), yaw: 0.6, pitch: 0.3 }, { pos: hp(-36, 3, 1.9), yaw: -0.9, pitch: 0.1 },
+    { pos: hp(-22, -8, 2), yaw: -1.5, pitch: 0 }, { pos: hp(-8, -9, 2), yaw: -0.8, pitch: 0 },
+    { pos: hp(0, -9, 1.8), yaw: 0, pitch: 0 },
   ],
-  flythroughDuration: 60,
+  flythroughDuration: 80,
   doors: [{ pos: [DOOR[0], null, DOOR[1]], yaw: Math.PI, to: 'sky-mountains' }],
   bounds: { center: [0, 0, -10], radius: 72 },
   env: {
@@ -103,6 +130,10 @@ export default {
   },
   heightAt(x, z) {
     let h = this.hAt(x, z);
+    if (x > 28 && x < 54 && z < 27 && z > -37) {       // ravine: no wading clamp; the bridge deck carries the walker
+      if (this.brOn && x > BRA - 0.4 && x < BRB + 0.4 && Math.abs(z - BRZ) < 0.9) return Math.max(h, deckY(Math.min(1, Math.max(0, (x - BRA) / (BRB - BRA))), YA, YB) + 0.03);
+      return h;
+    }
     const lo = -0.55, k = 0.4, dd = Math.abs(h - lo);
     h = Math.max(h, lo) + (dd < k ? (k - dd) * (k - dd) / (4 * k) : 0);
     const P = this.padsW;
@@ -120,6 +151,7 @@ export default {
       const cell = this.treeGrid[(a & 63) * 64 + (b & 63)];
       for (let k = 0; k < cell.length; k++) { const o = cell[k] * 3; d = Math.min(d, Math.hypot(x - T[o], z - T[o + 1]) - T[o + 2]); }
     }
+    if (this.brOn && x > BRA + 0.5 && x < BRB - 0.5) d = Math.min(d, 0.72 - Math.abs(z - BRZ));   // vine rails
     return d;
   },
 
@@ -183,17 +215,18 @@ export default {
     const NV = 4, treeMeshes = [];
     for (let v = 0; v < NV; v++) treeMeshes.push([this.mesh(ctx, tree(v + 1, 0)), this.mesh(ctx, tree(v + 1, 1))]);
     const tInst = [[], [], [], []];
-    this.treeCol = new Float32Array(trees.length * 3);
+    this.treeCol = new Float32Array(trees.length * 3 + 60);
     this.treeGrid = Array.from({ length: 64 * 64 }, () => []);
+    let nCol = 0;
+    const addCol = (x, z, r) => { this.treeCol.set([x, z, r], nCol * 3); this.treeGrid[((Math.floor(x / 12) + 32) & 63) * 64 + ((Math.floor(z / 12) + 32) & 63)].push(nCol++); };
     trees.forEach(([x, z, s], i) => {
       const v = i % NV, y = this.hAt(x, z), slot = zs(x, z, 0.03);
       tInst[v].push(x, y, z, s, R() * TAU, slot, R(), y);
-      this.treeCol.set([x, z, 1.45 * s], i * 3);
-      this.treeGrid[((Math.floor(x / 12) + 32) & 63) * 64 + ((Math.floor(z / 12) + 32) & 63)].push(i);
+      if (!dead(x, z, 3.4)) addCol(x, z, 1.45 * s);
       emit.push(x, z, slot, 1.0 * s, 4);
     });
     this.cats = [];
-    this.treeCats = tInst.map((a, v) => this.cat(ctx, treeMeshes[v][0], treeMeshes[v][1], a, 9, 130, 30));
+    this.treeCats = tInst.map((a, v) => this.cat(ctx, treeMeshes[v][0], treeMeshes[v][1], a, 9, 130, 30, 3.4));
     await progress(0.45);
 
     // ground plants: ferns (instanced per frond), fans, spirals, shrubs, mushrooms, rocks
@@ -217,7 +250,7 @@ export default {
       for (let f = 0; f < n; f++) fern.push(x, y, z, sc * (0.75 + R() * 0.4), y0 + (f / n) * TAU + R() * 0.4, slot, R(), f === 0 && R() < 0.6 ? 0.85 + R() * 0.15 : 0);
       emit.push(x, z, slot, 0.7 * sc, 2.4);
     }
-    this.fernCat = this.cat(ctx, this.mesh(ctx, frond(16)), this.mesh(ctx, frond(8)), fern, 3, 55, 16);
+    this.fernCat = this.cat(ctx, this.mesh(ctx, frond(16)), this.mesh(ctx, frond(8)), fern, 3, 55, 16, 1.4);
     const fans = [];
     for (let i = 0; i < [50, 90, 130][q]; i++) {
       const s = spot(true); if (!s) continue;
@@ -226,7 +259,7 @@ export default {
       emit.push(x, z, slot, 1.1 * sc, 2.2);
     }
     const fanM = this.mesh(ctx, fan());
-    this.fanCat = this.cat(ctx, fanM, fanM, fans, 2, 50, 99);
+    this.fanCat = this.cat(ctx, fanM, fanM, fans, 2, 50, 99, 1.4);
     const spi = [];
     for (let i = 0; i < [35, 60, 85][q]; i++) {
       const s = spot(false); if (!s) continue;
@@ -237,7 +270,7 @@ export default {
       }
       emit.push(x, z, slot, 0.9, 2.2);
     }
-    this.spiCat = this.cat(ctx, this.mesh(ctx, spiral(7, 34)), this.mesh(ctx, spiral(4, 14)), spi, 2, 50, 14);
+    this.spiCat = this.cat(ctx, this.mesh(ctx, spiral(7, 34)), this.mesh(ctx, spiral(4, 14)), spi, 2, 50, 14, 1.2);
     const shr = [];
     for (let i = 0; i < [30, 55, 80][q]; i++) {
       const s = spot(true); if (!s) continue;
@@ -254,19 +287,21 @@ export default {
       emit.push(dxs + sd * 1.75, dz + 0.5, sd < 0 ? 0 : 2, 1.6, 3, dxs + sd * 3.4, dz + 0.2, sd < 0 ? 2 : 1, 1.2, 2.6);
     }
     emit.push(dxs, dz - 1, 0, 1.2, 3);
-    this.shrubCat = this.cat(ctx, this.mesh(ctx, shrub(5)), null, shr, 3, 50, 99);
+    this.shrubCat = this.cat(ctx, this.mesh(ctx, shrub(5)), null, shr, 3, 50, 99, 1.6);
     for (let i = 0; i < [40, 70, 100][q]; i++) {
       const s = spot(true); if (!s) continue;
       const [x, z] = s, slot = zs(x, z), big = R();
       ros.push(x, this.hAt(x, z) - 0.03, z, 0.8 + big * big * 1.8, R() * TAU, slot, R(), 3); emit.push(x, z, slot, 0.8, 2.4);
     }
-    this.rosCat = this.cat(ctx, this.mesh(ctx, rosette(9)), null, ros, 2, 55, 99);
+    const rosM = this.mesh(ctx, rosette(9));
+    this.rosCat = this.cat(ctx, rosM, null, ros, 2, 55, 99, 1.5);
     for (let i = 0; i < [30, 50, 75][q]; i++) {
       const s = spot(i % 2 === 0); if (!s) continue;
       const [x, z] = s, slot = zs(x, z, 0.15);
       lan.push(x, this.hAt(x, z) - 0.02, z, 0.8 + R() * 1.1, R() * TAU, slot, R(), 4); emit.push(x, z, slot, 1.3, 2.8);
     }
-    this.lanCat = this.cat(ctx, this.mesh(ctx, lantern(3)), null, lan, 2.5, 50, 99);
+    const lanM = this.mesh(ctx, lantern(3));
+    this.lanCat = this.cat(ctx, lanM, null, lan, 2.5, 50, 99, 1.4);
     const reeds = [];
     for (let i = 0; i < [36, 60, 84][q]; i++) {
       const a = R() * TAU, e0 = 0.9 + R() * 0.13, x = LAG[0] + Math.cos(a) * LAG[2] * e0, z = LAG[1] + Math.sin(a) * LAG[3] * e0;
@@ -275,7 +310,8 @@ export default {
       const slot = R() < 0.6 ? 0 : zs(x, z, 0.25);
       reeds.push(x, Math.max(this.hAt(x, z), -0.25) - 0.05, z, 0.8 + R() * 0.7, R() * TAU, slot, R(), 5); emit.push(x, z, slot, 0.5, 2);
     }
-    this.reedCat = this.cat(ctx, this.mesh(ctx, reed(4)), null, reeds, 2.5, 70, 99);
+    const reedM = this.mesh(ctx, reed(4));
+    this.reedCat = this.cat(ctx, reedM, null, reeds, 2.5, 70, 99);
     // ground cover: clumps of small glowing tufts and star flowers
     const tf = [];
     for (let i = 0; i < [220, 440, 720][q]; i++) {
@@ -289,7 +325,8 @@ export default {
       for (let k = 0; k < n; k++) { const px = x + (R() - 0.5) * 1.5, pz = z + (R() - 0.5) * 1.5; if (pathDist(px, pz) > 1.1) tf.push(px, this.hAt(px, pz) - 0.01, pz, 0.7 + R() * 1.1, R() * TAU, slot, R(), 6); }
       emit.push(x, z, slot, 0.35, 1.6);
     }
-    this.tuftCat = this.cat(ctx, this.mesh(ctx, tuft(8)), null, tf, 0.4, 24, 99);
+    const tuftM = this.mesh(ctx, tuft(8));
+    this.tuftCat = this.cat(ctx, tuftM, null, tf, 0.4, 24, 99, 0.9);
     const mush = [];
     for (let k = 0; k < PATH.length - 1; k++) {
       const [ax, az] = PATH[k], [bx, bz] = PATH[k + 1], L = Math.hypot(bx - ax, bz - az), n = Math.floor(L / 2.6);
@@ -303,7 +340,8 @@ export default {
     }
     for (const t of trees) for (let k = 0; k < 2; k++) { const a = R() * TAU, r = 1.2 * t[2] + R(), x = t[0] + Math.cos(a) * r, z = t[1] + Math.sin(a) * r; mush.push(x, this.hAt(x, z) - 0.02, z, 1 + R() * 1.6, R() * TAU, zs(x, z, 0.2), R(), 2); }
     for (const sd of [-1, 1]) { mush.push(DOOR[0] + sd * 1.0, this.hAt(DOOR[0] + sd, DOOR[1]) - 0.02, DOOR[1] + 0.25, 1.6, R() * TAU, sd < 0 ? 0 : 3, R(), 2); emit.push(DOOR[0] + sd, DOOR[1] + 0.25, sd < 0 ? 0 : 3, 0.7, 1.6); }
-    this.mushCat = this.cat(ctx, this.mesh(ctx, mushrooms(3)), null, mush, 0.6, 42, 99);
+    const mushM = this.mesh(ctx, mushrooms(3));
+    this.mushCat = this.cat(ctx, mushM, null, mush, 0.6, 42, 99, 1);
     const rocks = [];
     for (let i = 0; i < 26; i++) {
       const a = (R() - 0.5) * 2.6, rc = 13.6 + R() * 3.5, dz = -rc * Math.cos(a), dx = (rc * Math.sin(a)) / 0.62;
@@ -321,7 +359,8 @@ export default {
       const sc = 0.08 + R() * R() * 0.4;
       rocks.push(x, this.hAt(x, z) - sc * 0.35, z, sc, R() * TAU, zs(x, z), R(), 0);
     }
-    this.rockCat = this.cat(ctx, this.mesh(ctx, fromCore(ctx.mesh.rock(11, 2, 0.45), [0, 0, 0, 0])), null, rocks, 1.3, 140, 99);
+    const rockG = ctx.mesh.rock(11, 2, 0.45), rockM = this.mesh(ctx, fromCore(rockG, [0, 0, 0, 0]));
+    this.rockCat = this.cat(ctx, rockM, null, rocks, 1.3, 140, 99, 1);
     await progress(0.6);
 
     // lagoon: lily pads (some walkable), lotuses, fish
@@ -341,11 +380,13 @@ export default {
     this.padsW = new Float32Array(pads.length * 4);
     const padI = [];
     pads.forEach(([x, z, r], i) => { this.padsW.set([x, z, r, 0], i * 4); const sl = R() < 0.5 ? 0 : 3; padI.push(x, 0.03, z, r, R() * TAU, sl, R(), 0); emit.push(x, z, sl, 0.3 * r, 1.6 * r); });
-    this.padCat = this.cat(ctx, this.mesh(ctx, pad()), null, padI, 2.4, 140, 99);
+    const padM = this.mesh(ctx, pad());
+    this.padCat = this.cat(ctx, padM, null, padI, 2.4, 140, 99);
     const lotI = []; this.lotus = [];
     lot.forEach(([x, z, s]) => { const per = 55 + R() * 45, sd = R(); lotI.push(x, 0.02, z, s, R() * TAU, 1, sd, per); this.lotus.push(per, sd, x, z, s); emit.push(x, z, 1, 0.3, 2.5); });
     this.lotus = new Float32Array(this.lotus); this.lotusSign = new Int8Array(lot.length);
-    this.lotusCat = this.cat(ctx, this.mesh(ctx, lotus()), null, lotI, 1.2, 140, 99);
+    const lotusM = this.mesh(ctx, lotus());
+    this.lotusCat = this.cat(ctx, lotusM, null, lotI, 1.2, 140, 99);
     const fishI = [];
     for (let i = 0; i < 8; i++) fishI.push(LAG[0] + (R() - 0.5) * 8, LAG[1] + (R() - 0.5) * 6 + 2, 5 + R() * 7, (0.04 + R() * 0.04) * (R() < 0.5 ? -1 : 1), R() * TAU, R() * 4 | 0, R(), -0.42 - R() * 0.25);
     fishI.push(-3.4, -27.4, 2.3, 0.11, 1.2, 0, R(), -0.4, -2.2, -29, 3.1, -0.085, 4, 1, R(), -0.46);
@@ -370,10 +411,92 @@ export default {
     emit.push(WFX, bz + 2, 0, 1.6, 8, WFX, bz - 1, 0, 1.0, 6, WFX - 3, bz + 1, 3, 0.6, 5, WFX + 3, bz + 1, 2, 0.6, 5);
     await progress(0.7);
 
+    // ---------- places beyond the lagoon (own RNG, so the original scatter stays as it was) ----------
+    const nOld = emit.length, R2 = makeRng(977), Hh = (x, z) => this.hAt(x, z);
+    const xMush = [], xRock = [], xTuft = [], xLan = [], xRos = [], xReed = [], xPad = [], xLot = [], lem = [], snl = [];
+    const put = (arr, x, y, z, s, slot, ty, yaw = R2() * TAU) => arr.push(x, y, z, s, yaw, slot, R2(), ty);
+    const face = (x, z, tx, tz) => Math.atan2(tx - x, tz - z);
+    let rockTop = 0; for (let k = 0; k < rockG.pos.length; k += 3) if (Math.hypot(rockG.pos[k], rockG.pos[k + 2]) < 0.3) rockTop = Math.max(rockTop, rockG.pos[k + 1]);
+    // mushroom grove: giant mushrooms with creatures on the caps, a fairy ring, lime and cyan light
+    const GM = [gmush(1), gmush(2)], gmI = [[], []], caps = [];
+    [[0, 0, 1.25], [6.5, 3.5, 0.9], [-5, 5.5, 1.0], [3, -6.5, 0.8], [-7, -3, 0.62], [8.5, -4, 0.7], [-0.5, 9.5, 0.75], [10.5, 0.5, 0.42]].forEach(([dx, dz, s], i) => {
+      const x = GRV[0] + dx, z = GRV[1] + dz, y = Hh(x, z), m = GM[i & 1], yaw = R2() * TAU, slot = i % 3 === 1 ? 0 : 3, c = Math.cos(yaw), sn = Math.sin(yaw);
+      gmI[i & 1].push(x, y, z, s, yaw, slot, R2(), 7);
+      addCol(x, z, 0.4 * s + 0.2); emit.push(x, z, slot, 1.0 * s, 4.5);
+      caps.push([x + (c * m.lx + sn * m.lz) * s, y + m.top * s, z + (-sn * m.lx + c * m.lz) * s, m.cr * s, m.ch * s]);
+    });
+    // a seat on a cap, r0 metres from its apex
+    const seat = (i, r0, ang, sc, slot, yaw) => {
+      const [cx, cy, cz, cr, ch] = caps[i], w = Math.acos(Math.min(1, Math.pow(r0 / cr, 1 / 0.6))), x = cx + Math.cos(ang) * r0, z = cz + Math.sin(ang) * r0;
+      lem.push(x, cy + ch * Math.sin(w) - 0.05 * sc, z, sc, yaw ?? face(x, z, -36, 12), slot, R2(), 0);
+    };
+    // they sit near the rims that face the trail, so they can be seen from below
+    const rimSeat = (i, f, da, sc, slot) => seat(i, caps[i][3] * f, Math.atan2(12 - caps[i][2], -36 - caps[i][0]) + da, sc, slot);
+    rimSeat(0, 0.72, 0.1, 1.25, 2); rimSeat(2, 0.7, -0.25, 1.1, 0); rimSeat(2, 0.74, 0.2, 0.62, 2); rimSeat(4, 0.6, 0.3, 0.9, 0); rimSeat(7, 0.3, 0, 0.7, 2); rimSeat(1, 0.75, -0.4, 1, 0);
+    const fr = [GRV[0] + 5.5, GRV[1] - 1.5];
+    for (let k = 0; k < 13; k++) { const a = (k / 13) * TAU + R2() * 0.2, x = fr[0] + Math.cos(a) * 1.9, z = fr[1] + Math.sin(a) * 1.9; put(xMush, x, Hh(x, z) - 0.02, z, 1.2 + R2() * 0.8, 1, 2); }
+    emit.push(fr[0], fr[1], 1, 1.3, 2.4);
+    for (let k = 0; k < 8; k++) { const a = R2() * TAU, r = R2() * 1.3, x = fr[0] + Math.cos(a) * r, z = fr[1] + Math.sin(a) * r; put(xTuft, x, Hh(x, z) - 0.01, z, 0.8 + R2(), 1, 6); }
+    for (let k = 0; k < 34; k++) {
+      const a = R2() * TAU, r = 2 + Math.sqrt(R2()) * 12, x = GRV[0] + Math.cos(a) * r, z = GRV[1] + Math.sin(a) * r, slot = R2() < 0.6 ? 3 : 0;
+      if (trailD(x, z) < 1.3) continue;
+      put(xMush, x, Hh(x, z) - 0.02, z, 1.5 + R2() * R2() * 3.5, slot, 2); emit.push(x, z, slot, 0.9, 1.8);
+    }
+    put(snl, fr[0] + 0.3, Hh(fr[0] + 0.3, fr[1]) + 0.005, fr[1], 1.6, 3, 8); put(snl, GRV[0] + 3.2, Hh(GRV[0] + 3.2, GRV[1] + 2) + 0.005, GRV[1] + 2, 1.3, 0, 8);
+    // ravine: glowing mushrooms along the floor, vine bridge across
+    for (let k = 0; k < 30; k++) {
+      const i = k % 4, t = R2(), x = mix(RAV[i][0], RAV[i + 1][0], t) + (R2() - 0.5) * 3, z = mix(RAV[i][1], RAV[i + 1][1], t) + (R2() - 0.5) * 3, slot = R2() < 0.65 ? 0 : 3;
+      put(xMush, x, Hh(x, z) - 0.02, z, 2 + R2() * 2.5, slot, 2); emit.push(x, z, slot, 1.3, 2.6);
+    }
+    const brCat = this.cat(ctx, this.mesh(ctx, bridge(BRB - BRA, YA, YB)), null, [BRA, 0, BRZ, 1, 0, 0, 0.3, 9], 14, 150, 999);
+    emit.push(BRA - 0.5, BRZ, 0, 0.9, 3, BRB + 0.5, BRZ, 3, 0.9, 3);
+    lem.push(BRB + 0.25, YB + 1.58, BRZ + 0.82, 1, face(BRB, BRZ + 0.82, BRA, BRZ), 0, R2(), 0);
+    put(snl, BRA + 2.6, deckY(0.26, YA, YB) + 0.03, BRZ + 0.38, 1.3, 0, 8, 1.2);
+    // knoll with the giant flower (opens when you come near), lantern plants, a bird
+    const fy = Hh(FLW[0], FLW[1]);
+    this.flw = [FLW[0], fy + 0.85, FLW[1], 2.3];
+    put(xLot, FLW[0], fy + 0.85, FLW[1], 2.3, 6, -1); put(xRos, FLW[0], fy - 0.05, FLW[1], 2.1, 2, 3);
+    addCol(FLW[0], FLW[1], 1.5); emit.push(FLW[0], FLW[1], 2, 1.8, 5.5);
+    const bt = [];
+    for (let k = 0; k < 5; k++) {
+      const a = k * 1.26 + 1.25, r = 4.3 + R2() * 1.4, x = FLW[0] + Math.cos(a) * r, z = FLW[1] + Math.sin(a) * r, s = 1 + R2() * 0.5;
+      put(xLan, x, Hh(x, z) - 0.02, z, s, k % 2 ? 0 : 2, 4); emit.push(x, z, k % 2 ? 0 : 2, 1.3, 2.8);
+      if (k < 3) { const bx = FLW[0] + Math.cos(a + 0.6) * 3.1, bz = FLW[1] + Math.sin(a + 0.6) * 3.1; bt.push(bx, fy + 2.0 + 0.3 * k, bz, face(bx, bz, FLW[0], FLW[1])); }
+    }
+    for (let k = 0; k < 40; k++) { const a = R2() * TAU, r = 2.6 + R2() * 5, x = FLW[0] + Math.cos(a) * r, z = FLW[1] + Math.sin(a) * r; if (trailD(x, z) > 1) put(xTuft, x, Hh(x, z) - 0.01, z, 0.8 + R2() * 1.2, R2() < 0.7 ? 2 : 0, 6); }
+    // moon pool: still water, small pads and pale lotuses, reeds, rim stones with snails, a ring of blue ground cover
+    const pe = (a, e) => [POOL[0] + Math.cos(a) * POOL[2] * e, POOL[1] + Math.sin(a) * POOL[3] * e];
+    for (let k = 0; k < 6; k++) { const [x, z] = pe(k * 1.05 + R2() * 0.4, 0.3 + R2() * 0.4); put(xPad, x, 0.03, z, 0.5 + R2() * 0.5, 0, 0); }
+    for (let k = 0; k < 3; k++) { const [x, z] = pe(k * 2.1 + 0.6, 0.2 + 0.15 * k); xLot.push(x, 0.02, z, 0.5 + R2() * 0.25, R2() * TAU, k === 1 ? 6 : 4, R2(), 40 + R2() * 30); emit.push(x, z, 0, 0.5, 2); }
+    for (let k = 0; k < 10; k++) { const [x, z] = pe(k * 0.63 + R2() * 0.3 + 0.9, 0.9 + R2() * 0.1); if (Math.abs(z - 36) < 2.5 && x < POOL[0]) continue; put(xReed, x, Math.max(Hh(x, z), -0.25) - 0.05, z, 0.7 + R2() * 0.6, 0, 5); }
+    for (let k = 0; k < 8; k++) {
+      const a = k * 0.79 + 0.35, [x, z] = pe(a, 1.14 + R2() * 0.14), s = 0.45 + R2() * 0.55, y = Hh(x, z) - 0.15 * s;
+      if (Math.abs(z - 36) < 2 && x < POOL[0]) continue;
+      put(xRock, x, y, z, s, 0, 0); emit.push(x, z, 0, 1.0, 3.2);
+      if (k % 2) put(snl, x, y + rockTop * s - 0.012, z, 1.2 + R2() * 0.5, k % 4 === 1 ? 0 : 2, 8);
+      else if (k === 4) lem.push(x, y + rockTop * s - 0.04, z, 0.95, face(x, z, 25, 36), 2, R2(), 0);
+    }
+    for (let k = 0; k < 60; k++) { const [x, z] = pe(R2() * TAU, 1.16 + R2() * R2() * 0.9); if (trailD(x, z) > 1) put(xTuft, x, Hh(x, z) - 0.01, z, 0.8 + R2() * 1.1, 0, 6); }
+    for (let k = 0; k < 4; k++) { const [x, z] = pe(k * 1.6 + 1.9, 1.35 + R2() * 0.2); put(k % 2 ? xLan : xRos, x, Hh(x, z) - 0.03, z, 1 + R2() * 0.6, k % 2 ? 2 : 0, k % 2 ? 4 : 3); emit.push(x, z, k % 2 ? 2 : 0, 1.0, 2.6); }
+    emit.push(POOL[0], POOL[1], 2, 0.5, 6);
+    // snails near the spawn too: on a lily pad and on the path stones
+    put(snl, 1.1, 0.05, -32.3, 1.5, 1, 8, 2.2); put(snl, 2.5, Hh(2.5, 0.5) + 0.012, 0.5, 1.4, 0, 8); put(snl, 4.7, Hh(4.7, 10) + 0.012, 10, 1.2, 3, 8);
+    this.propX = [this.cat(ctx, this.mesh(ctx, GM[0].g), null, gmI[0], 7, 150, 999), this.cat(ctx, this.mesh(ctx, GM[1].g), null, gmI[1], 7, 150, 999), brCat,
+      this.cat(ctx, mushM, null, xMush, 0.6, 60, 999), this.cat(ctx, rockM, null, xRock, 1.3, 90, 999), this.cat(ctx, tuftM, null, xTuft, 0.4, 26, 999),
+      this.cat(ctx, lanM, null, xLan, 2.5, 60, 999), this.cat(ctx, rosM, null, xRos, 2, 70, 999), this.cat(ctx, reedM, null, xReed, 2.5, 60, 999),
+      this.cat(ctx, this.mesh(ctx, snail()), null, snl, 0.3, 22, 999)];
+    this.padX = this.cat(ctx, padM, null, xPad, 2.4, 90, 999); this.lotX = this.cat(ctx, lotusM, null, xLot, 1.4, 150, 999);
+    this.lemCat = this.cat(ctx, this.mesh(ctx, lemur()), null, lem, 1, 70, 999);
+    this.birdM = this.mesh(ctx, bird());
+    // bird hover spots (x, y, z, yaw): beside the lagoon lotuses, around the giant flower
+    const bl = []; lot.forEach(([x, z, s], i) => { const a = i * 2.4, r = 0.75 * s + 0.2, bx = x + Math.cos(a) * r, bz = z + Math.sin(a) * r; bl.push(bx, 0.42 * s + 0.2, bz, face(bx, bz, x, z)); });
+    this.birdT = [new Float32Array(bl), new Float32Array(bt)];
+    const NBF = [24, 44, 70][q], NDF = [9, 14, 20][q];
     // ---------- lightmap from all emitters ----------
     const LMN = 256, lm = new Float32Array(LMN * LMN * 4), cs = WSIZE / LMN;
     for (let k = 0; k < emit.length; k += 5) {
       const x = emit[k], z = emit[k + 1], sl = emit[k + 2] | 0, st = emit[k + 3], r = emit[k + 4];
+      if (k < nOld && dead(x, z, r === 4 ? 3.4 : 1.2)) continue;
       const gi = (x / WSIZE + 0.5) * LMN - 0.5, gj = (z / WSIZE + 0.5) * LMN - 0.5, rr = Math.ceil((r * 2.2) / cs);
       for (let j = Math.max(0, Math.floor(gj) - rr); j <= Math.min(LMN - 1, Math.ceil(gj) + rr); j++)
         for (let i = Math.max(0, Math.floor(gi) - rr); i <= Math.min(LMN - 1, Math.ceil(gi) + rr); i++) {
@@ -386,26 +509,32 @@ export default {
     dev.queue.writeTexture({ texture: lmap }, lh, { bytesPerRow: LMN * 8 }, [LMN, LMN]);
 
     // ---------- uniforms, bind groups, pipelines ----------
-    this.U = new Float32Array(172);
-    this.ub = ctx.buffer(688, 'uniform');
-    const shafts = [[-4, -30, 1.3, 0.8], [-1.5, -26.5, 0.4, 0], [-7, -33.5, 0.5, 0], [-12, -8, 0.9, 0.45], [9, -5, 0.8, 0.4], [DOOR[0] + 0.3, DOOR[1] - 0.3, 0.75, 0.9]];
+    this.U = new Float32Array(196);
+    this.ub = ctx.buffer(784, 'uniform');
+    const shafts = [[-4, -30, 1.3, 0.8], [POOL[0] - 1, POOL[1], 1.5, 0.75], [GRV[0] + 2, GRV[1] + 1, 1.3, 0.5], [-12, -8, 0.9, 0.45], [9, -5, 0.8, 0.4], [DOOR[0] + 0.3, DOOR[1] - 0.3, 0.75, 0.9]];
     shafts.forEach((s, i) => this.U.set(s, 104 + i * 4));
     this.U.set(this.wf, 96);
     this.U.set([1, 0.028, 0.008, 1.6], 100);
     this.U.set([DOOR[0], this.hAt(DOOR[0], DOOR[1]), DOOR[1], 0], 168);
+    this.U.set(this.flw, 192);
     const lin = dev.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
     const rep = dev.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'repeat', addressModeV: 'repeat' });
     this.cL = ctx.layout(['uniform', 'texture', 'texture', 'texture', 'sampler', 'sampler']);
     this.cBG = ctx.bindGroup(this.cL, [this.ub, hmap.createView(), lmap.createView(), ntex.createView(), lin, rep]);
     this.dL = ctx.layout(['texture-depth']);
+    const trs = TRAILS.flatMap((T) => T.slice(1).map((b, i) => [...T[i], ...b]));
     const head = `const NPATH = ${PATH.length}u;\nconst PATH = array<vec2f, ${PATH.length}>(${PATH.map((p) => `vec2f(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`).join(',')});\n` +
-      `const SPA = vec2f(${SPUR[0]}); const SPB = vec2f(${SPUR[1]});\nconst LAGOON = vec4f(${LAG.map((v) => v.toFixed(2)).join(',')});\nconst NSPORE = ${[600, 1200, 2200][q]}u;\n`;
+      `const SPA = vec2f(${SPUR[0]}); const SPB = vec2f(${SPUR[1]});\nconst LAGOON = vec4f(${LAG.map((v) => v.toFixed(2)).join(',')});\nconst NSPORE = ${[600, 1200, 2200][q]}u;\n` +
+      `const NTR = ${trs.length}u;\nconst TRAIL = array<vec4f, ${trs.length}>(${trs.map((v) => `vec4f(${v})`).join(',')});\nconst POOLC = vec4f(${POOL});\n` +
+      `const MOTHC = array<vec4f, 3>(vec4f(0, -22, 15, 7), vec4f(${GRV}, 9, ${(this.hAt(GRV[0], GRV[1]) + 10.5).toFixed(1)}), vec4f(${POOL[0]}, ${POOL[1]}, 9, 4.5));\n` +
+      `const NBF = ${NBF}u; const NMOTH = 3u; const NDF = ${NDF}u; const NDFL = ${NDF - 5}u;\n`;
+    this.nWing = NBF + 3 + NDF + 2;
     this.nSpore = [600, 1200, 2200][q]; this.nFly = [50, 90, 140][q];
     const sh = (c, l) => ctx.rawShader('diagnostic(off, derivative_uniformity);\n' + ctx.wgsl.prelude + head + COMMON + c, l);
     const om = sh(OPAQUE, 'jungle-opaque'), fm = sh(FX, 'jungle-fx');
     const L = [this.cL], VB = [VLAYOUT], VBI = [VLAYOUT, ILAYOUT];
     const P = (module, vs, fs, o = {}) => ctx.pipelineAsync({ module, vs, fs, layouts: L, cull: 'none', label: vs, ...o });
-    [this.pTerr, this.pTree, this.pProp, this.pFern, this.pFan, this.pSpi, this.pPad, this.pLotus, this.pFish, this.pFrog, this.pPetal, this.pSky, this.pWater, this.pMist, this.pFall, this.pSpore, this.pPuff, this.pFishGlow] = await Promise.all([
+    [this.pTerr, this.pTree, this.pProp, this.pFern, this.pFan, this.pSpi, this.pPad, this.pLotus, this.pFish, this.pFrog, this.pPetal, this.pSky, this.pWater, this.pMist, this.pFall, this.pSpore, this.pPuff, this.pFishGlow, this.pLemur, this.pBird, this.pWing] = await Promise.all([
       P(om, 'vsTerrain', 'fsTerrain', { buffers: VB, cull: 'back' }), P(om, 'vsTree', 'fsTree', { buffers: VBI }), P(om, 'vsProp', 'fsProp', { buffers: VBI }),
       P(om, 'vsFern', 'fsFern', { buffers: VBI }), P(om, 'vsFan', 'fsFan', { buffers: VBI }), P(om, 'vsSpiral', 'fsSpiral', { buffers: VBI }),
       P(om, 'vsPad', 'fsPad', { buffers: VBI }), P(om, 'vsLotus', 'fsLotus', { buffers: VBI }), P(om, 'vsFish', 'fsFish', { buffers: VBI }),
@@ -414,9 +543,10 @@ export default {
       P(fm, 'vsMist', 'fsMist', { layouts: [this.cL, this.dL], blend: 'premul', depthFormat: null }),
       P(fm, 'vsFall', 'fsFall', { buffers: VB, blend: 'add' }), P(fm, 'vsSpore', 'fsSpore', { blend: 'add' }), P(fm, 'vsPuff', 'fsPuff', { blend: 'add' }),
       P(fm, 'vsFishGlow', 'fsPuff', { blend: 'add', buffers: [ILAYOUT] }),
+      P(om, 'vsLemur', 'fsLemur', { buffers: VBI, cull: 'back' }), P(om, 'vsBird', 'fsBird', { buffers: VB }), P(fm, 'vsWing', 'fsWing', { blend: 'add' }),
     ]);
     // water surface grid and waterfall sheet
-    this.waterM = this.mesh(ctx, fromCore(ctx.mesh.translate(ctx.mesh.plane(LAG[2] * 2 + 6, LAG[3] * 2 + 6, 72, 48), LAG[0], 0, LAG[1]), [0, 0, 0, 0]));
+    this.waterM = this.mesh(ctx, fromCore(ctx.mesh.merge([ctx.mesh.translate(ctx.mesh.plane(LAG[2] * 2 + 6, LAG[3] * 2 + 6, 72, 48), LAG[0], 0, LAG[1]), ctx.mesh.translate(ctx.mesh.plane(19, 16, 19, 16), POOL[0], 0, POOL[1])]), [0, 0, 0, 0]));
     this.fallM = this.mesh(ctx, fromCore(ctx.mesh.plane(1, 1, 10, 36), [0, 0, 0, 0]));
     this.resize(ctx);
     await progress(1);
@@ -424,7 +554,8 @@ export default {
 
   mesh(ctx, g) { return { vb: ctx.buffer(g.v, 'vertex'), ib: ctx.buffer(g.i, 'index'), n: g.i.length }; },
   // instance category with CPU frustum/distance culling and two LODs
-  cat(ctx, m0, m1, arr, rad, maxD, lodD) {
+  cat(ctx, m0, m1, arr, rad, maxD, lodD, clr) {
+    if (clr) { const o = []; for (let k = 0; k < arr.length; k += 8) if (!dead(arr[k], arr[k + 2], clr)) for (let j = 0; j < 8; j++) o.push(arr[k + j]); arr = o; }
     const src = new Float32Array(arr), n = src.length / 8;
     const c = { m0, m1: m1 || m0, src, n, rad, maxD, lodD, out0: new Float32Array(src.length), out1: new Float32Array(src.length), n0: 0, n1: 0,
       b0: ctx.buffer(Math.max(32, src.byteLength), 'vertex'), b1: ctx.buffer(Math.max(32, src.byteLength), 'vertex') };
@@ -506,6 +637,31 @@ export default {
       if (au && this.lotusSign[i] === -1 && s === 1) this.chime(au, L[o + 2], L[o + 3]);
       this.lotusSign[i] = s;
     }
+    // giant flower opens as the visitor comes near
+    const F = this.flw, fd = Math.hypot(cam.eye[0] - F[0], cam.eye[2] - F[2]), ft = ss(18, 7, fd);
+    this.fb += (ft - this.fb) * (ctx.shot ? 1 : 1 - Math.exp(-dt / 2.5));
+    U[172] = this.fb;
+    if (au && ft > 0.5 && !this.fOpen) this.chime(au, F[0], F[2], 60);
+    if (ft > 0.5) this.fOpen = true; else if (ft < 0.05) this.fOpen = false;
+    // hovering birds: wait at a flower, then glide to the next one
+    for (let i = 0; i < 2; i++) {
+      const T = this.birdT[i], n = T.length / 4, per = 10 + 3.7 * i, tt = t / per + i * 0.37, k = Math.floor(tt), f = tt - k;
+      const a = (pcg(k * 3 + i * 101) % n) * 4, b = (pcg(k * 3 + 3 + i * 101) % n) * 4, s = ss(0.7, 1, f), o = 176 + i * 4;
+      let dy = T[b + 3] - T[a + 3]; dy -= TAU * Math.round(dy / TAU);
+      U[o] = T[a] + (T[b] - T[a]) * s + 0.03 * Math.sin(t * 1.1 + i * 2);
+      U[o + 1] = T[a + 1] + (T[b + 1] - T[a + 1]) * s + 0.45 * Math.sin(Math.PI * s) + 0.04 * Math.sin(t * 1.7 + i);
+      U[o + 2] = T[a + 2] + (T[b + 2] - T[a + 2]) * s + 0.03 * Math.cos(t * 0.9 + i);
+      U[o + 3] = T[a + 3] + dy * s; U[o + 8] = Math.sin(Math.PI * s);
+    }
+    // vine bridge: the deck carries the walker once stepped on from either end
+    const cx = cam.pos[0], cz = cam.pos[2];
+    if (!(cx > BRA - 1.5 && cx < BRB + 1.5 && Math.abs(cz - BRZ) < 0.9)) this.brOn = false;
+    else if (cam.pos[1] - cam.eyeHeight > deckY(Math.min(1, Math.max(0, (cx - BRA) / (BRB - BRA))), YA, YB) - 1) this.brOn = true;
+    if (au) {
+      if ((ctx.frame & 15) === 0) { const j = Math.hypot(cx - U[176], cz - U[178]) < Math.hypot(cx - U[180], cz - U[182]) ? 176 : 180; this.hum.setPos(U[j], U[j + 1], U[j + 2]); }
+      this.creakT -= dt * cam.moving;
+      if (this.brOn && this.creakT < 0) { this.creakT = 1.2 + au.rng() * 1.6; au.chirp({ f0: 150 + au.rng() * 60, f1: 110, dur: 0.22, vib: 6, vibRate: 11, gain: 0.012, bus: this.brBus }); }
+    }
     ctx.write(this.ub, U);
     this.cull(ctx, cam);
   },
@@ -520,11 +676,14 @@ export default {
     pass.setPipeline(this.pTree); for (let i = 0; i < this.treeCats.length; i++) this.drawCat(pass, this.treeCats[i]);
     pass.setPipeline(this.pProp); this.drawCat(pass, this.rockCat); this.drawCat(pass, this.shrubCat); this.drawCat(pass, this.mushCat);
     this.drawCat(pass, this.rosCat); this.drawCat(pass, this.lanCat); this.drawCat(pass, this.reedCat); this.drawCat(pass, this.tuftCat);
+    for (let i = 0; i < this.propX.length; i++) this.drawCat(pass, this.propX[i]);
     pass.setPipeline(this.pFern); this.drawCat(pass, this.fernCat);
     pass.setPipeline(this.pFan); this.drawCat(pass, this.fanCat);
     pass.setPipeline(this.pSpi); this.drawCat(pass, this.spiCat);
-    pass.setPipeline(this.pPad); this.drawCat(pass, this.padCat);
-    pass.setPipeline(this.pLotus); this.drawCat(pass, this.lotusCat);
+    pass.setPipeline(this.pPad); this.drawCat(pass, this.padCat); this.drawCat(pass, this.padX);
+    pass.setPipeline(this.pLotus); this.drawCat(pass, this.lotusCat); this.drawCat(pass, this.lotX);
+    pass.setPipeline(this.pLemur); this.drawCat(pass, this.lemCat);
+    pass.setPipeline(this.pBird); pass.setVertexBuffer(0, this.birdM.vb); pass.setIndexBuffer(this.birdM.ib, 'uint32'); pass.drawIndexed(this.birdM.n, 2);
     pass.setPipeline(this.pFish); pass.setVertexBuffer(0, this.fishM.vb); pass.setVertexBuffer(1, this.fishB); pass.setIndexBuffer(this.fishM.ib, 'uint32'); pass.drawIndexed(this.fishM.n, this.nFish);
     pass.setPipeline(this.pFrog); pass.setVertexBuffer(0, this.frogM.vb); pass.setIndexBuffer(this.frogM.ib, 'uint32'); pass.drawIndexed(this.frogM.n, 6);
     pass.setPipeline(this.pPetal); pass.draw(6, 36);
@@ -545,24 +704,26 @@ export default {
     p.setViewport(0, 0, w, h, 0, 1); p.setScissorRect(0, 0, w, h);
     p.setBindGroup(0, ctx.globalsBindGroup); p.setBindGroup(1, this.cBG);
     p.setPipeline(this.pFall); p.setVertexBuffer(0, this.fallM.vb); p.setIndexBuffer(this.fallM.ib, 'uint32'); p.drawIndexed(this.fallM.n, 2);
-    p.setPipeline(this.pPuff); p.draw(6, 276);
+    p.setPipeline(this.pPuff); p.draw(6, 277);
+    p.setPipeline(this.pWing); p.draw(30, this.nWing);
     p.setPipeline(this.pFishGlow); p.setVertexBuffer(0, this.fishB); p.draw(6, this.nFish);
     p.setPipeline(this.pSpore); p.draw(6, this.nSpore + this.nFly);
     p.end();
   },
 
   lastPlip: new Int32Array([-1, -1, -1, -1, -1, -1]),
+  fb: 0, fOpen: false, brOn: false, creakT: 1,
   plip(a, x, z) {
     const s = this.sp || (this.sp = a.spatial({ pos: [x, 0, z], ref: 4, reverb: 0.5, gain: 1 }));
     s.setPos(x, 0.2, z);
     a.chirp({ f0: 900 + a.rng() * 300, f1: 380, dur: 0.07, vib: 0, gain: 0.05, bus: s });
     a.pluck({ freq: 180 + a.rng() * 40, decay: 0.5, gain: 0.02, bus: s, when: a.now() + 0.02 });
   },
-  chime(a, x, z) {
+  chime(a, x, z, low = 0) {
     const s = this.cs || (this.cs = a.spatial({ pos: [x, 0.5, z], ref: 8, reverb: 0.8 }));
     s.setPos(x, 0.5, z);
     const n = this.notes; const t = a.now();
-    for (let i = 0; i < 3; i++) a.bell({ freq: a.hz(n[(a.rng() * n.length) | 0]), gain: 0.02, decay: 5, ratio: 2.01, index: 1.2, when: t + i * (0.25 + a.rng() * 0.3), bus: s });
+    for (let i = 0; i < (low ? 5 : 3); i++) a.bell({ freq: a.hz(n[(a.rng() * n.length) | 0] - (low ? 12 : 0)), gain: 0.02, decay: 5, ratio: 2.01, index: 1.2, when: t + i * (0.25 + a.rng() * 0.3), bus: s });
   },
   audio(ctx, a) {
     this.notes = a.scale(72, 'lydian', 2);
@@ -580,6 +741,16 @@ export default {
     // frogs and crickets, sparse
     a.every(3, 9, (when) => a.chirp({ f0: 520 + a.rng() * 200, f1: 380, dur: 0.09, repeat: 2 + a.rng.int(4), gap: 0.11, vib: 20, vibRate: 30, gain: 0.012, when, pan: a.rng.range(-0.9, 0.9), reverb: 0.6 }));
     a.every(5, 14, (when) => a.chirp({ f0: 3900, f1: 4300, dur: 0.05, repeat: 3 + a.rng.int(5), gap: 0.04, gain: 0.006, when, pan: a.rng.range(-0.8, 0.8) }));
+    // new places: creature calls in the grove, soft low tones under the big caps, drops at the pool, a wing hum that follows the nearest bird
+    const gy = this.hAt(GRV[0], GRV[1]);
+    const grove = a.spatial({ pos: [GRV[0], gy + 4, GRV[1]], ref: 9, rolloff: 1.2, reverb: 0.6 });
+    a.every(9, 22, (when) => { const f = 620 + a.rng() * 260; a.chirp({ f0: f, f1: f * 1.32, dur: 0.16, repeat: 2 + a.rng.int(2), gap: 0.2, vib: 10, vibRate: 9, gain: 0.014, when, bus: grove }); }, { startDelay: 4 });
+    a.every(7, 16, (when) => a.additive({ freq: a.hz(a.rng.pick([45, 48, 52, 55])), partials: [1, 0.4, 0.12], attack: 1.2, decay: 4, gain: 0.02, when, bus: grove }));
+    const pool = a.spatial({ pos: [POOL[0], 0.3, POOL[1]], ref: 6, rolloff: 1.3, reverb: 0.85 });
+    a.every(4, 11, (when) => a.pluck({ freq: a.hz(a.rng.pick(this.notes)), decay: 1.6, gain: 0.014, when, bus: pool }));
+    this.hum = a.spatial({ pos: [0, 1, -30], ref: 2.5, rolloff: 1.6, reverb: 0.2 });
+    a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 170, q: 5, gain: 0.05, mod: 0.2, modRate: 0.5, gainMod: 0.3, bus: this.hum });
+    this.brBus = a.spatial({ pos: [(BRA + BRB) / 2, YA, BRZ], ref: 5, reverb: 0.4 });
     a.every(14, 30, (when) => a.bell({ freq: a.hz(a.rng.pick(this.notes) + 12), gain: 0.008, decay: 6, ratio: 3.01, index: 0.8, when, pan: a.rng.range(-0.7, 0.7), reverb: 0.9 }));
   },
 };

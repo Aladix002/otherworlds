@@ -241,6 +241,11 @@ fn wrapAround(p: vec2f, c: vec2f, size: f32) -> vec2f { return c + (p - c) - siz
     wp = vec3f(L.x, 0.5 * sz, L.y);
     o.soft = 2.0;
     col = LOTUSC * (0.025 + 0.06 * L.w) * (0.8 + 0.3 * pulse(wp));
+  } else if (ii > 275u) {
+    sz = 2.3 * U.flower.w;
+    wp = U.flower.xyz + vec3f(0.0, 0.3 * sz, 0.0);
+    o.soft = 2.0;
+    col = mix(U.slot[2].rgb, U.slot[0].rgb, 0.4) * (0.012 + 0.05 * U.fx.x) * (0.8 + 0.3 * pulse(wp));
   } else {
     let f = U.frog[ii - 270u];
     sz = 0.55;
@@ -271,4 +276,95 @@ fn wrapAround(p: vec2f, c: vec2f, size: f32) -> vec2f { return c + (p - c) - siz
   var k = select(exp(-r2 * 12.0), s * s * exp(-r2 * 1.2), in.soft > 0.5);
   if (in.soft > 1.5) { k = max(1.0 - dot(in.c - vec2f(0.0, -0.25), in.c - vec2f(0.0, -0.25)) * 1.8, 0.0); k = k * k * smoothstep(-0.5, -0.2, in.c.y); }
   return vec4f(in.col * k, 0.0);
+}
+
+
+// ---------------- flyers: butterflies, moon moths, dragonflies, bird wings (5 additive quads each: body glow + 4 wings) ----------------
+struct WG { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) col: vec3f, @location(2) @interpolate(flat) k: f32 };
+fn bfPos(ii: u32, t: f32) -> vec3f {
+  let h = hash3u(vec3u(ii, 29u, 7u)); let h2 = hash3u(vec3u(ii, 3u, 57u));
+  let S = 38.0;
+  var q = h.xy * S + vec2f(sin(t * 0.13 + h2.x * 30.0) + 0.6 * sin(t * 0.31 + h.z * 9.0), cos(t * 0.11 + h2.y * 30.0) + 0.6 * cos(t * 0.27 + h.x * 9.0)) * 3.0;
+  q = wrapAround(q, G.camPos.xz, S);
+  return vec3f(q.x, max(terrH(q), 0.0) + 0.5 + 1.6 * h2.z + 0.35 * sin(t * 0.5 + h.z * 20.0) + 0.1 * sin(t * 2.3 + h.x * 11.0), q.y);
+}
+fn dfWp(j: u32, k: f32) -> vec3f {   // dragonfly waypoints near a home spot over the lagoon or the pool
+  let h0 = hash3u(vec3u(j, 41u, 9u));
+  var c = LAGOON; if (j >= NDFL) { c = POOLC; }
+  let a0 = h0.x * 6.2832;
+  let home = c.xy + vec2f(cos(a0) * c.z, sin(a0) * c.w) * sqrt(h0.y) * 0.7;
+  let h = hash3u(vec3u(j, u32(k), 77u));
+  return vec3f(home.x + (h.x - 0.5) * 5.0, 0.3 + 0.9 * h.z, home.y + (h.y - 0.5) * 5.0);
+}
+@vertex fn vsWing(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> WG {
+  let qi = vi / 6u; let c = quadC(vi % 6u); let t = G.time;
+  let h = hash3u(vec3u(ii, 13u, 31u));
+  var o: WG; o.c = c;
+  var pos: vec3f; var f: vec3f; var L: f32; var W: f32; var phi: f32; var col: vec3f;
+  var kind = 1.0; var a = 1.0; var hind = 0.75; var sweep = 0.35; var bl = 0.5; var sep = 0.28;
+  if (ii < NBF) {
+    pos = bfPos(ii, t); f = bfPos(ii, t + 0.4) - pos;
+    L = 0.1 + 0.07 * h.x; W = L * 0.55; phi = 0.3 + 0.95 * sin(t * (8.0 + 3.0 * h.y) + h.z * 40.0);
+    col = mix(slotOf(h.z * 4.0), vec3f(0.8, 0.9, 1.0), 0.25 * h.y) * 1.5;
+    let d = distance(pos, G.camPos); a = smoothstep(1.2, 3.5, d) * (1.0 - smoothstep(14.0, 18.0, d));
+  } else if (ii < NBF + NMOTH) {
+    let m = MOTHC[ii - NBF]; let sg = 1.0 - 2.0 * f32((ii - NBF) & 1u);
+    let th = t * 0.06 * sg + h.x * 6.2832;
+    pos = vec3f(m.x + cos(th) * m.z, m.w + sin(th * 1.7 + h.y * 6.0), m.y + sin(th) * m.z * 0.7);
+    f = vec3f(-sin(th), 0.0, cos(th) * 0.7) * sg;
+    L = 0.62; W = L * 0.55; phi = 0.2 + 0.6 * sin(t * 2.1 + h.z * 9.0); kind = 2.0;
+    col = mix(U.slot[2].rgb, vec3f(0.7, 0.9, 1.0), 0.45) * 0.8;
+    let d = distance(pos, G.camPos); a = smoothstep(2.0, 5.0, d) * (1.0 - smoothstep(60.0, 80.0, d));
+  } else if (ii < NBF + NMOTH + NDF) {
+    let j = ii - NBF - NMOTH;
+    let tt = t * (0.17 + 0.07 * h.x) + h.y * 10.0 + 100.0; let k = floor(tt); let fr = tt - k;
+    let p0 = dfWp(j, k - 1.0); let p1 = dfWp(j, k); let p2 = dfWp(j, k + 1.0);
+    pos = mix(p1, p2, smoothstep(0.62, 1.0, fr)) + vec3f(sin(t * 0.9 + h.z * 9.0), 0.6 * sin(t * 1.3 + h.x * 7.0), cos(t * 0.7 + h.y * 5.0)) * 0.06;
+    f = mix(p1 - p0, p2 - p1, smoothstep(0.1, 0.55, fr));
+    L = 0.24; W = 0.045; phi = 0.1 + 0.05 * sin(t * 23.0 + h.z * 30.0); hind = 0.9; sweep = 0.0; bl = 1.3; kind = 3.0; sep = 0.12;
+    col = mix(U.slot[0].rgb, U.slot[3].rgb, h.z) * 2.6;
+    let d = distance(pos, G.camPos); a = smoothstep(1.2, 3.0, d) * (1.0 - smoothstep(40.0, 55.0, d));
+  } else {
+    let b = U.bird[ii - NBF - NMOTH - NDF];
+    pos = b.xyz + vec3f(0.0, 0.04, 0.0); f = vec3f(sin(b.w), 0.0, cos(b.w));
+    L = 0.27; W = 0.12; phi = 0.15 + 0.3 * sin(t * 5.0 + f32(ii)); kind = 4.0; sweep = -0.2; sep = 0.0;
+    col = mix(U.slot[0].rgb, vec3f(0.8, 0.9, 1.0), 0.4) * 0.5;
+    a = 1.0 - smoothstep(30.0, 45.0, distance(pos, G.camPos));
+  }
+  f = normalize(vec3f(f.x, 0.0, f.z) + vec3f(1e-4, 0.0, 0.0));
+  let r = vec3f(f.z, 0.0, -f.x);
+  var wp: vec3f;
+  if (qi == 0u) {
+    let s = normalize(cross(f, G.camPos - pos));
+    wp = pos + f * L * (c.y * (0.3 + 0.45 * bl) - 0.4 * bl) + s * c.x * L * 0.14;
+    o.k = 0.0;
+    if (kind > 3.5) { a = 0.0; }
+  } else {
+    let side = f32((qi - 1u) & 1u) * 2.0 - 1.0; let pair = f32((qi - 1u) / 2u);
+    if (pair > 0.5 && kind > 3.5) { a = 0.0; }
+    let ph = phi - pair * 0.2;
+    let sdv = r * side * cos(ph) + vec3f(0.0, sin(ph), 0.0);
+    let Lp = L * mix(1.0, hind, pair); let ax = c.x * 0.5 + 0.5;
+    wp = pos + f * (mix(sep, -sep, pair) * L + c.y * W + mix(sweep, -sweep, pair) * ax * Lp) + sdv * ax * Lp;
+    o.k = kind;
+  }
+  o.pos = G.viewProj * vec4f(wp, 1.0);
+  if (a < 0.002) { o.pos = vec4f(2.0, 2.0, 2.0, 1.0); }
+  o.col = col * a * (1.0 - G.transition);
+  return o;
+}
+@fragment fn fsWing(in: WG) -> @location(0) vec4f {
+  let ax = in.c.x * 0.5 + 0.5; let b = in.c.y; let kind = in.k; var m = 0.0;
+  if (kind < 0.5) { m = exp(-in.c.x * in.c.x * 5.0) * max(1.0 - b * b, 0.0); m = m * m * 0.9; }
+  else if (kind < 2.5) {
+    // butterfly / moth wing: teardrop outline, veins, bright edge band, eye spot on the big moths
+    let w = pow(sin(3.14159 * pow(ax, 0.62)), 0.8); let d = w - abs(b);
+    let vein = 0.5 + 0.5 * cos(b / max(w, 0.05) * 7.0);
+    let spot = exp(-(pow(ax - 0.62, 2.0) * 60.0 + b * b * 9.0)) * step(1.5, kind);
+    m = smoothstep(0.0, 0.07, d) * (0.1 + 0.22 * vein * ax + 0.65 * smoothstep(0.3, 0.03, d) * (0.3 + 0.7 * ax) + spot * 0.9);
+  } else if (kind < 3.5) {
+    let w = 0.95 * pow(sin(3.14159 * pow(ax, 0.8)), 0.45); let d = w - abs(b);
+    m = smoothstep(0.0, 0.15, d) * (0.1 + 0.4 * smoothstep(0.5, 0.0, d) + 0.25 * (0.5 + 0.5 * cos(ax * 40.0)) * ax);
+  } else { m = smoothstep(0.0, 0.25, ax) * smoothstep(1.0, 0.5, ax) * max(1.0 - b * b, 0.0) * 0.35; }
+  return vec4f(in.col * m, 0.0);
 }

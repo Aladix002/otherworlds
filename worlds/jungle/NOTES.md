@@ -55,3 +55,23 @@ Water has no true reflections of geometry (sky, moon glitter, lightmap glow, wat
 under an alpha-blended surface (no refraction). `tools/shoot.mjs` samples three 0.5 s clips of the fly-through, so motion sheets
 always show three short segments. Its arrival frame is taken 3 frames after the postcard pipeline is requested, so the
 postcard overlay may not be compiled yet in `door-arrival.png` (the frame then shows the plain scene).
+
+## Variety and life pass
+Places beyond the lagoon, each reached by a side trail (`TRAILS`, drawn by the terrain shader like the main path, a little narrower):
+- **Mushroom grove** `GRV` (-44, 14): 8 giant mushrooms (`gmush`, prop type 7, stems collide), a magenta fairy ring, lime/cyan light, a moon
+  shaft, and the creature family on the cap rims (`lemur`, `vsLemur`: heads turn to the visitor within ~18 m, tails sway, eyes blink).
+- **Ravine + vine bridge**: `RAV` polyline carved in `terrain()`, glowing mushrooms on the floor, `bridge()` mesh (prop type 9) from
+  x = `BRA` to `BRB` at z = `BRZ`. `brOn` (set in `update`) makes `heightAt` return the deck and `sdf` add rails; no wading clamp in the ravine box.
+- **Flower knoll** `FLW` (56, -8): a giant lotus (instance `b.w < 0` -> bloom = `U.fx.x`) that opens within ~18 m, with a low chime; lantern plants.
+- **Moon pool** `POOL` (31, 35): second water patch in the same water mesh, pale lotuses (`b.y > 3.5` = slot-tinted), pads, reeds, rim stones.
+Life: butterflies, 3 large moon moths, dragonflies over the lagoon and pool (`vsWing`, 5 additive quads per flyer, all motion in the vertex
+shader), two hovering birds (`update` -> `U.bird`, opaque body `vsBird` + blurred wings in `vsWing`), snails (prop type 8, eye stalks
+retract when you come close) on pads, path stones, the bridge and pool rocks, one creature on a bridge post and one at the pool.
+The original scatter is untouched: new things use their own RNG (`R2`), and `cat(..., clr)` / the emitter loop drop old instances that
+fall inside the new places (`dead()`). Sound: creature calls and low tones in the grove, plucked drops at the pool, a wing hum that follows
+the nearer bird, plank creaks on the bridge.
+Fixes: fan pleats match the rib count (65 columns), cliff/ravine walls use wall-projected noise (no vertical drips), cooler ground litter,
+koi absorbed along the view path through the water.
+Not done: the cave behind the waterfall (needs non-heightfield rock and would change the hero view).
+Perf after the pass (Medium, 80 s fly-through through all places): avg 8.2 ms, p99 10.2 ms, scale 1. Bundle 214 KB dev build
+(base with all postcards is 192 KB before this pass).

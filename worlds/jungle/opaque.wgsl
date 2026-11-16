@@ -10,6 +10,7 @@ fn outV(w: vec3f, n: vec3f, uv: vec2f, at: vec4f, b: vec4f) -> VO {
 fn pathDist(p: vec2f) -> f32 {
   var d = segD(p, SPA, SPB) + 0.25;
   for (var i = 0u; i < NPATH - 1u; i++) { d = min(d, segD(p, PATH[i], PATH[i + 1u])); }
+  for (var i = 0u; i < NTR; i++) { d = min(d, segD(p, TRAIL[i].xy, TRAIL[i].zw) + 0.35); }
   return d;
 }
 fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = cell random
@@ -39,13 +40,24 @@ fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = ce
   let mossM = smoothstep(0.35, 0.65, N2.y * 0.6 + N3.z * 0.5);
   var alb = mix(hex(0x16261d), hex(0x2c4a2a), N1.x) * (0.7 + 0.5 * N3.x);
   alb = mix(alb, hex(0x35602e) * (0.55 + 0.9 * N4.z), mossM * 0.65);
-  alb = mix(alb, hex(0x3a2a22), smoothstep(0.6, 0.75, N3.y) * 0.6);
+  alb = mix(alb, hex(0x2c2a24), smoothstep(0.6, 0.75, N3.y) * 0.45);
   alb *= 1.0 + (N5.z - 0.5) * 0.9 * fine;
   // leaf litter and clover flecks
-  alb = mix(alb, hex(0x4a3020) * (0.5 + N5.w), smoothstep(0.62, 0.7, N4.w * 0.6 + N5.x * 0.5) * 0.4 * fine);
+  alb = mix(alb, hex(0x3a3826) * (0.5 + N5.w), smoothstep(0.62, 0.7, N4.w * 0.6 + N5.x * 0.5) * 0.3 * fine);
   alb = mix(alb, hex(0x4a8a3a), smoothstep(0.66, 0.72, N4.y * 0.5 + N5.y * 0.6) * mossM * 0.6 * fine);
   alb = mix(alb, hex(0x2a1f2c), smoothstep(0.55, 0.75, N1.y + N2.x * 0.2) * 0.5);
-  alb = mix(alb, mix(hex(0x221e2a), hex(0x3a3642), N2.w) * (0.65 + 0.7 * N4.w), rockM);
+  // cliff and ravine walls: noise projected along the wall, so nothing smears into vertical streaks
+  var cmoss = 0.0; var NC = N3; var NF = N4;
+  if (rockM > 0.01) {
+    let wq = n0 * n0; let ws = 1.0 / max(wq.x + wq.z, 1e-3);
+    NC = (nz(p.zy * 0.09) * wq.x + nz(p.xy * 0.09 + 0.4) * wq.z) * ws;
+    NF = (nz(p.zy * 0.41 + 0.2) * wq.x + nz(p.xy * 0.41) * wq.z) * ws;
+    cmoss = smoothstep(0.44, 0.78, NC.y * 0.6 + NF.z * 0.55);
+    var ra = mix(hex(0x221e2a), hex(0x3a3642), NC.w) * (0.6 + 0.8 * NF.w);
+    ra = mix(ra, hex(0x1f3d26) * (0.6 + 0.8 * NF.y), cmoss * 0.75);
+    alb = mix(alb, ra, rockM);
+    bump = mix(bump, (NF.xy - 0.5) * 0.9, rockM);
+  }
   if (dist < 36.0) {
     let pb = dotGlow(p.xz * 2.3 + 7.0, 0.32, 0.3);
     alb = mix(alb, mix(hex(0x35323e), hex(0x5a5866), pb.y) * (0.6 + 0.6 * pb.x), pb.x * near * soil);
@@ -95,7 +107,8 @@ fn dotGlow(q: vec2f, dens: f32, rmax: f32) -> vec2f {   // x = glow mask, y = ce
   // lichen streaks on the cliff
   // wet glowing moss on the cliff, brightest near the fall
   let wfd = exp(-distance(p.xz, vec2f(U.wf.x, U.wf.z)) * 0.12);
-  e += mix(U.slot[0].rgb, U.slot[3].rgb, N3.x) * smoothstep(0.5, 0.85, N2.y * 0.6 + N3.z * 0.5) * (0.4 + N4.z) * rockM * smoothstep(0.5, 3.0, p.y) * (0.03 + 0.14 * wfd);
+  let below = smoothstep(0.2, -1.5, p.y);
+  e += mix(U.slot[0].rgb, U.slot[3].rgb, NC.x) * cmoss * smoothstep(0.3, 0.9, NF.x + 0.3 * NC.z) * (0.4 + NF.z) * rockM * (smoothstep(0.5, 3.0, p.y) + below) * (0.03 + 0.14 * wfd + 0.1 * below);
   // door: soft contact shadow, warm light spilling from the open portal
   alb *= 1.0 - 0.55 * exp(-dd * dd * 1.6);
   e += vec3f(1.0, 0.72, 0.45) * exp(-dd * dd * 0.55) * 0.085 * U.door.w / max(pl, 0.3);
@@ -195,8 +208,9 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
 @vertex fn vsProp(v: VII) -> VO {
   let R = rotY(v.b.x);
   var lp = v.p * v.a.w;
-  if (v.b.w > 0.5) { lp *= nearFade(v.a.xyz); }
-  if (v.b.w > 0.5 && (v.b.w < 1.5 || v.b.w > 2.5)) {
+  if (v.b.w > 0.5 && v.b.w < 6.5) { lp *= nearFade(v.a.xyz); }
+  if (v.b.w > 7.5 && v.b.w < 8.5 && v.at.x > 1.5) { let c = vec3f(0.0, 0.055, 0.1) * v.a.w; lp = c + (lp - c) * (1.0 - 0.8 * touch(v.a.xyz)); }
+  if (v.b.w > 0.5 && v.b.w < 6.5 && (v.b.w < 1.5 || v.b.w > 2.5)) {
     let sd = v.b.z * 29.0; let t = G.time;
     let k = lp.y * lp.y / max(v.a.w, 0.3) * 0.07 * (1.0 + 0.8 * touch(v.a.xyz));
     lp += vec3f(sin(t * 0.43 + sd) + 0.5 * sin(t * 0.71 + sd * 1.7 + lp.x * 3.0), 0.0, cos(t * 0.37 + sd * 1.3) + 0.5 * cos(t * 0.63 + sd + lp.z * 3.0)) * k;
@@ -207,11 +221,36 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
 }
 @fragment fn fsProp(in: VO) -> @location(0) vec4f {
   let p = in.w; var n = faceN(normalize(in.n), p);
-  let ty = in.b.w; let sl = slotOf(in.b.y); let pl = pulse(p) * (1.0 + 0.9 * in.e.x);
+  var ty = in.b.w; var gk = 1.0; let sl = slotOf(in.b.y); let pl = pulse(p) * (1.0 + 0.9 * in.e.x);
+  if (ty > 6.5 && ty < 7.5) { ty = 2.0; gk = 3.0; }
   let V = normalize(G.camPos - p); let ndv = max(dot(n, V), 0.0);
   let part = in.at.x; let g = in.at.y;
   var alb: vec3f; var e = vec3f(0.0);
-  if (ty < 0.5) {
+  if (ty > 8.5) {
+    // vine bridge: mossy planks, vines with a travelling pulse, glowing pods, posts
+    if (part < 0.5 || part > 2.5) {
+      let N = nz(in.uv * vec2f(0.9, 0.25)); let Nb = nz(in.uv * vec2f(2.9, 0.7));
+      alb = mix(hex(0x241a16), hex(0x4e3e32), N.x) * (0.55 + 0.9 * Nb.y);
+      alb = mix(alb, hex(0x24462a) * (0.6 + 0.8 * Nb.z), smoothstep(0.5, 0.75, N.z + 0.3 * max(n.y, 0.0)) * 0.7);
+      e = slotOf(in.b.y + 3.0) * dotGlow(in.uv * vec2f(5.0, 8.0), 0.12, 0.25).x * 0.5;
+    } else if (part < 1.5) {
+      alb = hex(0x1a2a1c);
+      let trav = pow(0.5 + 0.5 * sin(in.at.z * 1.3 - G.time * 0.7 + in.at.w * 20.0), 8.0);
+      e = sl * (0.05 + 0.4 * trav) * (0.35 + 0.65 * ndv);
+    } else {
+      let warm = mix(sl, vec3f(1.0, 0.8, 0.5), 0.4);
+      alb = warm * 0.2; e = mix(sl, vec3f(1.0, 0.55, 0.2), 0.6) * (0.05 + 0.22 * ndv * ndv);
+    }
+  } else if (ty > 7.5) {
+    // snail: translucent body, shell with a glowing spiral, bright eye tips
+    if (part < 0.5) { alb = mix(hex(0x1c3a3a), hex(0x4a7a70), g); e = sl * (0.08 + 0.3 * pow(1.0 - ndv, 2.0)); }
+    else if (part < 1.5) {
+      let q = in.at.yz; let rr = length(q);
+      let sp = 0.5 + 0.5 * cos(atan2(q.x, q.y) + rr * 14.0);
+      alb = mix(hex(0x2a1c36), hex(0x5a4a6a), sp);
+      e = sl * (0.1 + 1.0 * sp * sp * sp * smoothstep(0.05, 0.3, rr)) * (0.5 + 0.5 * ndv);
+    } else { alb = vec3f(0.3); e = (sl * 0.5 + 0.5) * (0.15 + 0.8 * g * g); }
+  } else if (ty < 0.5) {
     let N = nz(p.xz * 0.2 + p.y * 0.13); let Nb = nz(p.xz * 0.9 + p.y * 0.7);
     alb = mix(hex(0x221e28), hex(0x3e3a46), N.x) * (0.7 + 0.6 * Nb.w);
     n = normalize(n + (Nb.xyz - 0.5) * 0.6);
@@ -234,15 +273,22 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
     if (part < 0.5) {
       alb = mix(hex(0x2a2430), hex(0x80788c), smoothstep(0.0, 0.5, g));
       e = sl * (0.03 + 0.5 * g * g * g);
+      if (gk > 1.5) { alb *= 0.5 + 0.8 * nz(in.uv * vec2f(1.5, 3.0)).x; e = e * 0.5 + sl * dotGlow(in.uv * vec2f(14.0, 30.0), 0.18, 0.3).x * 0.6; }
     } else if (part < 1.5) {
       // cap: darker crown with pale spots, glowing translucent rim
-      let sp = dotGlow(in.uv * vec2f(9.0, 3.0) + in.b.z * 7.0, 0.5, 0.3).x * smoothstep(0.15, 0.6, g);
+      let sp = dotGlow(in.uv * vec2f(9.0, 3.0) * gk + in.b.z * 7.0, 0.5, 0.3).x * smoothstep(0.15, 0.6, g);
       alb = mix(sl * 0.35 + 0.05, hex(0x3a2c48), smoothstep(0.1, 0.9, g)) + sp * 0.3;
       e = sl * (0.16 + 0.55 * pow(1.0 - g, 2.5) + 0.3 * pow(1.0 - ndv, 2.0) + sp * 0.4) * (0.6 + 0.4 * ndv);
+      if (gk > 1.5) {
+        let Nc = nz(in.uv * vec2f(3.0, 1.0) + in.b.z * 3.0);
+        alb = (mix(hex(0x142428), hex(0x2c3a4a), Nc.x) + sl * 0.04) * mix(1.0, 0.3, smoothstep(0.0, 0.5, n.y)) + sp * 0.06;
+        e = sl * (0.015 + 0.35 * pow(1.0 - g, 14.0) + 0.12 * pow(1.0 - ndv, 3.0) + sp * 0.3 * (0.4 + 0.6 * Nc.y));
+      }
     } else {
-      let gill = 0.55 + 0.45 * cos(in.uv.x * 6.2832 * 20.0);
+      let gill = 0.55 + 0.45 * cos(in.uv.x * 6.2832 * 20.0 * gk);
       alb = sl * 0.3;
       e = (sl * 1.0 + 0.1) * gill * (0.4 + 0.6 * g);
+      if (gk > 1.5) { let gl2 = mix(0.4, pow(gill, 3.0), smoothstep(45.0, 14.0, distance(p, G.camPos))); alb = sl * 0.06; e = mix(sl, vec3f(1.0, 0.75, 0.4), 0.35 * (1.0 - g)) * (0.04 + gl2 * (0.34 - 0.2 * g)); }
     }
   } else if (ty < 3.5) {
     // rosette leaf: glowing midrib and side veins, brighter toward the heart of the plant
@@ -348,7 +394,7 @@ fn rachis(s: f32, L: f32, phi0: f32, bend: f32, curl: f32) -> vec3f {
     let open = 0.45 + 0.3 * fract(v.b.z * 17.9) + 0.1 * sin(G.time * 0.23 + sd) + 0.07 * sin(G.time * 0.41 + sd * 0.6) + 0.28 * tch;
     let th = v.uv.x * open * 1.45;
     let r = v.uv.y * S * 0.75;
-    let pleat = cos(v.uv.x * 2.0 * nr * 3.14159);
+    let pleat = -cos(v.uv.x * nr * 3.14159);
     var q = vec3f(sin(th) * r, cos(th) * r, pleat * 0.045 * r - (fract(v.b.z * 27.1) - 0.3) * 0.6 * r * r / S);
     let tilt = -0.15 - 0.6 * fract(v.b.z * 9.1) + 0.12 * sin(G.time * 0.19 + sd);
     q = rotX(tilt) * q;
@@ -461,6 +507,7 @@ fn rachis(s: f32, L: f32, phi0: f32, bend: f32, curl: f32) -> vec3f {
 
 // ---------------- lotus (petals shaped here: closed bud <-> open bloom) ----------------
 fn bloomOf(b: vec4f) -> f32 {
+  if (b.w < 0.0) { return U.fx.x; }
   let ph = G.time / b.w + b.z * 6.2832;
   let c = 0.5 + 0.5 * sin(ph * 6.2832) + 0.06 * sin(G.time * 0.37 + b.z * 9.0);
   return smoothstep(0.15, 0.85, c);
@@ -508,13 +555,13 @@ fn bloomOf(b: vec4f) -> f32 {
     let x = in.uv.x;
     var col = mix(vec3f(1.0, 0.78, 0.5), vec3f(1.0, 0.5, 0.74), smoothstep(0.0, 0.55, vv));
     col = mix(col, vec3f(0.95, 0.22, 0.62), smoothstep(0.6, 1.0, vv));
-    col = mix(col, slotOf(in.b.y), 0.12);
+    col = mix(col, slotOf(in.b.y), select(0.12, 0.8, in.b.y > 3.5));
     alb = col * 0.45;
     let vein = 0.5 + 0.5 * cos(x * 16.0);
     let heart = pow(1.0 - vv, 2.0) * (0.3 + 0.9 * bl);
     e = col * (0.14 + 0.8 * heart + 0.1 * vein * (1.0 - vv) + 0.3 * pow(1.0 - ndv, 2.0) + 0.12 * smoothstep(0.75, 1.0, vv)) * (1.0 - 0.07 * ring);
   }
-  e *= (0.8 + 0.4 * pulse(p)) * (1.0 + 0.7 * touch(p));
+  e *= (0.8 + 0.4 * pulse(p)) * (1.0 + 0.7 * touch(p)) * select(1.0, 1.3 + 0.6 * bl, in.b.w < 0.0);
   return vec4f(shadeJ(alb, n, p, 1.0) + e, 1.0);
 }
 
@@ -553,8 +600,8 @@ fn bloomOf(b: vec4f) -> f32 {
   }
   if (in.at.x > 1.5) { e = vec3f(0.01) + vec3f(1.0, 0.9, 0.6) * pow(1.0 - ndv, 3.0) * 0.5; }
   // tint by the water above
-  let d = max(-p.y, 0.0);
-  e = e * exp(-d * vec3f(1.9, 0.7, 0.6)) + vec3f(0.0, 0.03, 0.035) * (1.0 - exp(-d * 2.0));
+  let d = max(-p.y, 0.0) / max(V.y, 0.28);
+  e = e * exp(-d * vec3f(1.7, 0.62, 0.52)) + vec3f(0.0, 0.022, 0.027) * (1.0 - exp(-d * 1.4));
   return vec4f(e * (0.85 + 0.3 * pulse(p)), 1.0);
 }
 
@@ -583,6 +630,74 @@ fn bloomOf(b: vec4f) -> f32 {
   else if (tag < 1.5) { let st = smoothstep(0.25, 0.1, abs(fract(in.uv.x * 2.0 + 0.25) - 0.5)) * smoothstep(0.35, 0.7, in.uv.y); alb = mix(alb, hex(0x7ac05a), st * 0.7); e += lime * st * 0.25; }
   e += (glowAt(p) * 0.4 + G.sunColor * 0.5) * pow(1.0 - ndv, 3.0) * 0.5;
   return vec4f(shadeJ(alb, n, p, 1.0) + e * (0.8 + 0.3 * pulse(p)), 1.0);
+}
+
+// ---------------- tree creatures: sit on mushroom caps and posts and watch the visitor ----------------
+@vertex fn vsLemur(v: VII) -> VO {
+  let t = G.time; let sd = v.b.z * 37.0; let tag = v.at.y; let S = v.a.w;
+  var lp = v.p; var ln = v.n;
+  let toC = G.camPos - (v.a.xyz + vec3f(0.0, 0.45 * S, 0.0));
+  let dC = length(toC.xz);
+  let near = 1.0 - smoothstep(7.0, 18.0, dC);
+  var w = atan2(toC.x, toC.z) - v.b.x; w -= 6.2832 * round(w / 6.2832);
+  let hy = mix(0.55 * sin(t * 0.23 + sd) + 0.3 * sin(t * 0.41 + sd * 1.7), clamp(w, -1.5, 1.5), near);
+  let hp = clamp(-atan2(toC.y, dC), -0.5, 0.7) * near * 0.8 + 0.06 * sin(t * 0.31 + sd);
+  if ((tag > 0.5 && tag < 1.5) || (tag > 2.5 && tag < 3.5) || tag > 4.5) {
+    let c = vec3f(0.0, 0.4, 0.0); let M = rotY(hy) * rotX(hp);
+    lp = c + M * (lp - c); ln = M * ln;
+  } else if (tag > 3.5) {
+    lp.x += sin(t * 0.7 + sd + v.at.z * 2.5) * 0.07 * v.at.z; lp.z += cos(t * 0.5 + sd * 1.3 + v.at.z * 2.0) * 0.04 * v.at.z;
+  } else if (tag < 0.5) { let br = 1.0 + 0.025 * sin(t * 1.3 + sd); lp = lp * vec3f(br, 1.0, br); }
+  let R = rotY(v.b.x);
+  var o = outV(v.a.xyz + R * (lp * S), R * ln, v.uv, v.at, v.b);
+  o.e = vec3f(near, v.n.z, v.n.y);
+  return o;
+}
+@fragment fn fsLemur(in: VO) -> @location(0) vec4f {
+  let p = in.w; let n = faceN(normalize(in.n), p); let tag = in.at.y; let sl = slotOf(in.b.y);
+  let V = normalize(G.camPos - p); let ndv = max(dot(n, V), 0.0);
+  let fur = nz(in.uv * vec2f(3.0, 2.0) + in.b.z * 5.0);
+  var alb = mix(hex(0x1c1a34), hex(0x4a4670), fur.x * 0.6 + 0.4 * max(n.y, 0.0));
+  var e = vec3f(0.0);
+  if (tag < 0.5) {
+    alb = mix(alb, hex(0x8a86a8), smoothstep(0.3, 0.9, in.e.y) * 0.6);
+    e = sl * dotGlow(in.uv * vec2f(8.0, 6.0), 0.5, 0.3).x * smoothstep(-0.1, -0.6, in.e.y) * 0.8;
+  } else if (tag < 1.5) {
+    alb = mix(alb, hex(0x9a96b8), max(in.at.z, smoothstep(0.2, 0.8, in.e.y) * 0.5));
+    alb = mix(alb, vec3f(0.02), in.at.z * smoothstep(0.88, 0.96, in.e.y));
+  } else if (tag < 2.5) { alb *= 0.7; }
+  else if (tag < 3.5) {
+    let blink = smoothstep(0.012, 0.03, abs(fract(G.time * 0.17 + in.b.z * 3.0) - 0.5));
+    alb = vec3f(0.02);
+    e = vec3f(1.5, 0.95, 0.3) * (0.25 + 0.9 * ndv * ndv) * smoothstep(0.95, 0.87, in.e.y) * blink;
+  } else if (tag < 4.5) {
+    let ring = smoothstep(0.2, 0.35, abs(fract(in.at.z * 6.0) - 0.5));
+    alb = mix(alb, hex(0x0c0a18), ring * 0.7);
+    let wave = 0.5 + 0.5 * sin(in.at.z * 9.0 - G.time * 1.2 + in.b.z * 20.0);
+    e = sl * (1.0 - ring) * (0.25 + 0.7 * wave * wave);
+  } else { e = sl * 0.3 * smoothstep(0.0, 0.6, abs(in.e.y)); alb = mix(alb, sl * 0.4, 0.3); }
+  let gl = glowAt(p);
+  e += (gl * 0.7 + G.sunColor * 0.8) * pow(1.0 - ndv, 2.5) * 0.45;
+  return vec4f(shadeG(alb, n, gl, 1.0) + glow(e * (0.8 + 0.3 * pulse(p))), 1.0);
+}
+
+// ---------------- hovering birds (state from U.bird; the blurred wings are drawn in the FX pass) ----------------
+@vertex fn vsBird(v: VI, @builtin(instance_index) ii: u32) -> VO {
+  let f = U.bird[ii]; let fb = U.birdB[ii];
+  var lp = v.p * 1.7;
+  if (v.at.y > 1.5) { lp.y += sin(G.time * 3.1 + f32(ii)) * 0.012 * v.at.z; }
+  let M = rotY(f.w) * rotX(-0.55 + 0.45 * fb.x);
+  return outV(f.xyz + M * lp, M * v.n, v.uv, v.at, vec4f(f.w, f32(ii), fb.x, 0.0));
+}
+@fragment fn fsBird(in: VO) -> @location(0) vec4f {
+  let p = in.w; let n = faceN(normalize(in.n), p); let tag = in.at.y; let z = in.at.z;
+  let V = normalize(G.camPos - p); let ndv = max(dot(n, V), 0.0);
+  let irid = mix(U.slot[0].rgb, U.slot[3].rgb, 0.5 + 0.5 * sin(ndv * 5.0 + z * 4.0));
+  var alb = irid * 0.25; var e = irid * (0.12 + 0.35 * ndv);
+  if (tag < 0.5) { e = mix(e, U.slot[1].rgb * 1.1 + 0.1, smoothstep(0.55, 0.75, z) * smoothstep(0.1, -0.4, in.n.y)); }
+  else if (tag < 1.5) { alb = vec3f(0.02); e = vec3f(0.02); }
+  else { e = mix(irid, vec3f(1.0), 0.3) * (0.15 + 0.5 * z); }
+  return vec4f(shadeJ(alb, n, p, 1.0) + glow(e), 1.0);
 }
 
 // ---------------- petals drifting on the water ----------------

@@ -9,6 +9,10 @@ struct WU {
   shaft: array<vec4f, 6>,  // light shafts: ground x, z, radius, intensity
   lotus: array<vec4f, 10>, // x, z, scale, bloom 0..1
   door: vec4f,             // door ground position
+  fx: vec4f,               // x = giant flower bloom
+  bird: array<vec4f, 2>,   // x, y, z, yaw
+  birdB: array<vec4f, 2>,  // x = travel lean
+  flower: vec4f,           // giant flower x, y, z, scale
 };
 @group(1) @binding(0) var<uniform> U: WU;
 @group(1) @binding(1) var hmap: texture_2d<f32>;

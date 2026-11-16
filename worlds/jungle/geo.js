@@ -160,7 +160,7 @@ export function frond(nSeg) {
 // fan leaf: polar grid; uv = (angle -1..1, radius 0..1); attr.x = 1 leaf / 0 stalk
 export function fan() {
   const g = new Geo();
-  g.surf(37, 7, (u, v) => [0, 0, 0, u * 2 - 1, v, 1, 0, 0, 0]);
+  g.surf(65, 7, (u, v) => [0, 0, 0, u * 2 - 1, v, 1, 0, 0, 0]);
   g.surf(5, 5, (u, v) => [0, 0, 0, u, v, 0, 0, 0, 0], true);
   return g.build();
 }
@@ -315,4 +315,99 @@ export function fromCore(c, attr) {
     v.set([c.pos[k * 3], c.pos[k * 3 + 1], c.pos[k * 3 + 2], c.nrm[k * 3], c.nrm[k * 3 + 1], c.nrm[k * 3 + 2], c.uv[k * 2], c.uv[k * 2 + 1], ...attr], k * 12);
   }
   return { v, i: c.idx };
+}
+
+const blobOf = (g) => (cx, cy, cz, rx, ry, rz, a, nu = 12, nv = 8) => g.surf(nu, nv, (u, v) => {
+  const p = u * TAU, b = v * Math.PI;
+  return [cx + Math.cos(p) * Math.sin(b) * rx, cy - Math.cos(b) * ry, cz + Math.sin(p) * Math.sin(b) * rz, u, v, ...a];
+}, true);
+
+// giant mushroom (metres): leaning stem, wide cap with a drooping rim, gills. Same attr as mushrooms(). Returns the cap shape too.
+export function gmush(seed) {
+  const g = new Geo(), R = makeRng(seed * 31 + 5);
+  const H = 3.2 + R() * 2.4, cr = 1.6 + R() * 1.0, ch = cr * (0.34 + R() * 0.3), lx = (R() - 0.5) * 1.2, lz = (R() - 0.5) * 1.2, sr = 0.17 + 0.05 * cr, ph = R() * TAU;
+  g.tube(14, 12, (t) => [lx * t * t, t * H - 0.3, lz * t * t], (t, th) => sr * (1 + 1.1 * Math.exp(-t * 7) - 0.3 * t + 0.5 * Math.exp(-(1 - t) * 9)) * (1 + 0.06 * Math.sin(th * 5 + t * 7)), (t) => [0, t, 0, 0]);
+  const rim = (a) => 1 + 0.05 * Math.sin(a * 5 + ph) + 0.03 * Math.sin(a * 11 - ph);
+  g.surf(40, 11, (u, v) => {
+    const a = u * TAU, w = Math.pow(v, 0.8) * Math.PI * 0.5, r = cr * Math.pow(Math.cos(w), 0.6) * rim(a) * (v === 0 ? 0.985 : 1);
+    return [lx + Math.cos(a) * r, H - 0.3 + ch * Math.sin(w) - 0.28 * cr * Math.pow(1 - v, 5) - (v === 0 ? 0.05 : 0), lz + Math.sin(a) * r, u, v, 1, v, 0, 0];
+  }, true);
+  g.surf(40, 4, (u, v) => {
+    const a = u * TAU, r = sr * 0.9 + (cr * 0.985 * rim(a) - sr * 0.9) * v;
+    return [lx + Math.cos(a) * r, H - 0.3 + 0.12 * ch * (1 - v * v) - 0.28 * cr * v * v * v - 0.05 * v, lz + Math.sin(a) * r, u, v, 2, v, 0, 0];
+  }, true);
+  return { g: g.build(), lx, lz, cr, ch, top: H - 0.3 };
+}
+
+// small tree creature, sitting, facing +z. attr.y: 0 body, 1 head, 2 limbs, 3 eyes, 4 tail (attr.z = along), 5 ears
+export function lemur() {
+  const g = new Geo(), blob = blobOf(g);
+  blob(0, 0.23, -0.02, 0.12, 0.2, 0.135, [0, 0, 0, 0], 14, 10);
+  blob(0, 0.12, -0.04, 0.155, 0.12, 0.165, [0, 0, 0, 0], 14, 8);
+  blob(0, 0.47, 0.03, 0.105, 0.092, 0.1, [0, 1, 0, 0], 14, 10);
+  blob(0, 0.445, 0.115, 0.045, 0.036, 0.05, [0, 1, 1, 0], 10, 6);
+  for (const s of [-1, 1]) {
+    blob(s * 0.105, 0.565, 0.0, 0.058, 0.075, 0.016, [0, 5, 0, 0], 10, 6);
+    blob(s * 0.047, 0.492, 0.108, 0.031, 0.031, 0.02, [0, 3, 0, 0], 10, 6);
+    blob(s * 0.105, 0.05, 0.08, 0.042, 0.04, 0.085, [0, 2, 0, 0], 8, 6);
+    blob(s * 0.1, 0.2, 0.1, 0.03, 0.1, 0.036, [0, 2, 0, 0], 8, 6);
+  }
+  g.tube(8, 18, (t) => [0.03 * Math.sin(t * 6), 0.07 + 0.66 * t, -0.15 - 0.2 * Math.sin(3.1 * t) + 0.24 * t * t * t], (t) => 0.034 * (1 - 0.25 * t) * Math.min(1, (1 - t) * 9 + 0.25), (t) => [0, 4, t, 0]);
+  return g.build();
+}
+
+// hovering bird along +z. attr.y: 0 body, 1 beak, 2 tail; attr.z = along
+export function bird() {
+  const g = new Geo();
+  g.tube(10, 12, (t) => [0, 0.012 * Math.sin(t * 3), t * 0.2 - 0.1], (t) => 0.034 * Math.pow(Math.sin(Math.PI * Math.pow(Math.min(t * 0.96 + 0.02, 1), 0.8)), 0.7) + 0.002, (t) => [0, 0, t, 0]);
+  g.tube(5, 3, (t) => [0, 0.004 - 0.006 * t, 0.095 + t * 0.1], (t) => 0.005 * (1 - 0.8 * t) + 0.0012, (t) => [0, 1, t, 0]);
+  g.surf(7, 4, (u, v) => { const x = u * 2 - 1; return [x * (0.012 + 0.045 * v), 0.004 - 0.02 * v, -0.09 - v * 0.11 * (1 - 0.3 * x * x), x, v, 0, 2, v, 0]; });
+  return g.build();
+}
+
+// luminous snail facing +z. attr.x: 0 body, 1 shell (attr.yz = position on the shell side), 2 eye stalks
+export function snail() {
+  const g = new Geo(), blob = blobOf(g);
+  blob(0, 0.02, 0, 0.034, 0.022, 0.115, [0, 0, 0, 0], 10, 8);
+  blob(0, 0.04, 0.085, 0.026, 0.03, 0.036, [0, 1, 0, 0], 10, 6);
+  g.surf(16, 10, (u, v) => {
+    const p = u * TAU, b = v * Math.PI, y = -Math.cos(b) * 0.07, z = Math.sin(p) * Math.sin(b) * 0.076;
+    return [Math.cos(p) * Math.sin(b) * 0.046, 0.088 + y, -0.025 + z, u, v, 1, y / 0.076, z / 0.076, 0];
+  }, true);
+  for (const s of [-1, 1]) {
+    g.tube(5, 5, (t) => [s * (0.013 + 0.02 * t), 0.058 + 0.075 * t, 0.105 + 0.035 * t], () => 0.0045, (t) => [2, t, 0, 0]);
+    blob(s * 0.033, 0.136, 0.14, 0.009, 0.009, 0.009, [2, 1, 0, 0], 7, 5);
+  }
+  return g.build();
+}
+
+// hanging vine bridge along +x from (0, yA) to (L, yB), deck 1.3 m wide. attr.x: 0 planks, 1 vines, 2 glowing pods, 3 posts
+export const deckY = (s, yA, yB) => yA + (yB - yA) * s - 1.8 * s * (1 - s);
+export function bridge(L, yA, yB) {
+  const g = new Geo(), R = makeRng(515), blob = blobOf(g), N = 24;
+  for (let k = 0; k < N; k++) {
+    const s = (k + 0.5) / N, x = s * L, y = deckY(s, yA, yB), sl = (deckY(s + 0.01, yA, yB) - deckY(s - 0.01, yA, yB)) / (0.02 * L);
+    const hx = L / N * 0.42, hz = 0.6 + R() * 0.08, sk = (R() - 0.5) * 0.12, tl = (R() - 0.5) * 0.05, rr = R();
+    g.surf(5, 2, (u, v) => {
+      const c = Math.round(u * 4) % 4, dx = (c === 0 || c === 3 ? -1 : 1) * hx, dy = c < 2 ? 0.025 : -0.025, z = (v * 2 - 1) * hz;
+      return [x + dx + sk * z, y + dy + sl * dx + tl * z, z, u * 2 + rr * 7, v * 3 + rr * 3, 0, rr, 0, 0];
+    }, true);
+  }
+  for (const sd of [-1, 1]) {
+    const hand = (s) => [s * L, deckY(s, yA, yB) + 1.05 - 0.9 * s * (1 - s) + 0.5 * Math.pow(Math.abs(s * 2 - 1), 6), sd * (0.7 + 0.12 * Math.pow(Math.abs(s * 2 - 1), 3))];
+    const low = (s) => [s * L, deckY(s, yA, yB) - 0.04, sd * 0.56];
+    g.tube(6, 26, hand, (s) => 0.032 * (1 + 0.25 * Math.sin(s * 40)), (s) => [1, s, s * L, 0.3 + 0.2 * sd]);
+    g.tube(5, 20, low, () => 0.03, (s) => [1, s, s * L, 0.7]);
+    for (let k = 1; k < 12; k++) {
+      const s = k / 12, a = hand(s), b = low(s), rr = R();
+      g.tube(4, 4, (t) => [a[0] + (b[0] - a[0]) * t + 0.05 * Math.sin(t * 3.1) * (rr - 0.5), a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t], () => 0.014, (t) => [1, t, t + rr * 9, rr]);
+      if (k % 2) blob(a[0], a[1] - 0.12, a[2], 0.045, 0.075, 0.045, [2, rr, 0, 0], 8, 6);
+    }
+    for (const e of [0, 1]) {
+      const px = e ? L + 0.25 : -0.25, py = e ? yB : yA, ph = R() * 6;
+      g.tube(8, 8, (t) => [px + 0.06 * Math.sin(t * 4 + ph), py - 0.5 + 2.1 * t, sd * 0.82 + 0.05 * Math.cos(t * 3 + ph)], (t, th) => (0.1 - 0.035 * t + 0.07 * Math.exp(-t * 8)) * (1 + 0.12 * Math.sin(th * 4 + t * 9)), (t) => [3, t, 0, 0], [0.6, 2]);
+      if (sd < 0 || !e) blob(px, py + 1.7, sd * 0.82, 0.065, 0.09, 0.065, [2, 0.5, 1, 0], 10, 7);
+    }
+  }
+  return g.build();
 }
