@@ -15,6 +15,26 @@ const FL = 96.0;
 const HB = vec3f(0.0, -12.0, -178.0);   // neck base
 const HL = 112.0;
 
+const MOON = vec3f(-0.0976, 0.3584, -0.9285);
+// the second moon: colossal, pale, ringed, very close. rgb = light to add, a = how much of the sky behind it is hidden
+fn moon(d: vec3f, ns: f32) -> vec4f {
+  if (dot(d, MOON) < 0.8) { return vec4f(0.0); }
+  let rt = normalize(vec3f(-MOON.z, 0.0, MOON.x));
+  let q = vec2f(dot(d, rt), dot(d, cross(rt, MOON))) / 0.16;
+  let r = length(q);
+  let n = vec3f(q, sqrt(max(1.0 - r * r, 0.0)));
+  let lit = smoothstep(-0.25, 0.6, dot(n, vec3f(-0.55, -0.78, 0.3)));
+  let disc = smoothstep(1.0, 0.985, r);
+  let surf = mix(vec3f(0.62, 0.5, 0.8), vec3f(1.2, 1.02, 0.95), smoothstep(0.36, 0.62, ns)) * (0.7 + 0.3 * n.z);
+  var c = (surf * (0.05 + lit) + vec3f(0.03, 0.06, 0.1) * (1.0 - lit)) * disc;
+  var a = disc * (0.16 + 0.8 * lit);
+  let qr = rot2(0.4) * q;
+  let e = length(vec2f(qr.x, qr.y / 0.2));
+  let band = smoothstep(1.4, 1.5, e) * smoothstep(2.0, 1.85, e) * (0.6 + 0.4 * sin(e * 38.0)) * (1.0 - disc * step(0.0, qr.y));
+  c += vec3f(1.0, 0.72, 0.8) * band * 0.55 + vec3f(0.5, 0.4, 0.6) * exp(-max(r - 1.0, 0.0) * 4.0) * 0.1 * (1.0 - disc);
+  a = max(a, band * 0.35);
+  return vec4f(c, a);
+}
 fn haze(d: vec3f) -> vec3f {
   let sh = clamp(dot(normalize(d.xz + vec2f(1e-5, 0.0)), SUNH) * 0.5 + 0.5, 0.0, 1.0);
   return mix(vec3f(0.15, 0.14, 0.29), vec3f(0.95, 0.36, 0.13), pow(sh, 2.6)) + vec3f(0.2, 0.055, 0.09) * sh;

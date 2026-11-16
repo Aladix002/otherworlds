@@ -17,6 +17,16 @@ facing −Z (the sunset and the turtle's head); the door to `astral-ocean` stand
 - Around: seabirds circling the cone / front beach / head, dolphins leaping ahead-left of the spawn (in the sun
   glitter), a whale spouting on the horizon ahead-right.
 
+## Surreal pass (dream version of the island)
+- **Second moon** (`moon()` in common.wgsl, `MOON` dir): colossal pale ringed moon above the head, drawn sharp in `fsSky`
+  and baked into the dome (so water and wet sand reflect it); also in the postcard.
+- **Sky turtles** (`SKY` in world.js, `GEO.skyTurtle`, mats 16/17): five smaller turtle-islands with their own little
+  volcano paddle through the sky on wide slow orbits; scute seams glow softly.
+- **Lantern jellyfish** (fx type 7): rise out of the sea all around (most ahead of the spawn), tiny ones from the pools.
+- **Lava cools into pastel glass** (`gl` in `lavaCol`): aqua / lilac / rose plates further down the flows and in the lake.
+- **Glowing palm fruit** (mat 18), **giant humming shells** (`SHELLS`, mat 19: rings of light travel up the spiral, glowing
+  throat, a spatial drone each, blob collision), **loose basalt columns** hovering above the organ (vsObj, tint > 0.9).
+
 ## Files
 - `terrain.js` — analytic height `raw()` → 449² grid (walk height = bilinear, mesh = same grid), flattened spots, guided
   lava paths, baked mask texture (rgba16f 1024² over ±200 m: lava edge distance, metres along the flow / −1 = hot spring,
@@ -47,6 +57,6 @@ palms replace most broadleaf trees; hut/hammock moved into the door sightline; b
 ## Known issues
 - No planar reflection: the water mirrors the baked sky only (plus a soft dark smear for the head); the island, flippers
   and lava are not reflected (lava adds an under-water glow instead).
-- Clouds are baked and static. Columns, hut and shrine lantern collide as simple blobs; palms and trees do not collide.
+- Clouds are baked and static; the second moon sits in front of them. Sky turtles are not reflected in the water. Columns, hut and shrine lantern collide as simple blobs; palms and trees do not collide.
 - Flippers are cut hard at the waterline (foam churn hides most of it). Turtle parts have no shadows (sun has set).
 - Crabs and hatchlings are simple meshes; fine at walking distance, toy-like in extreme close-up.

@@ -85,7 +85,7 @@ export function palm(seed) {
     const f = frond(R.range(2.7, 3.5), 0.55, 7, R.range(-0.25, 1.05), R.range(1.5, 2.1));
     parts.push(yaw(mt(f, 1), i * 2.4 + R.range(-0.3, 0.3), lean, h - 0.05, 0));
   }
-  for (let i = 0; i < 3; i++) parts.push(translate(mt(ell(0.15, 0.17, 0.15), 0, 0.5), lean + Math.cos(i * 2.1) * 0.2, h - 0.3, Math.sin(i * 2.1) * 0.2));
+  for (let i = 0; i < 4; i++) parts.push(translate(mt(ell(0.19, 0.23, 0.19), 18, i / 4), lean + Math.cos(i * 1.7) * 0.27, h - 0.42 - 0.1 * (i & 1), Math.sin(i * 1.7) * 0.27));   // glowing fruit
   return merge(parts);
 }
 export function fern(seed) {
@@ -101,7 +101,7 @@ export function tree(seed) {
   }
   return merge(parts);
 }
-export const column = () => mt(lathe([[1, 0], [1, 1], [0.86, 1.012], [0.001, 1.02]], 6), 3);
+export const column = () => mt(lathe([[0.001, 0], [1, 0], [1, 1], [0.86, 1.012], [0.001, 1.02]], 6), 3);
 export const boulder = (seed, sub = 2) => mt(rock(seed, sub, 0.42), 4);
 
 export function bird() {                                    // faces -z, wings along x, uv.x = signed span (0 on the body)
@@ -192,4 +192,36 @@ export function props(g, HUT, SHRINE, HAM, NEST) {
     for (let i = 0; i < 9; i++) { const a = i * 0.7, r = 0.75 + (i % 3) * 0.07; P.push(translate(mt(ell(0.3, 0.12, 0.26), 4, 1), x + Math.cos(a) * r, g(x + Math.cos(a) * r, z + Math.sin(a) * r) + 0.02, z + Math.sin(a) * r)); }
     for (let i = 0; i < 5; i++) P.push(translate(mt(ell(0.045, 0.04, 0.045), 8, 0), x + Math.cos(i * 2.2) * 0.3, g(x, z) + 0.05, z + Math.sin(i * 2.2) * 0.3)); }
   return merge(P);
+}
+
+// a turtle-island swimming through the sky: unit half-length, faces -z. mat 16: uv.x = 0 shell, 0.05 head, +-0.1..1 flipper span;
+// mat 17 (the little volcano island on its back): uv.x = height 0..1
+export function skyTurtle() {
+  const sh = sphere(1, 2), P = [];
+  for (let i = 0; i < sh.pos.length; i += 3) { const y = sh.pos[i + 1]; sh.pos[i] *= 0.8; sh.pos[i + 1] = y > 0 ? y * 0.4 : y * 0.17; }
+  P.push(mt(computeNormals(sh), 16, 0));
+  P.push(mt(translate(ell(0.23, 0.18, 0.33, 1), 0, 0.03, -1.27), 16, 0.05), mt(translate(ell(0.15, 0.13, 0.3, 1), 0, 0, -0.97), 16, 0.05));
+  for (const sd of [-1, 1]) for (const [L, w, x, z, a] of [[0.78, 0.27, 0.6, -0.55, 0.55], [0.38, 0.18, 0.55, 0.72, 1.0]]) {
+    const f = ell(L, 0.035, w, 1);
+    for (let i = 0; i < f.pos.length / 3; i++) { f.pos[i * 3] += L * 0.9; f.uv[i * 2] = sd * (0.1 + 0.9 * Math.min(1, Math.max(0, f.pos[i * 3] / (1.9 * L)))); f.pos[i * 3 + 2] += 0.5 * w * Math.pow(f.pos[i * 3] / L, 2); }
+    computeNormals(f); yaw(f, -a);
+    if (sd < 0) { for (let i = 0; i < f.pos.length; i += 3) { f.pos[i] *= -1; f.nrm[i] *= -1; } for (let i = 0; i < f.idx.length; i += 3) { const t = f.idx[i]; f.idx[i] = f.idx[i + 1]; f.idx[i + 1] = t; } }
+    P.push(translate(mt(f, 16), sd * x, -0.02, z));
+  }
+  const isl = [translate(lathe([[0.6, 0], [0.5, 0.1], [0.27, 0.3], [0.12, 0.6], [0.075, 0.68], [0.04, 0.62]], 14), 0, 0.27, 0.05)];
+  for (let i = 0; i < 7; i++) { const a = i * 2.4, r = 0.3 + 0.05 * (i % 3), s = 0.1 + 0.02 * (i % 3); isl.push(translate(scale(rock(40 + i, 1, 0.3), s, s * 0.7, s), Math.cos(a) * r, 0.42 - 0.1 * (i % 3) * 0.5, 0.05 + Math.sin(a) * r * 1.2)); }
+  const g = merge(isl);
+  for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = Math.min(1, Math.max(0, (g.pos[i / 2 * 3 + 1] - 0.27) / 0.68)); g.uv[i + 1] = 17.5; }
+  P.push(g);
+  return merge(P);
+}
+// giant spiral sea shell lying on the sand, ~1.6 units across: uv.x = along the spiral (0 = lip, 1 = apex)
+export function shell() {
+  const g = loft(110, 28, (s, a) => {
+    const th = s * TAU * 2.9, gr = Math.exp(-th * 0.165), r = 0.47 * gr * (1 + 0.12 * Math.exp(-s * 45)) * (1 + 0.05 * Math.sin(th * 9) * Math.max(Math.sin(a), 0) + 0.035 * Math.cos(a * 7)), R = 0.5 * gr + Math.cos(a) * r;
+    return [Math.cos(th) * R, 1.35 * (1 - gr) + Math.sin(a) * r * 1.15, Math.sin(th) * R];
+  });
+  rot(g, 0, 1.25); yaw(g, 0.5);
+  let lo = 9; for (let i = 1; i < g.pos.length; i += 3) lo = Math.min(lo, g.pos[i]);
+  return translate(mt(g, 19), 0, -lo - 0.1, 0);
 }

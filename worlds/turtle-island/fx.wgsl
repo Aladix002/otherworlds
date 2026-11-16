@@ -7,7 +7,7 @@ struct PV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let age = fract(t / b.z + sd);
   let h3 = hash33(vec3f(sd * 91.7, floor(t / b.z + sd), a.w)) - 0.5;
   let wind = vec3f(0.22, 0.0, 1.0);                       // apparent wind: the island swims toward -z
-  var p = a.xyz; var size = b.y; var col = vec4f(0.0); var add = 0.0; var asp = vec2f(1.0);
+  var p = a.xyz; var size = b.y; var col = vec4f(0.0); var add = 0.0; var asp = vec2f(1.0); var jl = 0.0;
   let pink = vec3f(0.6, 0.47, 0.52);
   if (ty == 0) {                                          // steam
     p += vec3f(h3.x, 0.0, h3.z) * b.y + vec3f(0.0, 1.0, 0.0) * age * b.z * 0.8 + wind * age * age * b.z * 0.9 + vec3f(sin(t * 0.3 + sd * 30.0), 0.0, cos(t * 0.23 + sd * 17.0)) * age * 1.2;
@@ -37,6 +37,14 @@ struct PV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
     p += vec3f(h3.x, 0.0, h3.z) * 1.2 + vec3f(sin(t * 0.9 + sd * 20.0) * 0.3, age * b.z * 0.55, 0.0) + wind * age * age * b.z * 0.4;
     col = vec4f(vec3f(6.0, 1.6, 0.25) * (1.0 - age) * smoothstep(0.0, 0.1, age), 1.0); add = 1.0;
     size = b.y * (1.0 + 0.01 * distance(p, G.camPos));
+  } else if (ty == 7) {                                   // lantern jellyfish rising out of the sea into the sky
+    let up = age * b.z * b.w;
+    p += vec3f(h3.x * 5.0 + sin(t * 0.11 + sd * 40.0) * (1.0 + up * 0.03), up, h3.z * 5.0 + cos(t * 0.09 + sd * 23.0) * (1.0 + up * 0.03) + up * 0.4) * min(b.y, 1.0);
+    let pu = 0.1 * sin(t * 1.1 + sd * 50.0);
+    asp = vec2f(1.0 - pu, 1.0 + pu);
+    let hu = fract(sd * 7.7);
+    col = vec4f(mix(mix(vec3f(0.5, 2.0, 1.9), vec3f(2.3, 0.8, 1.7), smoothstep(0.3, 0.5, hu)), vec3f(2.4, 1.7, 0.6), smoothstep(0.75, 0.85, hu)), smoothstep(0.0, 0.05, age) * smoothstep(1.0, 0.7, age));
+    add = 1.0; jl = 1.0;
   } else {                                                // water streaming off a rising flipper
     let fs = 0.2 + 0.75 * fract(sd * 7.13);
     let o = flipW(vec3f(fs, -0.02, 0.1 * fs + 0.32 * fs * fs * fs + 0.1 * (fract(sd * 3.7) - 0.3)), a.x, 0.0);
@@ -50,13 +58,24 @@ struct PV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let v = p - G.camPos; let d = length(v);
   let f = 1.0 - exp(-d * G.fogDensity);
   col = vec4f(mix(col.rgb, haze(v / d), max(f, 0.45) * (1.0 - add)), col.a * smoothstep(0.6, 3.0 + size, d) * mix(1.0, 1.0 - f, add));
-  var o: PV; o.c = c; o.col = col; o.k = vec3f(add, sd * 13.0, age);
+  var o: PV; o.c = c; o.col = col; o.k = vec3f(add + jl, sd * 13.0, age);
   o.pos = G.viewProj * vec4f(billboard(p, c, size * asp), 1.0);
   return o;
 }
 @fragment fn fs(in: PV) -> @location(0) vec4f {
   let r2 = dot(in.c, in.c);
   let n = textureSample(detT, sR, in.c * 0.21 + vec2f(in.k.y, in.k.y * 1.7) + vec2f(0.0, in.k.z * 0.15));
+  if (in.k.x > 1.5) {
+    let c = in.c; let t = G.time + in.k.y * 5.0;
+    let bd = length(vec2f(c.x / 0.7, (c.y - 0.2) / 0.72));
+    let bell = smoothstep(1.0, 0.9, bd) * smoothstep(0.1, 0.22, c.y + 0.07 * cos(c.x * 18.0));          // dome with a scalloped hem
+    let xw = c.x + 0.05 * sin(c.y * 7.0 + t * 0.8);
+    let sdist = abs(fract(xw / 0.28 + 0.5) - 0.5) * 0.28;
+    let ten = exp(-sdist * sdist / 0.0016) * step(abs(xw), 0.56) * smoothstep(-1.0, -0.3, c.y) * step(c.y, 0.2) * 0.55;
+    let cq = c - vec2f(0.0, 0.42);
+    let s = bell * (0.22 + 0.8 * smoothstep(0.5, 1.0, bd)) + exp(-dot(cq, cq) * 16.0) * 1.3 + ten + exp(-r2 * 2.5) * 0.14 * (1.0 - r2 * 0.5);
+    return vec4f(in.col.rgb * max(s, 0.0) * in.col.a, 0.0);
+  }
   if (in.k.x > 0.5) {
     let s = exp(-r2 * 22.0) + 0.12 * exp(-r2 * 3.5) * (1.0 - r2);
     return vec4f(in.col.rgb * max(s, 0.0) * in.col.a, 0.0);

@@ -28,5 +28,7 @@ fn bkCloud(p: vec2f) -> f32 { return fbm2(p + 0.35 * vec2f(fbm2(p * 0.7 + 3.1, 3
   let disc = smoothstep(0.052, 0.03, ang);
   let sc = mix(vec3f(5.0, 0.9, 0.12), vec3f(9.0, 3.6, 0.8), smoothstep(-0.01, 0.08, y)) * (0.6 + 0.4 * smoothstep(0.052, 0.0, ang));
   col = mix(col, sc, disc * (1.0 - cov * 0.6)) + vec3f(1.6, 0.5, 0.12) * exp(-ang * 9.0) * 0.5;
+  let mn = moon(d, 0.5 + 0.5 * fbm2(d.xy * 11.0, 3));
+  col = col * (1.0 - mn.a) + mn.rgb;
   return vec4f(col, 1.0);
 }

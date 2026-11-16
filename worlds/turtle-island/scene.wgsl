@@ -12,6 +12,8 @@ struct SV { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
   let dd = length(g - cell - 0.25 - 0.5 * h);
   let b = pow(fract(h.x * 7.31 + h.y), 12.0) * smoothstep(0.38, 0.75, d.y) * smoothstep(0.75, 0.2, dot(d, SUNV) * 0.5 + 0.5);
   c += vec3f(1.0, 0.92, 0.82) * exp(-dd * dd * 900.0) * b * 5.0 * (0.8 + 0.2 * sin(G.time * (0.6 + h.x) + h.y * 40.0));
+  let mn = moon(d, 0.6 * textureSampleLevel(detT, sR, d.xy * 2.3, 0.0).b + 0.4 * textureSampleLevel(detT, sR, d.xy * 7.0 + 0.3, 0.0).b);
+  c = c * (1.0 - mn.a) + mn.rgb;
   return vec4f(c, 1.0);
 }
 
@@ -35,7 +37,10 @@ fn lavaCol(ld: f32, al: f32, w: vec2f) -> vec4f {            // emissive of the 
   let plate = smoothstep(0.42, 0.66, cr.b * 0.8 + cr2.a * 0.35 + (1.0 - heat) * 0.5);
   let crack = smoothstep(0.72, 0.97, 1.0 - abs(cr.b - cr2.b) * 4.0);          // glowing seams between crust plates
   let T = clamp(heat * (1.0 - plate) + crack * mix(0.45, 0.62, lake), 0.0, 1.0) * (0.85 + 0.15 * sin(G.time * 0.7 + al * 0.4 + cr.a * 6.0));
-  let c = mix(vec3f(0.09, 0.012, 0.004) * (0.5 + cr2.b), vec3f(5.5, 0.9, 0.07), smoothstep(0.05, 0.5, T));
+  // further from the crater the crust cools into glowing pastel glass
+  let gl = mix(0.9 * smoothstep(10.0, 70.0, al), 0.3, lake);
+  let pal = mix(mix(vec3f(0.22, 0.62, 0.62), vec3f(0.5, 0.38, 0.82), smoothstep(0.38, 0.62, cr2.b + 0.12 * sin(al * 0.05 + w.x * 0.02))), vec3f(0.95, 0.5, 0.62), smoothstep(0.55, 0.85, cr.a));
+  let c = mix(mix(vec3f(0.09, 0.012, 0.004) * (0.5 + cr2.b), pal * (0.03 + 0.34 * cr.b * cr.b), gl), mix(vec3f(5.5, 0.9, 0.07), vec3f(4.6, 0.9, 1.0), gl * 0.6), smoothstep(0.05, 0.5, T));
   let e = smoothstep(mix(0.12, 0.7, lake), mix(-0.05, -0.9, lake), ld + (cr.b - 0.5) * lake);
   return vec4f(mix(c, vec3f(15.0, 7.5, 2.0), smoothstep(0.5, 1.0, T)) * mix(1.0, e, lake), e);
 }
@@ -261,7 +266,7 @@ struct OV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
 @vertex fn vsObj(@location(0) p0: vec3f, @location(1) n0: vec3f, @location(2) uv: vec2f, @location(3) a: vec4f, @location(4) b: vec4f) -> OV {
   let mat = floor(uv.y); let al = fract(uv.y) / 0.9;
   var p = p0; var n = n0;
-  let creature = mat > 8.5 && mat < 13.5;
+  let creature = (mat > 8.5 && mat < 13.5) || mat == 16.0 || mat == 17.0;
   let ph = b.w;
   if (mat == 9.0) {                       // wings: slow flap + glide dihedral
     let s = abs(uv.x);
@@ -271,16 +276,23 @@ struct OV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
     let s = sign(uv.x) * step(0.9, abs(uv.x));
     p.z += s * sign(p.x) * 0.02 * sin(ph); p.y += abs(s) * 0.008 * max(cos(ph + s), 0.0);
   } else if (mat == 13.0) { p.y += 0.1 * sin(ph + p.z * 0.9) * p.z * step(p.z, 2.0) * step(0.2, abs(p.z)) * 0.4; }
+  else if (mat == 16.0) { let s = abs(uv.x); p.y += s * sin(ph - s * 1.4) * 0.3 * step(0.08, s); }
   var R = rotY(b.x);
   var s3 = vec3f(a.w);
   if (creature) { R = R * rotX(b.z); } else { s3.y *= b.z; }
-  var w = a.xyz + R * (p * s3);
+  var lo = vec3f(0.0); var tz = b.w;
+  if (mat == 3.0 && b.y > 0.9) {          // some basalt columns have come loose and hover above the organ
+    let k = fract(b.y * 37.0);
+    lo.y = b.w - 1.3 + 1.2 + 5.0 * k * k + 0.35 * sin(G.time * 0.33 + k * 40.0);
+    s3.y = 1.3; tz = 3.5;
+  }
+  var w = a.xyz + lo + R * (p * s3);
   if (mat == 1.0) {                       // fronds sway in the breeze
     let k = al * al * a.w;
     w += vec3f(0.07, -0.02, 0.11) * k * (sin(G.time * 0.8 + a.x * 0.7 + al * 2.0) + 0.5 * sin(G.time * 1.9 + a.z + al * 5.0));
   } else if (mat == 8.0) { w += vec3f(0.1, 0.0, 0.05) * uv.x * sin(G.time * 0.7) ; w.y += 0.03 * uv.x * sin(G.time * 1.3); }
-  var o: OV; o.w = w; o.n = R * normalize(n / s3); o.uv = uv; o.l = p * s3;
-  o.ti = vec3f(b.y, exp(-max(msk(a.xz).r, 0.0) * 0.45), b.w);
+  var o: OV; o.w = w; o.n = R * normalize(n / s3); o.uv = uv; o.l = p * s3 + vec3f(0.0, f32(tz == 3.5) * 2.2, 0.0);
+  o.ti = vec3f(b.y, exp(-max(msk(a.xz).r, 0.0) * 0.45), tz);
   o.pos = G.viewProj * vec4f(w, 1.0); return o;
 }
 @fragment fn fsObj(in: OV, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
@@ -314,7 +326,8 @@ struct OV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
     n = normalize(n + vec3f(side.r - 0.5, (tp.g - 0.5) * 0.5, side.g - 0.5) * select(1.1, 0.35, mat == 3));
     alb = mix(alb, vec3f(0.045, 0.075, 0.03), top * smoothstep(0.5, 0.75, tp.a) * 0.6 * f32(mat == 3));
     ao = mix(0.55, 1.0, smoothstep(0.0, 1.2, in.l.y)); spec = 0.25;
-    if (mat == 3) { ao = 0.3 + 0.7 * smoothstep(in.ti.z - 2.2, in.ti.z, in.l.y); alb *= 0.8 + 0.25 * sin(in.l.y * 2.3 + tint * 20.0); }
+    if (mat == 3) { ao = 0.3 + 0.7 * smoothstep(in.ti.z - 2.2, in.ti.z, in.l.y); alb *= 0.8 + 0.25 * sin(in.l.y * 2.3 + tint * 20.0);
+      emis = vec3f(0.1, 0.42, 0.42) * smoothstep(-0.3, -0.9, n.y) * f32(in.ti.z == 3.5) * (0.6 + 0.3 * sin(G.time * 0.5 + tint * 60.0)); }
   } else if (mat == 0) {
     alb = mix(vec3f(0.05, 0.036, 0.026), vec3f(0.14, 0.105, 0.07), tp.b * 0.6 + u * 0.4) * (0.8 + 0.4 * tp.a);
   } else if (mat == 5) {
@@ -340,6 +353,26 @@ struct OV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
     alb = mix(vec3f(0.3, 0.3, 0.3), vec3f(0.035, 0.05, 0.07), smoothstep(-0.5, 0.3, n.y)); spec = 1.0;
   } else if (mat == 14) {
     alb = vec3f(0.42, 0.045, 0.025) * (0.7 + 0.5 * tp.b);
+  } else if (mat == 16) {                  // a turtle-island in the sky: shell with softly glowing seams, pale belly
+    let hx = hexd(in.l.xz / 14.0);
+    let skin = step(0.02, abs(u));
+    alb = mix(mix(vec3f(0.4, 0.31, 0.36), mix(vec3f(0.05, 0.045, 0.08), vec3f(0.17, 0.11, 0.1), hx.w), smoothstep(-0.1, 0.25, n.y)) * (0.6 + 0.6 * smoothstep(0.0, 0.3, hx.z)),
+              vec3f(0.1, 0.13, 0.12) * (0.6 + 0.8 * tp.b), skin);
+    emis = vec3f(0.2, 0.75, 0.72) * smoothstep(0.075, 0.015, hx.z) * (1.0 - skin) * (0.3 + 0.2 * sin(G.time * 0.5 + hx.w * 20.0));
+    spec = 0.3; wrap = 0.3;
+  } else if (mat == 17) {                  // ... and the little volcano it carries
+    alb = mix(vec3f(0.03, 0.08, 0.03), vec3f(0.05, 0.04, 0.045), smoothstep(0.3, 0.55, u + (tp.b - 0.5) * 0.3));
+    emis = vec3f(5.0, 1.2, 0.2) * smoothstep(0.84, 0.96, u) + vec3f(3.0, 0.6, 0.9) * smoothstep(0.93, 1.0, sin(atan2(in.l.x, in.l.z) * 3.0 + u * 5.0)) * smoothstep(0.3, 0.5, u) * 0.6;
+    wrap = 0.3;
+  } else if (mat == 18) {                  // palm fruit: slow-breathing lanterns
+    emis = mix(vec3f(0.1, 0.85, 0.75), vec3f(1.0, 0.22, 0.6), smoothstep(0.35, 0.65, tint)) * (1.05 + 0.4 * sin(G.time * 0.6 + tint * 40.0 + u * 6.0)) * (0.5 + 0.5 * max(dot(n, V), 0.0));
+  } else if (mat == 19) {                  // giant shell: mother-of-pearl, rings of light travelling up the spiral, a glowing throat
+    let iri = 0.5 + 0.5 * cos(TAU * (u * 2.0 + (1.0 - abs(dot(n, V))) * 0.9 + vec3f(0.0, 0.33, 0.67)));
+    alb = mix(mix(vec3f(0.42, 0.33, 0.3), vec3f(0.6, 0.48, 0.5), 0.5 + 0.5 * sin(u * 170.0 + sin(al * TAU) * 1.5)) * (0.7 + 0.3 * tp.b) * (0.72 + 0.28 * sin(al * TAU * 6.0 + u * 20.0)), iri * 0.55, 0.16);
+    let hum = 0.5 + 0.5 * sin(G.time * 0.8 - u * 44.0 + tint * 6.0);
+    emis = mix(vec3f(0.2, 0.9, 0.85), vec3f(1.0, 0.45, 0.75), u) * pow(hum, 8.0) * 0.4;
+    if (dot(n, V) < 0.0) { n = -n; alb = vec3f(0.6, 0.4, 0.42); emis = mix(vec3f(1.5, 0.6, 0.85), vec3f(0.45, 1.4, 1.3), tint) * (0.8 + 0.4 * sin(G.time * 0.8 + tint * 6.0)) * (0.3 + 0.7 * smoothstep(0.0, 0.12, u)); }
+    spec = 0.22; ao = 0.5 + 0.5 * smoothstep(0.0, 1.0, in.l.y);
   }
   var col = alb * (G.sunColor * wrapDiffuse(n, G.sunDir, 0.4 + wrap) * mix(0.5, 1.0, ao) + (hemi(n, G.ambientSky, G.ambientGround) + vec3f(0.1, 0.07, 0.16) * (0.5 - 0.5 * dot(n.xz, SUNH))) * ao);
   col += alb * (vec3f(4.0, 0.9, 0.12) * in.ti.y * (0.8 + 0.5 * max(-n.y, 0.0)) + lamps(w, n));

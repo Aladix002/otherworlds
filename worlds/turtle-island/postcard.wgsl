@@ -13,6 +13,8 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
   c = mix(c, mix(vec3f(0.13, 0.1, 0.22), vec3f(1.5, 0.6, 0.42), 0.25 + 0.6 * pow(sh, 2.0)), smoothstep(0.0, 0.5, n + 0.1 - y * 0.35) * smoothstep(0.012, 0.09, y) * 0.8);
   let ang = acos(clamp(sd, -1.0, 1.0));
   c = mix(c, vec3f(8.0, 2.6, 0.5), smoothstep(0.052, 0.03, ang)) + vec3f(0.8, 0.25, 0.06) * exp(-ang * 9.0);
+  let mq = rd - vec3f(-0.0976, 0.3584, -0.9285); let mr = length(mq) / 0.16;      // the huge pale second moon
+  c = mix(c, vec3f(1.15, 1.0, 0.95) * smoothstep(-0.9, 0.5, -mq.x * 3.0 - mq.y * 4.5) + vec3f(0.05, 0.08, 0.12), smoothstep(1.0, 0.96, mr) * 0.8);
   let az = atan2(rd.x, -rd.z);
   // the volcano behind: cone, crater glow, lava threads
   let ab = abs(abs(az) - PI) ;
