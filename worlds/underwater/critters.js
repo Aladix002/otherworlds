@@ -9,14 +9,14 @@ export function turtleGeo(M) {
   const sh = M.sphere(1, 3), P = sh.pos;
   for (let i = 0; i < P.length; i += 3) {
     const z = P[i + 2], y = P[i + 1];
-    P[i] *= 0.46 * (1 - 0.3 * Math.max(-z, 0) ** 2) * (1 - 0.12 * Math.max(z, 0) ** 3); P[i + 1] = y > 0 ? y * 0.25 * (1 + 0.12 * Math.cos(z * 2)) : y * 0.07; P[i + 2] = z * 0.6;
+    P[i] *= 0.46 * (1 - 0.3 * Math.max(-z, 0) ** 2) * (1 - 0.12 * Math.max(z, 0) ** 3); P[i + 1] = y > 0 ? y * 0.25 * (1 + 0.12 * Math.cos(z * 2)) : y * 0.13; P[i + 2] = z * 0.6;
   }
   const fl = (g, id) => { for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = id; g.uv[i + 1] = Math.sign(g.pos[i / 2 * 3]); } return M.translate(g, 0, -0.02, 0); };
   const le = (a) => 0.42 - 0.55 * a ** 1.8, lr = (a) => -0.3 - 0.45 * a;
   return M.merge([part(M.computeNormals(sh), 0), part(ell(M, 0.1, 0.085, 0.14, 0, 0.03, 0.75), 1), part(ell(M, 0.085, 0.07, 0.16, 0, 0.01, 0.6), 1),
-    part(ell(M, 0.022, 0.022, 0.022, 0.085, 0.055, 0.8, 1), 4), part(ell(M, 0.022, 0.022, 0.022, -0.085, 0.055, 0.8, 1), 4),
-    fl(wing(M, 16, 3, 0.98, le, (a) => le(a) - 0.04 - 0.22 * Math.sqrt(a) * (1 - a) ** 0.6, () => 0.02), 2),
-    fl(wing(M, 8, 3, 0.6, lr, (a) => lr(a) - 0.04 - 0.16 * Math.sqrt(a) * (1 - a) ** 0.5, () => 0.018), 3)]);
+    part(ell(M, 0.016, 0.016, 0.016, 0.088, 0.055, 0.8), 4), part(ell(M, 0.016, 0.016, 0.016, -0.088, 0.055, 0.8), 4),
+    fl(wing(M, 16, 3, 0.98, le, (a) => le(a) - 0.04 - 0.22 * Math.sqrt(a) * (1 - a) ** 0.6, () => 0.04), 2),
+    fl(wing(M, 8, 3, 0.6, lr, (a) => lr(a) - 0.04 - 0.16 * Math.sqrt(a) * (1 - a) ** 0.5, () => 0.035), 3)]);
 }
 // flat lifting body (top + bottom skins meeting in a sharp edge): planform from le(a) / te(a), a = |u| along the half-span.
 // uv = (0 top | 3 belly, u)
@@ -39,7 +39,7 @@ function wing(M, NX, NZ, half, le, te, th) {
 export function rayGeo(M, manta) {
   const body = manta
     ? wing(M, 32, 12, 1, (a) => 0.34 - 0.62 * a * a + 0.1 * a ** 3, (a) => -0.42 + 0.34 * a - 0.1 * a * a, (a) => 0.012 + 0.13 * Math.exp(-((a / 0.24) ** 2)) + 0.045 * (1 - a) ** 2)
-    : wing(M, 20, 12, 0.62, (a) => 0.5 - 0.75 * a ** 1.7, (a) => -0.45 + 0.19 * a * a, (a) => 0.008 + 0.06 * (1 - a) ** 1.6);
+    : wing(M, 20, 12, 0.62, (a) => 0.5 - 0.75 * a ** 1.7, (a) => -0.45 + 0.19 * a * a, (a) => 0.022 + 0.1 * (1 - a) ** 1.6);
   const parts = [body, part(M.transform(M.cylinder(0.017, 0.002, manta ? 0.62 : 0.9, 6, 4), mat(-Math.PI / 2, 0, 0, 0, 0, -0.33)), 1)];
   if (manta) for (const s of [-1, 1]) parts.push(part(M.transform(ell(M, 0.03, 0.014, 0.11, 0, 0, 0, 2), mat(0.15, -0.3 * s, 0, s * 0.13, -0.03, 0.38)), 2));
   return M.merge(parts);
@@ -62,9 +62,9 @@ export const dolphinGeo = (M) => cet(M, [[0.001, -0.43], [0.018, -0.4], [0.032, 
 const tri = (p, id) => part({ pos: new Float32Array(p), nrm: new Float32Array(p.map((_, i) => +(i % 3 === 0))), uv: new Float32Array(p.length / 3 * 2), idx: new Uint32Array(p.length === 9 ? [0, 1, 2] : [0, 1, 2, 0, 2, 3]) }, id);
 // lantern fish (a round, friendly angler): parts 0 body, 1 fins + lure stalk, 2 eyes, 3 lure
 export function lanternGeo(M) {
-  const g = [part(ell(M, 0.3, 0.33, 0.42, 0, 0, 0, 3), 0), tri([0, 0, -0.36, 0, 0.22, -0.68, 0, 0, -0.58, 0, -0.22, -0.68], 1),
+  const g = [part(ell(M, 0.3, 0.33, 0.42, 0, 0, 0, 3), 0), tri([0, 0, -0.36, 0, 0.3, -0.76, 0, 0, -0.62, 0, -0.3, -0.76], 1), tri([0, 0.3, -0.02, 0, 0.5, -0.3, 0, 0.24, -0.3], 1), part(ell(M, 0.22, 0.09, 0.22, 0, -0.17, 0.2), 0),
     part(M.tube([[0, 0.3, 0.16], [0, 0.52, 0.3], [0, 0.62, 0.5], [0, 0.57, 0.66]], 0.014, 6), 1), part(ell(M, 0.055, 0.055, 0.055, 0, 0.54, 0.7), 3)];
-  for (const s of [-1, 1]) g.push(part(ell(M, 0.085, 0.085, 0.085, s * 0.2, 0.1, 0.26), 2), part(M.transform(ell(M, 0.015, 0.08, 0.12, 0, 0, 0, 1), mat(0, 0, s * 0.9, s * 0.31, -0.06, -0.02)), 1));
+  for (const s of [-1, 1]) g.push(part(ell(M, 0.05, 0.05, 0.05, s * 0.2, 0.1, 0.27), 2), part(M.transform(ell(M, 0.015, 0.08, 0.12, 0, 0, 0, 1), mat(0, 0, s * 0.9, s * 0.31, -0.06, -0.02)), 1));
   return M.merge(g);
 }
 // octopus sitting on the ground, eyes toward +z: parts 0 mantle + head, 1 arms (uv.y = arm), 2 eyes
@@ -74,7 +74,7 @@ export function octoGeo(M) {
   for (let k = 0; k < 8; k++) {
     const a = (k + 0.5) * 0.7854, p = [];
     for (let j = 0; j <= 8; j++) { const f = j / 8, b = a + 1.5 * f ** 3 * (k % 2 ? 1 : -1), r = 0.08 + 0.78 * f; p.push([r * Math.cos(b), 0.075 - 0.045 * f, r * Math.sin(b)]); }
-    g.push(part(M.tube(p, (t) => 0.05 * (1 - t) ** 1.2 + 0.008, 6), 1, k));
+    g.push(part(M.tube(p, (t) => 0.07 * (1 - t) ** 1.2 + 0.01, 8), 1, k));
   }
   return M.merge(g);
 }
@@ -110,21 +110,21 @@ function put(D, k, x, y, z, s, fx, fy, fz, ph, kind, bank) {
 // 0-1 turtles, 2 sleeping turtle, 3-6 hatchlings, 7 stingray, 8-9 mantas, 10-11 whales, 12-14 dolphins, 15-17 lantern fish,
 // 18 octopus, 19-23 seahorses, 24 eel
 const sst = (a, b, x) => { let t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
-export const NEST = [22, 74], SEAH = [-20, 72], LAN = [2.2, -96.3, -259, -18, -88, -282, 20, -100, -240];
+export const NEST = [12, 57.5], SEAH = [11.6, 62.3], LAN = [2.2, -96.3, -259, -18, -88, -282, 20, -100, -240];
 export function animate(D, t, H, E, W) {
   // turtles: slow loops around the temple (one glides close past the hero view) / over the spawn sand
   for (let i = 0; i < 2; i++) {
-    const w = i ? -0.03 : 0.021, th = t * w + (i ? 2 : 0.769), th2 = th + 0.5 * Math.sign(w);
+    const w = i ? -0.03 : 0.021, th = t * w + (i ? 2 : 2.4), th2 = th + 0.5 * Math.sign(w);
     const cx = i ? 12 : 0, cz = i ? 78 : 46, rx = i ? 14 : 13, rz = i ? 10 : 19.5, cy = i ? -5.8 : -9;
     const x = cx + rx * Math.cos(th), z = cz + rz * Math.sin(th), y = Math.max(cy + 0.8 * Math.sin(t * 0.037 + i * 2), H(x, z) + 1.4);
     const x2 = cx + rx * Math.cos(th2), z2 = cz + rz * Math.sin(th2), y2 = Math.max(cy + 0.8 * Math.sin((t + 20) * 0.037 + i * 2), H(x2, z2) + 1.4);
-    put(D, i, x, y, z, i ? 1 : 1.25, x2 - x, (y2 - y) * 0.5, z2 - z, t * 0.9 + i, 0, (i ? 0.18 : -0.15));
+    put(D, i, x, y, z, i ? 0.75 : 0.9, x2 - x, (y2 - y) * 0.5, z2 - z, t * 0.9 + i, 0, (i ? 0.18 : -0.15));
   }
   // a turtle asleep beside her nest, and hatchlings paddling from it up toward the light, one after another
-  put(D, 2, NEST[0] + 1.3, H(NEST[0] + 1.3, NEST[1] + 0.5) + 0.1, NEST[1] + 0.5, 1.1, 0.75, 0.04, 0.6, 0.25 * Math.sin(t * 0.3), 0, 0);
+  put(D, 2, NEST[0] + 1.3, H(NEST[0] + 1.3, NEST[1] + 0.5) + 0.1, NEST[1] + 0.5, 0.85, 0.75, 0.04, 0.6, 0.25 * Math.sin(t * 0.3), 0, 0);
   for (let i = 0; i < 4; i++) {
     const s = (t * 0.011 + i * 0.25 + 0.1) % 1, x = NEST[0] + 12 * s + 0.6 * Math.sin(s * 20 + i), z = NEST[1] - 32 * s + 0.6 * Math.cos(s * 17 + i);
-    put(D, 3 + i, x, Math.min(H(x, z) + 0.12 + 7 * s ** 1.4, -1.6), z, 0.17 * sst(0, 0.04, s) * sst(1, 0.92, s), 0.35 + 0.3 * Math.cos(s * 20 + i), 0.3 * sst(0.02, 0.2, s), -0.94, t * 5 + i, 0, 0);
+    put(D, 3 + i, x, Math.min(H(x, z) + 0.12 + 7 * s ** 1.4, -1.6), z, 0.24 * sst(0, 0.04, s) * sst(1, 0.92, s), 0.35 + 0.3 * Math.cos(s * 20 + i), 0.3 * sst(0.02, 0.2, s), -0.94, t * 5 + i, 0, 0);
   }
   // stingray: glides a loop low over the sand in front of the temple steps, slows down and settles, then lifts off again
   {
@@ -151,8 +151,8 @@ export function animate(D, t, H, E, W) {
   }
   // dolphins: a small pod rolling along just under the surface, in a wide loop over the temple and the spawn sand
   for (let i = 0; i < 3; i++) {
-    const th = t * 0.07 + 3.3 - i * 0.12, b = t * 0.45 + i * 1.3, c = Math.cos(th), s = Math.sin(th);
-    put(D, 12 + i, -2 + (30 - i * 2.5) * c, -3.3 - i * 0.5 + 0.9 * Math.sin(b), 62 + (26 - i * 2.5) * s, i > 1 ? 1.6 : 2.4 - i * 0.2, -2.1 * s, 0.4 * Math.cos(b), 1.82 * c, t * 2.2 + i * 2, 4, 0.2);
+    const th = t * 0.08 + 3.95 - i * 0.16, b = t * 0.45 + i * 1.3, c = Math.cos(th), s = Math.sin(th);
+    put(D, 12 + i, (24 - i * 2) * c, -5.2 - i * 0.5 + 0.8 * Math.sin(b), 67 + (9 - i) * s, i > 1 ? 1.6 : 2.4 - i * 0.2, -1.92 * s, 0.36 * Math.cos(b), 0.72 * c, t * 2.2 + i * 2, 4, 0.2);
   }
   // lantern fish: hover around their homes in the deep; turn to the swimmer and brighten the lure when approached
   for (let i = 0; i < 3; i++) {
@@ -162,15 +162,15 @@ export function animate(D, t, H, E, W) {
     put(D, 15 + i, x, y, z, 0.9 - i * 0.12, 0.175 * Math.cos(a) * q + dx / dl * p, dy / dl * p * 0.6, 0.1 * Math.cos(b) * q + dz / dl * p, t * 1.6 + i, 5 + 0.45 * (0.25 + 0.75 * p), 0);
   }
   // octopus on the temple steps (flushes through its colours faster when the swimmer is near)
-  put(D, 18, W.oct[0], W.oct[1], W.oct[2], 0.85, 0.3, 0, 1, t, 6 + 0.45 * sst(8, 2.5, Math.hypot(E[0] - W.oct[0], E[1] - W.oct[1], E[2] - W.oct[2])), 0);
+  put(D, 18, W.oct[0], W.oct[1], W.oct[2], 2, 0, 0, 1, t, 6 + 0.45 * sst(8, 2.5, Math.hypot(E[0] - W.oct[0], E[1] - W.oct[1], E[2] - W.oct[2])), 0);
   // seahorses holding on in the seagrass
   for (let i = 0; i < 5; i++) {
-    const x = SEAH[0] + 1.5 * Math.cos(i * 2.4) * (0.4 + 0.15 * i), z = SEAH[1] + 1.5 * Math.sin(i * 2.4) * (0.4 + 0.15 * i), a = i * 1.9 + 0.5 * Math.sin(t * 0.1 + i);
-    put(D, 19 + i, x, H(x, z) + 0.3 + 0.09 * i + 0.05 * Math.sin(t * 0.6 + i * 2), z, 0.7 + 0.08 * i, Math.sin(a), 0, Math.cos(a), i * 0.21, 7, 0.1 * Math.sin(t * 0.5 + i));
+    const x = SEAH[0] + 0.9 * Math.cos(i * 2.4) * (0.4 + 0.15 * i), z = SEAH[1] + 0.9 * Math.sin(i * 2.4) * (0.4 + 0.15 * i), a = i * 1.9 + 0.5 * Math.sin(t * 0.1 + i);
+    put(D, 19 + i, x, H(x, z) + 0.3 + 0.09 * i + 0.05 * Math.sin(t * 0.6 + i * 2), z, 0.48 + 0.05 * i, Math.sin(a), 0, Math.cos(a), i * 0.21, 7, 0.1 * Math.sin(t * 0.5 + i));
   }
   // moray peeking from the broken pithos: stretches out now and then, shrinks back when the swimmer comes close
   {
     const e = W.eel, d = Math.hypot(E[0] - e[0], E[1] - e[1], E[2] - e[2]);
-    put(D, 24, e[0], e[1], e[2], 1.3, e[3], e[4], e[5], (0.66 + 0.34 * Math.sin(t * 0.17)) * (0.3 + 0.7 * sst(2.2, 5.5, d)), 8, 0);
+    put(D, 24, e[0], e[1], e[2], 1.3, e[3], e[4], e[5], (0.66 + 0.34 * Math.sin(t * 0.17)) * (0.3 + 0.7 * sst(1.2, 3, d)), 8, 0);
   }
 }

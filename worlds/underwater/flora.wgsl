@@ -57,7 +57,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   } else if (ty > 1.5 && ty < 2.5) {
     alb = mix(vec3f(0.95, 0.45, 0.12), vec3f(0.95, 0.75, 0.2), hv) * (0.7 + 0.4 * t);
   } else if (ty > 3.5) {
-    alb = select(select(vec3f(0.8, 0.1, 0.16), vec3f(0.62, 0.2, 0.65), hv > 0.2), select(vec3f(0.85, 0.65, 0.12), vec3f(0.3, 0.7, 0.2), hv > 0.7), hv > 0.45)
+    alb = select(select(vec3f(0.5, 0.17, 0.15), vec3f(0.4, 0.26, 0.42), hv > 0.2), select(vec3f(0.6, 0.48, 0.2), vec3f(0.3, 0.4, 0.18), hv > 0.7), hv > 0.45)
       * (0.5 + 0.7 * t) * (0.75 + 0.35 * smoothstep(0.6, 0.0, abs(in.k.z)));
   } else if (ty > 2.5) {
     // deep-floor sea pens: soft glowing feathers

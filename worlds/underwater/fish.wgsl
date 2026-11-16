@@ -22,7 +22,7 @@ fn anchor(S: School, t: f32) -> vec3f {
   let S = schools[u32(F.p.w)];
   let p = F.p.xyz; let v = F.v.xyz;
   let sp = S.c.w; let size = S.r.w;
-  let sard = step(3.5, S.m.z) * step(S.m.z, 4.5);
+  let sard = step(3.5, S.m.z) * step(S.m.z, 4.5) + step(5.5, S.m.z);
   let A = anchor(S, G.time + f32(i % 7u) * mix(2.5, 0.3, sard));
   var sep = vec3f(0.0); var ali = vec3f(0.0); var coh = vec3f(0.0); var n = 0.0;
   let st = u32(S.m.x); let cnt = u32(S.m.y);

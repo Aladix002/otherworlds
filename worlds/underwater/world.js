@@ -16,7 +16,7 @@ import { scatter } from './scatter.js';
 import SHAFTS from './shafts.wgsl';
 import MOTES from './motes.wgsl';
 
-const PADY = -13.0, DOORX = 14.0, DOORZ = 104.0, THO = [-26, 6], MED = [9, -84, -285];
+const PADY = -13.0, DOORX = 14.0, DOORZ = 104.0, THO = [-26, 6], MED = [13, -79, -297];
 const SEGX = 256, SEGZ = 440, SX = 320, SZ = 550, CZ = -125;
 const SUN = [0.4202, 0.8804, 0.2201], WCOL = [0.03, 0.27, 0.37], KCOL = [0.075, 0.215, 0.145];
 
@@ -83,7 +83,7 @@ export default {
     { pos: [11, -9.5, 66], yaw: 0.5, pitch: 0.02 },
     { pos: [-9.5, -10.8, 61], yaw: -1.0, pitch: 0.5 },
     { pos: [-8, -20, -40], yaw: 0.25, pitch: 0.24 },
-    { pos: [18.3, -17.3, -67.3], yaw: 0.18, pitch: -0.48, t: 14 },
+    { pos: [12, -19, -64], yaw: -0.59, pitch: -0.2, t: 7 },
     { pos: [-13.5, -12.6, 17.5], yaw: 0.83, pitch: 0.06, t: 30 },
     { pos: [0, -95, -255], yaw: 0, pitch: 0.2, t: 57 },
   ],
@@ -150,7 +150,7 @@ export default {
   async init(ctx, progress) {
     const N = this.N = ctx.noise, dev = ctx.device;
     this.doorY = rawH(N, DOORX, DOORZ);
-    this.consts = { PADY, DOORX, DOORZ, DOORY: this.doorY };
+    this.consts = { PADY, DOORX, DOORZ, DOORY: this.doorY, THOX: THO[0], THOY: rawH(N, THO[0], THO[1]) + 2.85, THOZ: THO[1] };
     this.L = new Float32Array(3);
 
     // --- procedural textures (caustics 512², noise 256²) with mip chains, generated on the GPU
@@ -274,6 +274,7 @@ fn sandAO(p: vec2f) -> f32 {
         const r = rng();
         cluster(x, z, (r < 0.32 ? 1.05 + rng() * 0.5 : r < 0.72 ? 0.5 + 0.4 * rng() : 0.2 + 0.25 * rng()) + 0.5 * Math.max(0, gr - 0.15));
       }
+      this.kelpC = C;
       this.kelpData = new Float32Array(K); this.nKelp = K.length / 8;
       this.kelpVis = new Uint32Array(this.nKelp); this.nKelpVis = 0;
       this.kelpVisBuf = ctx.buffer(this.nKelp * 4, 'storage');
@@ -285,8 +286,8 @@ fn sandAO(p: vec2f) -> f32 {
     await progress(0.6);
     // --- rocks + blade flora
     {
-      const pad = (x, z) => Math.min(sdBox2(x, z - 44, 8.5, 13.5), Math.hypot(x - DOORX, z - DOORZ) - 2.5, Math.hypot(x - THO[0], z - THO[1]) - 5.4, Math.hypot(x - NEST[0], z - NEST[1]) + 0.4);
-      const S = scatter((x, z) => this.heightAt(x, z), N, ctx.math.makeRng(23), ctx.q.level, pad, [...this.poses, ...this.flythrough].map((p) => p.pos), SEAH);
+      const pad = (x, z) => Math.min(sdBox2(x, z - 44, 8.5, 13.5), Math.hypot(x - DOORX, z - DOORZ) - 2.5, Math.hypot(x - THO[0], z - THO[1]) - 6.4, Math.hypot(x - NEST[0], z - NEST[1]) + 0.4);
+      const S = scatter((x, z) => this.heightAt(x, z), N, ctx.math.makeRng(23), ctx.q.level, pad, [...this.poses, ...this.flythrough].map((p) => p.pos), SEAH, this.kelpC);
       this.rockCol = S.colliders;
       this.nRocks = S.rocks.length / 8;
       this.rockInst = ctx.buffer(S.rocks, 'vertex');
@@ -304,7 +305,7 @@ fn sandAO(p: vec2f) -> f32 {
         [0, -8.2, 44, 0.8, 14, 1.0, 19, 0.34, 36, 0], [5, -9.6, 59, 0.6, 6, 0.8, 4, 0.3, 24, 1],
         [-14, -10, 46, 0.5, 4, 1.5, 9, 0.16, [36, 60, 80][q], 2], [-6, -6.8, 90, 0.7, 8, 1, 7, 0.26, 26, 3], [7, -10.2, 60, 0.45, 5, 0.8, 3.5, 0.2, 22, 2], [1, -10, 60, 0.5, 6, 1, 3, 0.24, 14, 3],
         [-15, -17, -55, 1.5, 22, 3, 25, 0.3, [120, 220, 320][q], 4], [30, -24, -95, 0.4, 6, 1.5, 6, 0.42, 8, 5],
-        [-6, -19, -50, 0.6, 6, 2, 6, 0.36, 16, 3], [THO[0], this.T.thoY + 2.6, THO[1], 0.9, 5.7, 0.9, 5.7, 0.36, [30, 44, 56][q], 6]];
+        [-6, -19, -50, 0.6, 6, 2, 6, 0.36, 16, 3], [THO[0], this.T.thoY + 2.4, THO[1], 0.9, 2.5, 0.5, 2.5, 0.3, [24, 34, 44][q], 6]];
       const sd = new Float32Array(SC.length * 12), fd = [];
       let start = 0;
       SC.forEach((c, k) => {
@@ -345,7 +346,7 @@ fn sandAO(p: vec2f) -> f32 {
       for (let i = 0; i < 12; i++) J.push([(rng() - 0.5) * 120, -60 - rng() * 45, -200 - rng() * 100, 0.35 + rng() * 0.35]);
       this.nJel = J.length;
       // medusae: the giant one, then small ones along the drop-off
-      J.push([...MED, 3.6]);
+      J.push([...MED, 7]);
       for (let i = 0; i < 7; i++) J.push([(rng() - 0.5) * 80, -34 - rng() * 26, -150 - rng() * 45, 0.35 + rng() * 0.5]);
       for (const j of J) j[1] = Math.max(j[1], this.heightAt(j[0], j[2]) + 3 + j[3] * 2);
       {

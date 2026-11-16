@@ -51,8 +51,9 @@ fn key(p: vec2f) -> f32 {
   let sh = colShadow(wp + n * 0.45);
   let ao = bao * mix(0.5, 1.0, smoothstep(-0.25, 1.0, hgt)) * mix(1.0, sh.y, smoothstep(0.3, 0.8, n.y));
   var c = uwLit(alb, n, wp, caus * sh.x, ao * mix(0.45, 1.0, sh.x));
-  // the tholos pearl: glows softly, brighter as the swimmer comes near
-  let dc = distance(wp, G.camPos);
-  c += vec3f(0.5, 0.95, 1.0) * step(3.5, mt) * step(mt, 4.5) * (0.5 + 1.8 * smoothstep(16.0, 3.0, dc)) * (0.85 + 0.15 * sin(G.time * 0.8)) * (1.0 - fogF(dc));
+  // the tholos pearl: glows (brighter as the swimmer comes near) and lights the shrine around it
+  let pv = vec3f(THOX, THOY, THOZ) - wp; let pd = dot(pv, pv);
+  let gl = vec3f(0.15, 0.8, 1.0) * (1.0 + 2.5 * smoothstep(18.0, 4.0, distance(vec3f(THOX, THOY, THOZ), G.camPos))) * (0.85 + 0.15 * sin(G.time * 0.8)) * (1.0 - fogF(distance(wp, G.camPos)));
+  if (pd < 90.0) { c += gl * mix(alb * max(dot(n, pv) * inverseSqrt(pd), 0.0) * 5.0 / (1.0 + pd * 0.25) * step(mt, 3.5), vec3f(2.5), step(3.5, mt) * step(mt, 4.5)); }
   return vec4f(c, 1.0);
 }

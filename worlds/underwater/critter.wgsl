@@ -14,7 +14,7 @@ fn rotAxis(v: vec3f, piv: vec3f, axis: vec3f, a: f32) -> vec3f {
     let sd = uv.y;
     if (uv.x > 1.5 && uv.x < 2.5) {
       let piv = vec3f(sd * 0.22, 0.0, 0.3);
-      let a = sin(ph) * 0.55 * sd;
+      let a = sin(ph) * 0.38 * sd;
       lp = rotAxis(lp, piv, vec3f(0.0, 0.0, 1.0), a); n = quatRotate(quatAxisAngle(vec3f(0.0, 0.0, 1.0), a), n);
       let b = cos(ph) * 0.3 * sd;
       lp = rotAxis(lp, piv, vec3f(0.0, 1.0, 0.0), b); n = quatRotate(quatAxisAngle(vec3f(0.0, 1.0, 0.0), b), n);
@@ -46,7 +46,8 @@ fn rotAxis(v: vec3f, piv: vec3f, axis: vec3f, a: f32) -> vec3f {
     let r = length(lp.xz);
     if (uv.x > 0.5 && uv.x < 1.5) {
       let q = rot2(0.45 * sin(ph * 0.5 + uv.y * 1.7 + r * 3.0) * r) * lp.xz;
-      lp = vec3f(q.x, lp.y + 0.07 * r * r * (1.0 + sin(ph * 0.4 + uv.y * 2.3)), q.y);
+      // the front arms drape down the temple steps
+      lp = vec3f(q.x, lp.y + 0.03 * r * r * (1.0 + sin(ph * 0.4 + uv.y * 2.3)) - 0.15 * (smoothstep(0.08, 0.14, q.y) + smoothstep(0.3, 0.36, q.y) + smoothstep(0.52, 0.58, q.y)), q.y);
     } else if (lp.z < -0.06) { lp = vec3f(0.0, 0.2, -0.1) + (lp - vec3f(0.0, 0.2, -0.1)) * (1.0 + 0.06 * sin(ph * 0.9)); }
   } else if (kind > 7.5) {    // moray: ph = how far it reaches out of its pot
     lp.z = (lp.z + 0.6) * (0.25 + 0.75 * ph) - 0.6;
@@ -71,12 +72,12 @@ fn rotAxis(v: vec3f, piv: vec3f, axis: vec3f, a: f32) -> vec3f {
   if (kind < 0.5) {
     if (pt < 0.5) {
       let vo = voronoi2(lp.xz * vec2f(5.0, 4.0));
-      alb = mix(vec3f(0.42, 0.26, 0.09), vec3f(0.78, 0.55, 0.22), smoothstep(0.5, 0.0, vo.x) * 0.8 + 0.2 * fract(vo.z * 7.0));
+      alb = mix(vec3f(0.16, 0.13, 0.06), vec3f(0.44, 0.36, 0.15), smoothstep(0.5, 0.0, vo.x) * 0.8 + 0.2 * fract(vo.z * 7.0)) * (0.6 + 0.8 * fract(vo.z * 13.0));
       alb *= smoothstep(0.0, 0.08, vo.y - vo.x) * 0.6 + 0.4;
-      alb = mix(alb, vec3f(0.85, 0.78, 0.55), step(lp.y, -0.02));
+      alb = mix(alb, vec3f(0.7, 0.64, 0.42), step(lp.y, -0.02));
     } else {
-      let vo = voronoi2(lp.xz * 22.0);
-      alb = mix(vec3f(0.3, 0.3, 0.17), vec3f(0.66, 0.62, 0.4), smoothstep(0.0, 0.06, vo.y - vo.x)) * (1.0 - step(3.5, pt));
+      let vo = voronoi2(lp.xz * 13.0);
+      alb = mix(vec3f(0.42, 0.4, 0.24), vec3f(0.2, 0.22, 0.12), smoothstep(0.02, 0.1, vo.y - vo.x)) * (1.0 - step(3.5, pt));
     }
   } else if (kind < 1.5) {
     alb = mix(vec3f(0.62, 0.52, 0.38), vec3f(0.92, 0.9, 0.85), step(lp.y, 0.0));
@@ -96,23 +97,21 @@ fn rotAxis(v: vec3f, piv: vec3f, axis: vec3f, a: f32) -> vec3f {
     alb = mix(vec3f(0.78, 0.8, 0.8) * (0.8 + 0.2 * max(dol, smoothstep(0.2, 0.5, abs(fract(g * 7.0) - 0.5) * 2.0))), mix(vec3f(0.16, 0.2, 0.26), vec3f(0.3, 0.36, 0.42), dol), smoothstep(-0.045, 0.0, lp.y - 0.05 * lp.z + dol * 0.02));
     alb = mix(alb, vec3f(0.2, 0.24, 0.3), step(0.5, pt) * 0.8);
   } else if (kind < 5.5) {
-    // lantern fish: plum body, rows of cyan freckles, a warm lure that lights its own face, big eyes and a smile
+    // lantern fish: a near-black body lit only by its own lure, small glowing eyes, rows of cyan dots
     let vo = voronoi2(lp.zy * 9.0);
-    alb = mix(vec3f(0.16, 0.1, 0.3), vec3f(0.45, 0.3, 0.5), smoothstep(0.1, -0.25, lp.y)) * (1.0 - 0.5 * step(0.5, pt));
-    alb = mix(alb, vec3f(0.03), smoothstep(0.014, 0.006, abs(lp.y + 0.13 - 2.2 * lp.x * lp.x)) * step(0.27, lp.z) * step(abs(lp.x), 0.17));
-    let lu = lp - vec3f(0.0, 0.54, 0.7);
+    alb = vec3f(0.035, 0.03, 0.07);
+    let lu = vec3f(0.0, 0.54, 0.7) - lp;
     em = vec3f(0.1, 0.9, 1.0) * smoothstep(0.16, 0.06, vo.x) * step(abs(lp.y + 0.03), 0.17) * step(pt, 0.5) * step(lp.z, 0.2) * (0.25 + 0.2 * sin(G.time * 0.8 + vo.z * 20.0))
-      + vec3f(1.0, 0.75, 0.35) * (step(2.5, pt) * (0.5 + 2.5 * gl) + (0.006 + 0.03 * gl) / (0.05 + dot(lu, lu)));
+      + vec3f(1.0, 0.72, 0.3) * (step(2.5, pt) * (1.0 + 4.0 * gl) + pow(max(dot(normalize(lp / vec3f(0.09, 0.11, 0.18)), normalize(lu)), 0.0), 2.0) * (0.03 + 0.14 * gl) / (0.1 + 6.0 * dot(lu, lu)));
     if (pt > 1.5 && pt < 2.5) {
-      let ec = vec3f(sign(lp.x) * 0.2, 0.1, 0.26);
-      let ed = dot(normalize(lp - ec), normalize(vec3f(sign(lp.x) * 0.7, 0.05, 0.7)));
-      alb = mix(vec3f(0.9, 0.95, 1.0), vec3f(0.02), smoothstep(0.72, 0.8, ed)); em = vec3f(0.2, 0.3, 0.35) * (1.0 - smoothstep(0.72, 0.8, ed)) + vec3f(0.8) * smoothstep(0.985, 0.995, dot(normalize(lp - ec), normalize(vec3f(sign(lp.x) * 0.5, 0.5, 0.7))));
+      let ec = vec3f(sign(lp.x) * 0.2, 0.1, 0.27);
+      em = vec3f(0.5, 0.9, 1.0) * 0.14 * (1.0 - smoothstep(0.72, 0.8, dot(normalize(lp - ec), normalize(vec3f(sign(lp.x) * 0.7, 0.05, 0.7)))));
     }
   } else if (kind < 6.5) {
     // octopus: slow waves of colour wash over the skin (coral, violet, teal, marble-pale), ringed with pale spots
     let nz = textureSampleLevel(tNoise, sRep, lp.xz * 0.9 + G.time * 0.004, 0.0);
     let q = fract(G.time * 0.045 + 0.45 + nz.r * 0.35 + length(lp.xz) * 0.3 + gl * (0.25 + 0.1 * sin(G.time * 0.9))) * 4.0;
-    let OC = array<vec3f, 5>(vec3f(0.95, 0.36, 0.2), vec3f(0.6, 0.3, 0.8), vec3f(0.12, 0.62, 0.6), vec3f(0.86, 0.8, 0.7), vec3f(0.95, 0.36, 0.2));
+    let OC = array<vec3f, 5>(vec3f(0.75, 0.26, 0.1), vec3f(0.9, 0.45, 0.2), vec3f(0.5, 0.16, 0.24), vec3f(0.78, 0.6, 0.42), vec3f(0.75, 0.26, 0.1));
     alb = mix(OC[u32(q)], OC[u32(q) + 1u], smoothstep(0.2, 0.8, fract(q))) * (0.7 + 0.5 * nz.g);
     let vo = voronoi2(lp.xz * 13.0 + lp.y * 9.0);
     alb = mix(alb, vec3f(1.0, 0.95, 0.85), smoothstep(0.03, 0.0, abs(vo.x - 0.24) - 0.035) * 0.5);
@@ -127,8 +126,8 @@ fn rotAxis(v: vec3f, piv: vec3f, axis: vec3f, a: f32) -> vec3f {
     alb = mix(vec3f(0.85, 0.66, 0.16) * (1.0 - 0.6 * smoothstep(0.3, 0.15, vo.x)), vec3f(0.95, 0.9, 0.7), smoothstep(0.0, -0.035, lp.y)) * (1.0 - 0.95 * step(1.5, pt));
   }
   // soft rim: light scattered around the silhouette
-  let rim = pow(1.0 - abs(dot(n, v)), 3.0) * step(1.5, kind) * step(kind, 4.5);
-  let c = uwLit(alb, n, in.w, causticsAt(in.w), 1.0) + lightAt(in.w.y) * 0.25 * pow(max(dot(reflect(v, n), SUN), 0.0), 20.0) * step(kind, 0.5) * step(pt, 0.5)
+  let rim = pow(1.0 - abs(dot(n, v)), 3.0) * step(1.5, kind) * step(kind, 5.5);
+  let c = uwLit(alb, n, in.w, causticsAt(in.w), 1.0) + lightAt(in.w.y) * 0.6 * pow(max(dot(reflect(v, n), SUN), 0.0), 40.0) * step(kind, 0.5) * step(pt, 0.5)
     + (waterAt(in.w.y) * rim * 0.9 + em) * (1.0 - fogF(distance(in.w, G.camPos)));
   return vec4f(c, 1.0);
 }

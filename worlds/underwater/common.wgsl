@@ -10,6 +10,9 @@ override PADY: f32 = -13.0;
 override DOORX: f32 = 14.0;
 override DOORZ: f32 = 104.0;
 override DOORY: f32 = -7.3;
+override THOX: f32 = 0.0;   // the tholos pearl
+override THOY: f32 = 0.0;
+override THOZ: f32 = 0.0;
 
 fn uss(a: f32, b: f32, x: f32) -> f32 { let t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
 

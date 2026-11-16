@@ -44,7 +44,7 @@ back toward the temple. A boulder shore rises to the surface behind it (z > 106)
   broken stubs, an altar basin with a pearl that glows brighter as you approach (material 4), a school of jacks circling
   it (fish species 6), lyre-like plucks (positional). Its columns use their own range in the analytic shadow loop (`NT`).
 - **Kelp**: understory fronds in red / purple / gold / green (flora type 4), barrel sponges and coral heads (rock flag 2),
-  turf and shell grit on the floor, a colossal marble head resting in the manta clearing (18, -77); manta wings now bend
+  turf and shell grit on the floor, a colossal marble head at the edge of the manta clearing; manta wings now bend
   progressively with lagging, curling tips.
 - **Deep**: a giant medusa (bell, oral arms, camera-facing tentacles; `vsMed` / `fsMed` in deep.wgsl, instances appended to
   the comb-jelly buffer) at `MED`, small medusae along the drop-off, three lantern fish (`LAN` homes) that turn toward
@@ -53,6 +53,23 @@ back toward the temple. A boulder shore rises to the surface behind it (z > 106)
   as a per-creature reaction value (lure glow, octopus flush).
 - Positional sounds: tholos lyre, dolphin whistles + clicks (bus follows the pod), lantern-fish chimes, medusa bell,
   moray bubbles.
+
+### Polish after the variety critic
+- Faces are now one continuous mesh: `sculpt()` in temple.js sphere-traces an icosphere onto a smooth union of ellipsoids
+  (with carved eye sockets / mouth). Used for the kore head and the colossal head (now ~7 m, half buried at (22, -79),
+  outside the manta loop).
+- Turtle: smaller, olive-brown mottled shell with a wet highlight, thicker flippers, routed off the facade axis.
+- Lantern fish: near-black body lit only by its lure, small glowing eyes, jaw, dorsal and tail fins.
+- Tholos: ring of 8 column positions (6 standing, one stub, one gap) on a larger base, 5 lintel spans; the pearl lights
+  the shrine (`THOX/Y/Z` overrides in common.wgsl); jacks orbit the pearl as a tight school.
+- Vignettes moved into the hero view: the moray lives in the foreground pithos, the seahorse meadow is at (11.6, 62.3),
+  the nest at (12, 57.5), the octopus (2x, rust) drapes its arms down the front steps, dolphins cross in front of the
+  temple.
+- Kelp understory gathers around kelp holdfasts (fronds, sea whips, sponges; 0.5-3x), muted colours. Far / sub-pixel
+  kelp is dither-discarded instead of fading to a slightly different fog colour.
+- Giant medusa is 2x larger and further back. Stingray has real thickness.
+- Not done from the critic's minor list: statue drapery, door-side column material, far-surface banding, manta
+  markings, starfish / acroteria shapes, the lone light pillar, cella wall coursing.
 
 ## Tunables
 - Light/fog by depth: `lightAt` / `waterAt` in common.wgsl (+ JS twins `lightAt`, `WCOL`, `KCOL`), fog in `update()`.

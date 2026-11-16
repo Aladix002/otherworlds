@@ -86,6 +86,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
         + alb * vec3f(1.6, 0.95, 0.3) * L * (trans * dap * ao);
   // fog; sub-pixel-thin parts fade into the water instead of aliasing
   let f = 1.0 - (1.0 - fogF(d)) * in.sd.y;
+  if (1.0 - f < 0.45 * fract(52.98 * fract(dot(in.pos.xy, vec2f(0.0671, 0.00584))))) { discard; }
   c = mix(c * exp(-d * vec3f(0.014, 0.004, 0.003)), uwFogCol(v, d), f);
   return vec4f(c, 1.0);
 }
