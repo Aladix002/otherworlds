@@ -35,17 +35,17 @@ export default {
   spawn: { pos: [-8, eye(-8, 0), 0], yaw: -Math.PI / 2, pitch: 0.06 },
   poses: [
     look(-8, eye(-8, 0, 1.8), 0, 10, 5.5, -1),               // hall with the giant beams
-    look(-3.2, eye(-3.2, 26.5), 26.5, -11, 2.6, 33.5),        // amethyst geode alcove
+    look(-3.4, eye(-3.4, 26.6, 1.5), 26.6, -10.5, 3.4, 34.5),        // amethyst geode alcove
     look(28.5, eye(28.5, -9.5), -9.5, 42, -0.8, -15),        // pool reflection
     look(4.5, eye(4.5, 5), 5, 12.5, 2.6, 12),                    // dispersion caustics on rock
-    look(-2.5, eye(-2.5, -39), -39, 8.5, 8.5, -45.5),        // shaft of moonlight
+    look(-1, eye(-1, -38), -38, 8.5, 5.6, -45.5),        // shaft of moonlight
     look(-37.6, eye(-37.6, -9.2, 1.7), -9.2, -42, 1.2, -10),      // the door in its chamber
   ],
   flythrough: flyPath(),
   flythroughDuration: 60,
   doors: [{ pos: DOOR, yaw: Math.PI / 2, to: 'spirit-forest' }],
   bounds: { min: [-56, -4, -60], max: [62, 30, 42] },
-  env: { sunDir: [0.25, 1, 0.15], sunColor: [0.1, 0.11, 0.17], fogColor: [0.011, 0.011, 0.026], fogDensity: 0.011,
+  env: { sunDir: [0.25, 1, 0.15], sunColor: [0.1, 0.11, 0.17], fogColor: [0.01, 0.018, 0.034], fogDensity: 0.015,
     ambientSky: [0.05, 0.06, 0.11], ambientGround: [0.03, 0.025, 0.05] },
   post: { exposure: 1.15, bloom: 0.17, bloomThreshold: 0.95, bloomKnee: 0.5, bloomRadius: 1.2, vignette: 0.3, saturation: 1.08 },
   clearColor: [1.5, 2.1, 3.2],          // only ever seen through the chimney: the moonlit sky
@@ -73,7 +73,7 @@ export default {
     this.dBG = ctx.bindGroup(dL, [tex.createView(), ctx.samplers.repeat]);
 
     // planar reflection target for the pool
-    const RW = [384, 640, 960][lv], RH = RW * 9 / 16;
+    const RW = [480, 960, 1280][lv], RH = RW * 9 / 16;
     const rt = ctx.texture(RW, RH, ctx.hdrFormat, GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT);
     const rd = ctx.texture(RW, RH, 'depth32float', GPUTextureUsage.RENDER_ATTACHMENT);
     const fc = this.env.fogColor;
@@ -107,11 +107,15 @@ export default {
       P({ code: COMMON + MOTESD, layouts: [ctx.layout(['storage'])], blend: 'add', cull: 'none', label: 'motes' }),
     ]);
     this.water = M.upload(M.plane(34, 34, 48, 48));
-    this.box = M.upload(M.box(1, 1, 1));
+    { // unit box with consistent outward winding (the shaft is shaded analytically on its faces)
+      const pos = new Float32Array(24); for (let i = 0; i < 8; i++) pos.set([(i & 1) - 0.5, ((i >> 1) & 1) - 0.5, (i >> 2) - 0.5], i * 3);
+      this.box = M.upload({ pos, nrm: new Float32Array(24), uv: new Float32Array(16),
+        idx: new Uint32Array([0, 4, 6, 0, 6, 2, 1, 3, 7, 1, 7, 5, 0, 1, 5, 0, 5, 4, 2, 6, 7, 2, 7, 3, 0, 2, 3, 0, 3, 1, 4, 5, 7, 4, 7, 6]) });
+    }
 
     // light pools
     const L = cr.lights, h = [];
-    for (let i = 0; i < L.length; i += 12) if (L[i + 10] === 0) h.push(L[i], L[i + 1], L[i + 2], 1.6 + L[i + 3] * 1.6, L[i + 4] * 0.014, L[i + 5] * 0.014, L[i + 6] * 0.014, L[i + 8]);
+    for (let i = 0; i < L.length; i += 12) if (L[i + 10] === 0) h.push(L[i], L[i + 1], L[i + 2], 1.6 + L[i + 3] * 1.6, L[i + 4] * 0.014 * (0.4 + L[i + 8] * 0.2), L[i + 5] * 0.014 * (0.4 + L[i + 8] * 0.2), L[i + 6] * 0.014 * (0.4 + L[i + 8] * 0.2), L[i + 8]);
     this.halo = ctx.buffer(new Float32Array(h), 'vertex'); this.nh = h.length / 8;
 
     // dust motes

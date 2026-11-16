@@ -17,11 +17,12 @@ fn ripple(p: vec2f) -> vec2f {
   let t = G.time;
   var g = 0.006 * vec2f(cos(p.x * 1.3 + t * 0.4 + sin(p.y * 0.7)), cos(p.y * 1.7 - t * 0.33 + sin(p.x * 0.9)));
   g += 0.003 * vec2f(cos(p.x * 4.1 - t * 0.7 + p.y * 2.0), cos(p.y * 3.7 + t * 0.6 - p.x * 1.5));
+  g += 0.002 * vec2f(cos(p.x * 11.0 + t * 0.9 - p.y * 7.0), cos(p.y * 9.0 - t * 0.8 + p.x * 6.0));
   for (var i = 0; i < 5; i++) {
     let d = DR.d[i]; let age = t - d.z;
     if (age > 0.0 && age < 11.0) {
       let v = p - d.xy; let r = length(v) + 1e-3; let x = r - age * 0.5;
-      g += v / r * (cos(x * 13.0) * exp(-x * x * 4.0) * exp(-age * 0.4) * d.w * min(age * 3.0, 1.0) * 0.32 / (0.5 + r));
+      g += v / r * (cos(x * 22.0) * exp(-x * x * 6.0) * exp(-age * 0.4) * d.w * min(age * 3.0, 1.0) * 0.16 / (0.5 + r));
     }
   }
   return g;
@@ -33,12 +34,12 @@ fn ripple(p: vec2f) -> vec2f {
   let ndv = clamp(dot(n, V), 0.0, 1.0);
   let F = 0.2 + 0.8 * pow(1.0 - ndv, 3.0);
   let dist = distance(in.w, G.camPos);
-  let uv = clamp(in.pos.xy * G.invResolution + g * vec2f(1.6, 2.6) / (1.0 + dist * 0.12), vec2f(0.002), vec2f(0.998));
+  let uv = clamp(in.pos.xy * G.invResolution + g * vec2f(0.7, 1.2) / (1.0 + dist * 0.1), vec2f(0.002), vec2f(0.998));
   let refl = textureSampleLevel(rtex, rsmp, uv, 0.0).rgb;
   let T = exp(-max(in.depth, 0.0) * 1.6);
-  let edge = smoothstep(0.0, 0.06, in.depth);
+  let edge = smoothstep(0.0, 0.16, in.depth);
   let a = (F + (1.0 - F) * (1.0 - T) * 0.9) * edge;
-  var col = (refl * F + vec3f(0.004, 0.011, 0.02) * (1.0 - F) * (1.0 - T)) * edge;
+  var col = (refl * F + vec3f(0.006, 0.03, 0.042) * (1.0 - F) * (1.0 - T)) * edge;
   let fa = fogAmount(dist);
   col = mix(col, G.fogColor * a, fa);
   return vec4f(col, a);
@@ -94,16 +95,16 @@ struct SV { @builtin(position) pos: vec4f, @location(0) w: vec3f };
   if (t1 <= t0) { discard; }
   let tm = 0.5 * (t0 + t1);
   let pm = ro + rd * tm;
-  let dmin = sqrt(max(dot(op, op) - b * b / a, 0.0)) / R;
-  let prof = pow(max(1.0 - dmin * dmin, 0.0), 1.6);
-  let s = dot(pm - SHA, u) / al;
-  // soft streaks that drift slowly around the axis
-  let e1 = normalize(cross(u, vec3f(1.0, 0.0, 0.0))); let e2 = cross(u, e1);
+  let s = clamp(dot(pm - SHA, u) / al, 0.0, 1.0);
+  // a cone: narrow at the chimney mouth, spreading toward the floor; dense core, soft edge, thinning with depth
+  let dmin = sqrt(max(dot(op, op) - b * b / a, 0.0)) / mix(1.7, 3.1, s);
+  let prof = pow(max(1.0 - dmin * dmin, 0.0), 2.2);
   let q = pm - SHA;
-  let ang = atan2(dot(q, e2), dot(q, e1));
-  let streak = 0.78 + 0.22 * vnoise2(vec2f(ang * 2.5 + G.time * 0.02, s * 3.0 - G.time * 0.03)) + 0.12 * vnoise2(vec2f(ang * 7.0 - G.time * 0.015, s * 9.0));
-  let dens = (t1 - t0) / (2.0 * R) * prof * streak * mix(1.0, 0.6, s);
-  var col = vec3f(0.5, 0.72, 1.0) * dens * 0.3 * exp(-tm * G.fogDensity);
+  let e1 = normalize(cross(u, vec3f(1.0, 0.0, 0.0))); let e2 = cross(u, e1);
+  let qd = normalize(vec2f(dot(q, e1), dot(q, e2)) + vec2f(1e-4, 0.0));
+  let streak = 0.7 + 0.3 * vnoise3(vec3f(qd * 1.7, s * 4.0 - G.time * 0.03)) + 0.2 * vnoise3(vec3f(qd * 4.5 + 3.0, s * 11.0 + G.time * 0.02));
+  let dens = (t1 - t0) / (2.0 * R) * prof * streak * mix(1.5, 0.45, s) * (1.0 - smoothstep(0.9, 1.0, s) * 0.7);
+  var col = vec3f(0.5, 0.72, 1.0) * dens * 0.34 * exp(-tm * G.fogDensity);
   col += (ign(in.pos.xy) - 0.5) * 0.004 * dens;
   return vec4f(max(col, vec3f(0.0)), 0.0);
 }
@@ -117,7 +118,7 @@ struct HV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   var o: HV;
   o.c = cs[vi];
   o.col = b.rgb * pulse(b.w) * smoothstep(1.5, 6.0, d) * exp(-d * G.fogDensity);
-  o.pos = G.viewProj * vec4f(billboard(c, o.c, vec2f(a.w)), 1.0);
+  o.pos = G.viewProj * vec4f(billboard(c, o.c, vec2f(a.w) * vec2f(1.0, 0.75 + 0.5 * fract(b.w * 3.7))), 1.0);
   return o;
 }
 @fragment fn fsHalo(in: HV) -> @location(0) vec4f {

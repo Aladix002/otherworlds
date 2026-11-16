@@ -22,6 +22,13 @@ moonlight shaft chamber (south), door chamber (west, door -> `spirit-forest`).
 - Crystal look: `fsCry` (`axial`, `facet`, e0 gains); caustics: `caustic()` and the `ca` weight in the bake.
 - Reflection resolution: `RW` in `world.js`; it is rendered only while `poolVis`.
 
+## Critic round 1 changes
+Selenite got its own translucent branch in `fsCry` (`sel`: thin-edge scatter, milky core, fractures, env tint), irregular
+cross-sections and satellite crystals + glow pool at every base. The geode is a packed shell (dark rind + agate banding in
+`fsRock`, ~1700 fat clusters leaning to the centre). Rock is neutral charcoal with desaturated baked light; caustics are
+softer, two-layer, tighter and distance-faded; the shaft is a seamless cone with a baked landing pool; water ripples are
+finer and the reflection target is 960x540 on Medium.
+
 ## Known issues
 - Light is baked: the "brighten as you approach" effect is a camera-distance boost, not per crystal.
 - Reflection pass is skipped when the pool is behind the camera or > 44 m away.

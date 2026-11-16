@@ -56,7 +56,8 @@ function solids(x, y, z) {
   let s = 1e9;
   for (let i = 0; i < COLS.length; i++) {
     const c = COLS[i], t = (y - c[3]) / c[4];
-    s = Math.min(s, Math.hypot(x - c[0], z - c[1]) - c[2] * (1 + 1.6 * t * t));
+    const dc = Math.hypot(x - c[0], z - c[1]);
+    s = Math.min(s, dc - c[2] * (1 + 1.6 * t * t) - (dc < 5 ? 0.3 * vn3(x * 0.9, y * 0.45, z * 0.9) + 0.25 * Math.sin(y * 1.1 + c[0]) : 0));
   }
   if (y > 4) for (let i = 0; i < STAL.length; i++) {
     const c = STAL[i], dx = x - c[0], dz = z - c[2], dy = y - c[1];
@@ -124,7 +125,7 @@ export function placeCrystals(level) {
     const l = Math.hypot(x, y, z) || 1; dir[0] = x / l; dir[1] = y / l; dir[2] = z / l; return dir;
   };
   // a cluster of crystal points radiating from a surface point
-  const cluster = (px, py, pz, nx, ny, nz, size, n, ci, spread, I) => {
+  const cluster = (px, py, pz, nx, ny, nz, size, n, ci, spread, I, fat = 1) => {
     cid++;
     const col = COLORS[ci], ph = rng() * 6.283;
     // tangent frame
@@ -133,13 +134,13 @@ export function placeCrystals(level) {
     const bx = ny * tz - nz * ty, by = nz * tx - nx * tz, bz = nx * ty - ny * tx;
     for (let i = 0; i < n; i++) {
       const hero = i === 0, k = hero ? 1 : 0.3 + 0.6 * Math.pow(rng(), 1.4), len = size * k;
-      const d = jitter(nx, ny, nz, hero ? spread * 0.3 : spread), a = rng() * 6.283, o = hero ? 0 : size * 0.38 * Math.sqrt(rng());
+      const d = jitter(nx, ny, nz, hero ? spread * 0.3 : spread), a = rng() * 6.283, o = hero ? 0 : size * 0.38 * fat * Math.sqrt(rng());
       const ox = (tx * Math.cos(a) + bx * Math.sin(a)) * o, oy = (ty * Math.cos(a) + by * Math.sin(a)) * o, oz = (tz * Math.cos(a) + bz * Math.sin(a)) * o;
       // lean outward from the cluster centre
       let ax = d[0] + ox / size * 1.1, ay = d[1] + oy / size * 1.1, az = d[2] + oz / size * 1.1; const al = Math.hypot(ax, ay, az); ax /= al; ay /= al; az /= al;
-      const rad = len * rng.range(0.1, 0.16) + 0.015;
+      const rad = len * rng.range(0.1, 0.16) * fat + 0.015;
       add(px + ox - ax * len * 0.18 - nx * 0.05, py + oy - ay * len * 0.18 - ny * 0.05, pz + oz - az * len * 0.18 - nz * 0.05, ax, ay, az, len * 1.18, rad,
-        col, rng.range(0.75, 1.25) * (ci === 2 ? 0.75 : 1), 0, rng.range(0.8, 1), cid);
+        col, rng.range(0.75, 1.25) * (ci === 2 ? 0.75 : 1), 0, rng() < 0.3 ? rng.range(0.38, 0.6) : rng.range(0.8, 1), cid);
     }
     if (I > 0) light(px + nx * size * 0.55, py + ny * size * 0.55, pz + nz * size * 0.55, 0.6 + size * 0.6, col, I, 7 + size * 6, 0, ph);
   };
@@ -161,29 +162,30 @@ export function placeCrystals(level) {
   scatter(0, 26, 2.0, 5.0, [0, 0, 0, 4, 2, 1, 0, 3], 9);
   scatter(1, 16, 0.9, 2.6, [1, 1, 1, 2, 0, 1], 5);
   scatter(3, 9, 0.9, 2.4, [2, 1, 2, 4], 4);
-  scatter(4, 9, 0.8, 2.2, [0, 3, 0, 4], 3);
+  scatter(4, 14, 0.8, 2.2, [0, 3, 0, 4], 3);
 
   // hero amethysts standing on the hall floor, off the walkways
   for (const h of [[10, 9.5, 0, 3.2], [3, -11.5, 0, 2.7], [17, -8.5, 4, 2.8], [-2, 11.5, 3, 2.1], [-15, -2.5, 0, 2.3], [-6, -10, 4, 1.8]])
-    cluster(h[0], floorY(h[0], h[1]), h[1], 0, 1, 0, h[3], 8 + rng.int(4), h[2], 0.6, 2.4);
+    cluster(h[0], floorY(h[0], h[1]), h[1], 0, 1, 0, h[3], 8 + rng.int(4), h[2], 0.6, 3.4);
   // big cyan / white clusters standing around the pool rim (they double in the water)
   for (let i = 0; i < 6; i++) {
     const a = i * 1.05 + rng.range(-0.3, 0.3) + 0.4, r = rng.range(7.6, 9.2), x = POOL[0] + Math.cos(a) * r, z = POOL[1] + Math.sin(a) * r;
     cluster(x, floorY(x, z), z, 0, 1, 0, rng.range(1.1, 2.4), 6 + rng.int(5), i % 3 === 2 ? 2 : 1, 0.6, 1.8);
   }
-  // geode alcove: dense amethyst lining
+  // geode alcove: a shell packed with amethyst, from a druse carpet to a few hero points, all leaning toward the centre
   {
-    const c = CH[2], n = [420, 700, 900][level];
+    const c = CH[2], n = [1100, 1700, 2300][level];
     for (let i = 0; i < n; i++) {
-      const a = rng() * 6.283, dy = rng.range(-0.42, 0.95), h = Math.sqrt(1 - dy * dy), dx = Math.cos(a) * h, dz = Math.sin(a) * h;
+      const a = rng() * 6.283, dy = rng.range(-0.6, 0.97), h = Math.sqrt(1 - dy * dy), dx = Math.cos(a) * h, dz = Math.sin(a) * h;
       const t = march(c[0], c[1] - 0.5, c[2], dx, dy, dz, 14);
       if (t < 0) continue;
       const px = c[0] + dx * t, py = c[1] - 0.5 + dy * t, pz = c[2] + dz * t;
-      if (pz < 24.8 || py < 0.75) continue;
-      const g = grad(px, py, pz), size = rng.range(0.55, 1.5) * (py > 5 ? 1.25 : 1);
-      const lit = i % 9 === 0;
-      cluster(px, py, pz, g[0], g[1], g[2], size, 4 + rng.int(4), rng() < 0.8 ? 0 : rng() < 0.5 ? 4 : 3, 0.4, lit ? 0.65 : 0);
-      if (lit) lights[lights.length - 5] = 5.5;
+      if (pz < 25 || (py < 1.1 && Math.hypot(px - c[0], pz - c[2]) < 4.2) || (pz < 27 && py < 3.2 && Math.abs(px + 4.5) < 3)) continue;
+      const g = grad(px, py, pz), u = rng(), size = u < 0.35 ? rng.range(0.25, 0.45) : u < 0.93 ? rng.range(0.5, 1.0) : rng.range(1.3, 2.2);
+      let nx = g[0] * 0.6 - dx * 0.7, ny = g[1] * 0.6 - dy * 0.7, nz = g[2] * 0.6 - dz * 0.7; const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
+      const lit = i % 12 === 0;
+      cluster(px, py, pz, nx, ny, nz, size, 6 + rng.int(4), rng() < 0.88 ? 0 : 4, 0.3, lit ? 0.9 : 0, 1.7);
+      if (lit) lights[lights.length - 5] = 6;
     }
   }
   // door dressing: small crystals at the base of the frame (door yaw = PI/2, its lateral axis is z)
@@ -195,13 +197,13 @@ export function placeCrystals(level) {
   // giant selenite beams: [base x, z, dir x, y, z, radius, free-length factor (0 = span to the rock)]
   const BEAMS = [[-14, -9, 0.8, 0.55, 0.3, 1.1, 0], [12, -13, -0.5, 0.6, 0.62, 0.9, 0], [17, 10, -0.75, 0.5, -0.42, 1.3, 0], [-10, 12.5, 0.55, 0.75, -0.35, 0.8, 0.7],
     [2, -15, 0.15, 0.9, 0.4, 0.7, 0], [20, -3, -0.3, 0.8, 0.5, 1.0, 0.6], [-19, 3, 0.6, 0.45, -0.65, 0.9, 0], [7, 14, 0.9, 0.3, -0.33, 0.75, 0],
-    [49, -25, -0.6, 0.55, 0.55, 0.8, 0], [47, -3, -0.4, 0.5, -0.75, 0.6, 0.75], [-2, -51, 0.3, 0.75, 0.5, 0.7, 0], [-47, -4, 0.5, 0.75, -0.4, 0.45, 0.8]];
+    [49, -25, -0.6, 0.55, 0.55, 0.8, 0], [47, -3, -0.4, 0.5, -0.75, 0.6, 0.75], [-2, -51, 0.3, 0.75, 0.5, 0.7, 0]];
   const white = [0.66, 0.82, 1.0], bl = [0.5, 0.58, 1.0];
   for (const b of BEAMS) {
     cid++;
     const l0 = Math.hypot(b[2], b[3], b[4]), dx = b[2] / l0, dy = b[3] / l0, dz = b[4] / l0, by = floorY(b[0], b[1]) - 0.8;
     const beam = (dx, dy, dz, rad, free, ox, oz) => {
-      const x = b[0] + ox, z = b[1] + oz;
+      const x = b[0] + ox, z = b[1] + oz, by = floorY(x, z) - 0.8;
       let t = march(x + dx * 3, by + dy * 3, z + dz * 3, dx, dy, dz, 40);
       t = t < 0 ? 30 : t + 3;
       const len = free ? Math.min(t * free, t - 1.5) : t + rad * 1.5;
@@ -209,16 +211,23 @@ export function placeCrystals(level) {
       if (rad > 0.4) for (let s = 0.12; s < 0.95; s += 4.5 / len) light(x + dx * len * s, by + dy * len * s + 0.3, z + dz * len * s, rad * 2.0, bl, 0.75 * rad, 11 + rad * 5, 1);
     };
     beam(dx, dy, dz, b[5], b[6], 0, 0);
+    // satellites: a ring of short stubby crystals and a glow pool root the beam in the floor
+    for (let i = 0, m = 5 + rng.int(4); i < m; i++) {
+      const a = rng() * 6.283, o = b[5] * rng.range(1.1, 2.2), x = b[0] + Math.cos(a) * o + dx * 1.2, z = b[1] + Math.sin(a) * o + dz * 1.2;
+      const d = jitter(dx * 0.4 + Math.cos(a) * 0.5, 1, dz * 0.4 + Math.sin(a) * 0.5, 0.3), r = b[5] * rng.range(0.16, 0.34);
+      add(x, floorY(x, z) - 0.3, z, d[0], d[1], d[2], r * rng.range(3, 7) + 0.3, r, white, rng.range(0.55, 0.8), 1, rng.range(0.6, 0.9), cid);
+    }
+    light(b[0] + dx * 1.5, by + 1.6, b[1] + dz * 1.5, 1.2 + b[5], bl, 1.1 + b[5], 9, 1);
     const n = 3 + rng.int(3);
     for (let i = 0; i < n; i++) {
-      const d = jitter(dx, dy + 0.25, dz, 0.75); d[1] = Math.abs(d[1]) + 0.15;
+      const d = jitter(dx, dy + 0.25, dz, 0.75); d[1] = Math.abs(d[1]) + 0.45;
       const l = Math.hypot(d[0], d[1], d[2]);
       beam(d[0] / l, d[1] / l, d[2] / l, b[5] * rng.range(0.22, 0.5), rng.range(0.12, 0.4), rng.range(-1, 1) * b[5] * 1.6, rng.range(-1, 1) * b[5] * 1.6);
     }
   }
   // moonlight: one strong cold light high in the chimney (the SDF visibility shapes its pool on the floor)
   cid++;
-  light(SHAFT[0], SHAFT[1], SHAFT[2], 30, [0.55, 0.75, 1.0], 5.5, 62, 2, 0);
+  light(SHAFT[0], SHAFT[1], SHAFT[2], 30, [0.55, 0.75, 1.0], 3.6, 62, 2, 0);
 
   const I = new Float32Array(inst), L = new Float32Array(lights), n = I.length / 21, out = new Float32Array(n * 20);
   // environment colour picked up by each crystal from the other clusters' lights
@@ -314,10 +323,9 @@ export async function buildMesh(L, progress) {
       const o = j * 12, dx = L[o] - px, dy = L[o + 1] - py, dz = L[o + 2] - pz, d2 = dx * dx + dy * dy + dz * dz, R = L[o + 7];
       if (d2 > R * R) continue;
       const d = Math.sqrt(d2) + 1e-4, kind = L[o + 10];
-      if (kind === 2 && py > 12) continue;
       const ndl = (nx * dx + ny * dy + nz * dz) / d, wrap = kind === 2 ? Math.max(ndl, 0) : Math.max((ndl + 0.45) / 1.45, 0);
       let w = (1 - d2 / (R * R)) ** 2 / (1 + d2 / (L[o + 3] * L[o + 3])) * wrap;
-      if (kind === 2) w *= ss(0.985, 0.998, -(dx * (SHAFT[3] - SHAFT[0]) + dy * (SHAFT[4] - SHAFT[1]) + dz * (SHAFT[5] - SHAFT[2])) / (d * 44.4)) * 6;
+      if (kind === 2) w *= py > 13 ? 0.35 * ss(13, 18, py) : ss(0.985, 0.998, -(dx * (SHAFT[3] - SHAFT[0]) + dy * (SHAFT[4] - SHAFT[1]) + dz * (SHAFT[5] - SHAFT[2])) / (d * 44.4)) * 6;
       if (w < 0.004) continue;
       // soft visibility through the (noise-free) cave volume
       let vis = 1;
@@ -332,7 +340,7 @@ export async function buildMesh(L, progress) {
       const lum = (L[o + 4] + L[o + 5] + L[o + 6]) * w;
       lx += dx / d * lum; ly += dy / d * lum; lz += dz / d * lum;
       if (lum > best) { best = lum; ph = L[o + 8]; }
-      if (kind === 0) ca = Math.max(ca, Math.min(1, w * 1.6) * (1 - ss(R * 0.12, R * 0.4, d)));
+      if (kind === 0) ca = Math.max(ca, Math.min(1, w * 1.6) * (1 - ss(R * 0.1, R * 0.3, d)));
     }
     const ll = Math.hypot(lx, ly, lz) || 1;
     const a1 = sdfCave(px + nx * 1.2, py + ny * 1.2, pz + nz * 1.2) / 1.2, a2 = sdfCave(px + nx * 3.5, py + ny * 3.5, pz + nz * 3.5) / 3.5;

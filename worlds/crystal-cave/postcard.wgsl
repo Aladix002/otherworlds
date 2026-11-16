@@ -46,5 +46,5 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
     max(pcCave_bar(pm, vec2f(-0.4, 0.9), vec2f(0.1, -0.28), 0.05), pcCave_bar(pm, vec2f(0.9, 0.7), vec2f(0.45, -0.28), 0.04))));
   let bb = b * smoothstep(-0.3, -0.19, el);
   c = mix(c, vec3f(0.42, 0.5, 0.68) * (0.35 + 0.75 * bb), clamp(bb * 2.5, 0.0, 1.0));
-  return c * vec3f(0.62, 0.6, 0.66);
+  return c * vec3f(0.48, 0.52, 0.66);
 }
