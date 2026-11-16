@@ -5,12 +5,12 @@ fn px(d: f32) -> f32 { return d * G.tanHalfFov * 2. * G.invResolution.y; }
 
 @vertex fn vsMote(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> PO {
   var o: PO;
-  let h = hash3u(vec3u(ii, 1u, 2u)); let bx = V3(26., 14., 26.); let t = G.time;
+  let h = hash3u(vec3u(ii, 1u, 2u)); let bx = V3(20., 12., 20.); let t = G.time;
   var p = h * bx + V3(sin(t * .05 + h.y * 40.) * .8, t * .015 * (h.x - .35) + .3 * sin(t * .09 + h.z * 30.), cos(t * .04 + h.x * 50.) * .8);
   let cc = V3(G.camPos.x, max(G.camPos.y, 6.), G.camPos.z) + G.camFwd * V3(8., 0., 8.);
   p = cc + (fract((p - cc) / bx + .5) - .5) * bx;
   let d = distance(p, G.camPos);
-  let lit = sunAt(p, 0.) * SUNC * 2.2 + lamps(p, normalize(G.camPos - p)) * .25 + .012;
+  let lit = sunAt(p, 0.) * SUNC * 4.5 + lamps(p, normalize(G.camPos - p)) * .25 + .012;
   let r = .007 + .012 * h.z; let re = max(r, px(d) * .9);
   let c = corner(vi);
   o.pos = G.viewProj * V4(billboard(p, c, V2(re)), 1.); o.uv = c;
@@ -58,7 +58,7 @@ fn seg(p: V2, a: V2, b: V2) -> f32 { let pa = p - a; let ba = b - a; return leng
   let p = V3(47. + cos(a) * r, y, sin(a) * r);
   let c = corner(vi); let d = distance(p, G.camPos);
   o.pos = G.viewProj * V4(billboard(p, c, V2(max(.02, px(d)), max(.045, px(d)))), 1.); o.uv = c;
-  o.c = V4((V3(.5, .75, .8) * .5 + sunC(p) * .8) * (1. - ss(30., 50., d)), 0.);
+  o.c = V4((V3(.5, .75, .8) * .5 + sunC(p, 0.) * .8) * (1. - ss(30., 50., d)), 0.);
   return o;
 }
 
@@ -102,23 +102,23 @@ fn clip(r: V2, a0: f32, a1: f32, lo: f32, hi: f32) -> V2 {
   var r = clip(clip(V2(0., tm), ro.x, rd.x, -GP, GP), ro.y + kx * (gx - ro.x), rd.y - kx * rd.x, 10.7, 15.3);
   if (r.y > r.x) {
     let dt = (r.y - r.x) / 9.;
-    for (var i = 0; i < 9; i++) { let t = r.x + (f32(i) + j) * dt; acc += sunN(ro + rd * t, 0.) * (dt * exp(-t * t * .00011)); }
+    for (var i = 0; i < 9; i++) { let t = r.x + (f32(i) + j) * dt; let p = ro + rd * t; acc += sunN(p, 0.) * (dt * exp(-t * t * .00008) * (.5 + .8 * vnoise3(p * .4 + V3(0., G.time * .03, 0.)))); }
   }
   // transept (and the rose, whose band is wider)
   let gz = GP * sign(s.z); let kz = s.y / s.z;
   r = clip(clip(clip(V2(0., tm), ro.z, rd.z, -GP, GP), ro.x, rd.x, -49., 37.), ro.y + kz * (gz - ro.z), rd.y - kz * rd.z, 10.7, 19.);
   if (r.y > r.x) {
     let dt = (r.y - r.x) / 8.;
-    for (var i = 0; i < 8; i++) { let t = r.x + (f32(i) + j) * dt; acc += sunT(ro + rd * t, 0.) * (dt * exp(-t * t * .00011)); }
+    for (var i = 0; i < 8; i++) { let t = r.x + (f32(i) + j) * dt; let p = ro + rd * t; acc += sunT(p, 0.) * (dt * exp(-t * t * .00008) * (.5 + .8 * vnoise3(p * .4 + V3(0., G.time * .03, 0.)))); }
   }
   // court
   r = clip(clip(V2(0., tm), ro.x, rd.x, 37.6, 57.), ro.y, rd.y, 0., 13.);
   if (r.y > r.x) {
     let dt = (r.y - r.x) / 5.;
-    for (var i = 0; i < 5; i++) { let t = r.x + (f32(i) + j) * dt; acc += sunC(ro + rd * t) * (dt * .45 * exp(-t * t * .00011)); }
+    for (var i = 0; i < 5; i++) { let t = r.x + (f32(i) + j) * dt; acc += sunC(ro + rd * t, 0.) * (dt * .3); }
   }
   let ph = .55 + 1.5 * pow(max(dot(rd, s), 0.), 3.);
-  return V4(acc * SUNC * (.034 * ph), 1.);
+  return V4(acc * SUNC * (.03 * ph), 1.);
 }
 @group(3) @binding(0) var VT: texture_2d<f32>;
 @group(3) @binding(1) var VS: sampler;

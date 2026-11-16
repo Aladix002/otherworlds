@@ -76,6 +76,18 @@ fn hallAO(p: V3) -> f32 {
   return o;
 }
 
+// soft contact shadows where things stand on the floor: door, candelabra, fountain plinth, hearth
+fn contact(p: V3) -> f32 {
+  var o = ss(0., .45, length(V2(abs(p.x) - 1.7, p.z - 44.)) - .22) * ss(0., .3, max(abs(p.x) - .72, abs(p.z - 44.) - .12));
+  o *= ss(0., .7, abs(length(p.xz - V2(47., 0.)) - 3.6) + .2 * step(length(p.xz - V2(47., 0.)), 3.6) - .2);
+  return mix(.3, 1., o);
+}
+// star inlay: x = inside the star, y = facet side
+fn star(p: V2, r0: f32, r1: f32, r2: f32, e: f32) -> V2 {
+  let an = atan2(p.y, p.x) * 8. / PI; let fa = fract(an) - .5;
+  let rs = mix(r0, mix(r1, r2, step(.5, fract(an * .5))), pow(1. - abs(fa) * 2., 1.6));
+  return V2(ss(rs + e, rs - e, length(p)), step(0., fa));
+}
 fn shade(in: VO, front: bool, fw3: V3) -> V4 {
   let fwu = fw3.x;
   let mat = i32(in.mi.x + .5);
@@ -87,27 +99,23 @@ fn shade(in: VO, front: bool, fw3: V3) -> V4 {
   var amb = 1.; var alpha = 1.;
   let uv = in.uv; let k = in.mi.y; let arm = i32(in.mi.z + .5);
   switch mat {
-    case 0, 15: {      // plaster, stone
-      let g = snoise3d(wp * select(19., 11., mat == 15));
-      n = normalize(n + g.xyz * (.02 + .03 * f32(mat == 15)) * near);
+    case 0, 15: {      // plaster; 15 = polished pale stone
+      let g = snoise3d(wp * 19.);
+      n = normalize(n + g.xyz * .02 * near);
       alb *= .92 + .08 * g.w + .06 * vnoise3(wp * .7);
-      if (mat == 15) {
-        if (n.y > .8) { let q = wp.xz / V2(1.4, .9) + V2(0., .5 * floor(wp.x / 1.4)); alb *= (.8 + .3 * hash21(floor(q))) * (1. - .45 * lines(q.x + .5, .012, fwp) - .45 * lines(q.y + .5, .02, fwp)); }
-        else if (wp.x > 38. && abs(n.y) < .5) {       // ashlar courses, ivy creeping down the court walls
-          let w = V2(wp.x + wp.z, wp.y);
-          let q = V2(w.x / 1.3 + .5 * floor(w.y / .55), w.y / .55);
-          alb *= (.82 + .3 * hash21(floor(q))) * (1. - .5 * near * max(lines(q.x + .5, .012, fwp), lines(q.y + .5, .03, fwp * 2.)));
-          let iv = fbm2(w * .3, 3) * .8 + (wp.y - 6.) * .1;
-          let lf = snoise3d(wp * 26.);
-          let m = ss(-.25, .15, lf.w * .6 + iv * 2.);
-          alb = mix(alb, V3(.035, .16, .03) * (.6 + .9 * vnoise3(wp * 60.)) * (.7 + .6 * ss(-.5, .6, lf.w)), m); n = normalize(n + lf.xyz * .7 * m);
-        }
-      }
+      if (mat == 15) { alb *= .9 + .2 * vnoise3(wp * 2.3); spec = .35; shin = 50.; refl = .1; }
       ao = hallAO(wp);
     }
-    case 1: {          // gold
-      n = normalize(n + (hash33(floor(wp * 60.)) - .5) * .08 * near);
-      metal = 1.; spec = 1.; shin = 50.; refl = .45;
+    case 1: {          // gilding
+      metal = 1.; spec = 1.; shin = 70.; refl = .6; ao = mix(1., hallAO(wp), .5);
+    }
+    case 22: {         // warm marble: fluted shafts, veins, polish
+      let t = normalize(cross(V3(0., 1., 0.), n + V3(1e-4, 0., 0.)));
+      let fa = (1. - ss(.008, .03, fwu)) * step(abs(n.y), .5) * step(.3, in.col.b) * step(in.col.b, .6);
+      n = normalize(n + t * sin(uv.x * 31.4) * .5 * fa);
+      let vn = snoise3(wp * V3(2., .7, 2.) + 2. * vnoise3(wp * .8));
+      alb *= (.88 + .14 * vnoise3(wp * 3.)) * (1. - .22 * (1. - ss(0., .09, abs(vn)))) * (1. - .3 * fa * (.5 + .5 * cos(uv.x * 31.4)));
+      spec = .4; shin = 60.; refl = .15; ao = hallAO(wp);
     }
     case 2: {          // polished walnut
       let w = vnoise3(wp * V3(1.3, 1.3, 1.3)) * 7. + vnoise3(wp * 40.) * .25;
@@ -120,24 +128,32 @@ fn shade(in: VO, front: bool, fw3: V3) -> V4 {
       let q = V2(wp.x + wp.z, wp.x - wp.z) / .85; let id = floor(q); let l = abs(fract(q) - .5);
       let par = mix(step(.25, fract((id.x + id.y) * .5)), .5, ss(.12, .4, fwp * 4.));
       alb = mix(V3(.72, .66, .56), V3(.46, .34, .3), par);
-      let vn = snoise2(wp.xz * .8 + id * 3.1);
+      let vn = snoise2(rot2(hash21(id) * 6.3) * wp.xz * .8 + id * 3.1);
       alb *= .88 + .14 * vnoise2(wp.xz * 2.3 + id * 1.7) - .2 * (1. - ss(0., .06, abs(vn))) * near;
       alb *= 1. - .45 * ss(.48 - fwp * 2., .5, max(l.x, l.y)) * near;
       let ax = abs(wp.x); let az = abs(wp.z);
       let a = select(select(az, ax, az > 7.), 0., (ax < 7. && az < 7.) || ax > 37.);
-      alb = mix(alb, V3(.1, .075, .065) * (.9 + .3 * vn), ss(3.84, 3.86 + fwp, a));
+      let dk = V3(.1, .075, .065) * (.9 + .3 * vn);
+      alb = mix(alb, dk, ss(3.84, 3.86 + fwp, a));
       var gd = 1. - ss(.035, .035 + fwp, abs(a - 3.82));
       let r = length(wp.xz);
       if (r < 6.2) {     // compass rose under the orrery
-        let an = atan2(wp.z, wp.x) * 8. / PI; let fa = fract(an) - .5; let big = step(.5, fract(an * .5));
-        let rs = mix(1.2, mix(3.4, 5., big), pow(1. - abs(fa) * 2., 1.6));
-        let st = ss(rs + fwp, rs - fwp, r);
-        alb = mix(alb, mix(V3(.09, .07, .07), V3(.8, .72, .58), step(0., fa)), st);
+        let st = star(wp.xz, 1.2, 3.4, 5., fwp);
+        alb = mix(alb, mix(dk, V3(.8, .72, .58), st.y), st.x);
         gd = max(gd, max(1. - ss(.05, .05 + fwp, abs(r - 5.6)), 1. - ss(.03, .03 + fwp, abs(r - 1.2))));
+      } else if (a > 0.) {       // a star medallion in every third bay
+        let al = select(ax, az, az > 7.) - 7.; let kb = floor(al / 6.);
+        let m = V2(select(wp.z, wp.x, az > 7.), al - kb * 6. - 3.); let rm = length(m);
+        if (fract((kb + 2.) / 3.) < .2 && rm < 2.) {
+          let st = star(m, .45, 1., 1.5, fwp);
+          alb = mix(alb, mix(dk, V3(.8, .72, .58), st.y), st.x);
+          gd = max(gd, 1. - ss(.03, .03 + fwp, abs(rm - 1.75)));
+        }
       }
-      alb = mix(alb, V3(.85, .58, .18), gd); metal = gd * .6;
+      if (ax > 37.) { ao = contact(wp); let rf = length(wp.xz - V2(47., 0.)); gd = max(gd, 1. - ss(.04, .04 + fwp, abs(rf - 5.2))); alb = mix(alb, dk, ss(4.4, 4.42, rf) * ss(5.18, 5.16, rf)); }
+      alb = mix(alb, V3(1., .66, .22), gd); metal = gd * .6;
       n = normalize(n + V3(vn, 0., vnoise2(wp.xz * 3.)) * .004);
-      spec = .25; shin = 90.; refl = .7; ao = hallAO(wp);
+      spec = .25; shin = 90.; refl = .7; ao *= hallAO(wp) * contact(wp);
     }
     case 4: {          // bookshelves
       let b = books(uv, floor(uv.x / 10.) * 13. + k * 37. + f32(arm) * 101., fw3.y, fw3.z);
@@ -145,29 +161,34 @@ fn shade(in: VO, front: bool, fw3: V3) -> V4 {
       n = normalize(n + t * b.tilt);
       alb = b.c; ao = b.ao; spec = .12 + b.gold * .9; shin = 30.; metal = b.gold * .5;
     }
-    case 5: {          // frescoed vault panel: clouds in a painted sky, gilded stucco frame
+    case 5: {          // vault bay: a gilt-framed fresco in the crown, gold-lined coffers on the haunches
       let c2 = V2(uv.x - .5, uv.y - .5);
-      let ed = min(.5 - abs(c2.x) - .045, (.5 - abs(c2.y)) * .28 - .02);
+      let px = abs(c2.x) * 22.; let py = abs(c2.y) * 6.;
+      let d1 = min(4.6 - px, 2.3 - py);
       let sd = k * 3.7 + f32(arm) * 11.;
       let q = V2(uv.x * 5., uv.y * 1.6) + sd;
       let cl = fbm2(q * 1.3, 4); let c3 = fbm2(q * .6 + 7., 2);
       var za = array<V3, 4>(V3(.22, .42, .78), V3(.16, .45, .72), V3(.34, .26, .6), V3(.1, .13, .4)); let zen = za[arm & 3];
       var ha = array<V3, 4>(V3(1., .66, .5), V3(.8, .86, .8), V3(1., .5, .25), V3(.6, .36, .6)); let hor = ha[arm & 3];
-      var c = mix(zen, hor, ss(.1, .52, length(c2 * V2(1., .8)) + c3 * .15));
+      var c = mix(zen, hor, ss(.3, 1.1, length(V2(px / 4.6, py / 2.3)) + c3 * .2));
       c = mix(c, mix(V3(.62, .5, .62), V3(1., .93, .8), ss(-.2, .5, cl + c3)), ss(-.05, .4, cl));
-      c += V3(1., .75, .4) * exp(-dot(c2, c2) * 22.) * .35;
+      c += V3(1., .75, .4) * exp(-(px * px + py * py * 3.) * .12) * .35;
       c *= .9 + .1 * vnoise2(uv * V2(260., 80.));
-      let fr = ss(0., .004, -ed); let gl = ss(.03, .026, abs(ed + .018));
-      alb = mix(c, mix(V3(.78, .72, .62), V3(.85, .58, .18), gl), fr);
-      metal = fr * gl * .7; spec = metal; amb = 1.5; ao = mix(.8, 1., ss(0., .05, ed));
+      let out = ss(0., .02, -d1); let inF = out * ss(-.34, -.32, d1);
+      let d2 = min(min(px - 5.4, 9.9 - px), 2.25 - py);
+      let ln = (1. - ss(.03, .05, abs(d2))) * (1. - inF) * out;
+      alb = mix(c, V3(.8, .74, .64) * (1. - .1 * step(0., d2)), out);
+      alb = mix(alb, V3(1., .66, .22) * (.65 + .45 * cos(d1 * 37.)), max(inF, ln));
+      metal = max(inF, ln) * .8; spec = metal; shin = 40.; amb = 1.5; ao = mix(.75, 1., ss(0., .12, abs(d1 + .34) + (1. - out)));
     }
     case 6, 21: {      // stained glass
       var c: V3;
-      if (mat == 21) { c = fan(uv / 2.8, 16., 3., 1., fwu / 2.8) * ss(2.8, 2.78, length(uv)); }
+      if (mat == 21) { c = fan(uv / 2.8, 16., 4, 3., 1., fwu / 2.8) * ss(2.8, 2.78, length(uv)); }
       else { c = pane(arm, k, uv.x, uv.y, 1., fwu); }
       let sunny = dot(n, G.sunDir) < 0.;
       let hot = pow(max(dot(-v, G.sunDir), 0.), 60.);
       emit = c * select(.4 + 2. * luminance(sky(-v)), 2.1 + 9. * hot, sunny);
+      if (mat == 21 && length(uv) < .93) { emit = sky(-v) * 1.3 + V3(.02, .03, .06); }
       alb = V3(.02); spec = .3; shin = 80.;
     }
     case 7: {          // lamp glass: hot core, softer rim
@@ -184,7 +205,7 @@ fn shade(in: VO, front: bool, fw3: V3) -> V4 {
       } else if (ty < 1.5) { ln = max(lines(uv.x / 1.25 + .5, .045, fwu), lines(uv.y / 1.25 + .5, .045, fwu)); }
       else { let an = atan2(uv.y, uv.x) / PI * 6.; ln = max(lines(an + .5, .03 / max(length(uv), .3), fwu), lines(length(uv) / 1.05 + .5, .03, fwu)); }
       emit = sky(-v) * (1. - ln) * 1.25;
-      alb = V3(.85, .58, .18) * ln; metal = ln; spec = ln; refl = ln * .3;
+      alb = V3(1., .66, .22) * ln; metal = ln; spec = ln; refl = ln * .3;
     }
     case 9, 17: {      // pages (17: being written right now)
       let rw = floor(uv.y * 19.); let fy = fract(uv.y * 19.);
@@ -209,15 +230,13 @@ fn shade(in: VO, front: bool, fw3: V3) -> V4 {
       var c = mix(V3(.3, .025, .03), V3(.03, .05, .2), ss(.02, 0., abs(r - .45 - .07 * pet) - .06));
       c = mix(c, V3(.6, .42, .16), ss(.02, 0., abs(r - .2 - .05 * pet) - .012) + ss(.012, 0., abs(abs(r - .86) - .05) - .008));
       c = mix(c, V3(.5, .36, .2), step(.25, hash21(floor(uv * 40.))) * step(.72, r) * step(r, .8) * (.5 + .5 * cos(an * 48.)));
-      alb = c * (.5 + .3 * hash21(floor(uv * 300.)));
+      c = mix(c, V3(.55, .4, .16), ss(.02, .0, abs(fract(max(abs(uv.x), abs(uv.y)) * 30.) - .5) - .2) * step(.9, max(abs(uv.x), abs(uv.y))));
+      alb = c * (.5 + .3 * hash21(floor(uv * 300.))); ao = contact(wp);
     }
-    case 12: {         // foliage
-      let g = snoise3d(wp * 17.); let g2 = vnoise3(wp * 70.);
-      n = normalize(n + g.xyz * 1.1);
-      alb *= (.55 + .5 * g2) * mix(.35, 1.2, ss(-.6, .5, g.w));
-      let fl = step(.99, hash31(floor(wp * 24.))) * near;
-      alb = mix(alb, V3(.9, .4, .5), fl);
-      spec = .15; amb = 1.3;
+    case 12: {         // leaf cards: lighter toward the tip, light through the blade
+      alb *= .7 + .7 * uv.y;
+      emit = alb * (.12 + .5 * sunAt(wp, 0.));
+      amb = 1.5; spec = .12;
     }
     case 13: {         // the cat
       let s = sin(in.lp.x * 38. + vnoise3(in.lp * 14.) * 5.);
@@ -239,73 +258,82 @@ fn shade(in: VO, front: bool, fw3: V3) -> V4 {
         let f = max(dot(n, v), 0.);
         emit = V3(1., .55, .16) * (2. + 8. * f * f) * (.85 + .25 * fbm3(d * 4. + G.time * .05, 3)); alb = V3(0.);
       } else {
-        let q = d * 6.; let id = floor(q); let hh = hash33(id);
-        let st = ss(.08, .03, length(fract(q) - .5 - (hh - .5) * .5)) * step(.6, hh.z);
-        alb = V3(.02, .045, .16) * (.8 + .4 * vnoise3(d * 3.));
-        let gd = max(grat, st); alb = mix(alb, V3(.85, .58, .18), gd); emit = V3(1., .7, .3) * st * .6 + V3(.03, .08, .25);
+        let q = d * 5.; let id = floor(q); let hh = hash33(id);
+        let st = ss(.09, .03, length(fract(q) - .5 - (hh - .5) * .5)) * step(.5, hh.z);
+        let ecl = 1. - ss(.008, .02, abs(d.y - .38 * sin(lo + 1.)));
+        let g30 = max(lines(la * 6. / PI + .5, .012, fwp * 3.), lines(lo * 6. / PI + .5, .012 / max(cos(la), .2), fwp * 3.));
+        alb = V3(.025, .06, .2) * (.8 + .4 * vnoise3(d * 3.));
+        let gd = max(max(st, ecl), g30 * .6); alb = mix(alb, V3(1., .66, .22), gd); emit = V3(1., .7, .3) * st * .5;
         metal = gd; spec = .7; shin = 80.; refl = .2;
       }
     }
     case 16: {         // the dome: a night-blue star chart
       let r = length(uv);
-      alb = mix(V3(.035, .07, .24), V3(.012, .025, .11), ss(.3, 1.2, r)) * (.85 + .3 * vnoise2(uv * 9.));
+      alb = mix(V3(.03, .05, .3), V3(.012, .02, .13), ss(.3, 1.2, r)) * (.85 + .3 * vnoise2(uv * 9.));
       let q = uv * 11.; let id = floor(q); let hh = hash22(id); let c = fract(q) - .5 - (hh - .5) * .6;
       let st = ss(.07 + .08 * hh.x, 0., length(c) + .6 * min(abs(c.x), abs(c.y)) * step(.6, hh.y)) * step(.35, hh.x);
       let an = atan2(uv.y, uv.x) / PI * 8.;
       let gd = max(max(st, lines(an + .5, .012 / max(r, .2), fwu)), max(lines(r * 2.2 + .5, .012, fwu * 2.2), ss(.455, .445, r)));
-      alb = mix(alb, V3(.85, .58, .18), gd); emit = V3(1., .7, .3) * st * .8;
+      alb = mix(alb, V3(1., .66, .22), gd); emit = V3(1., .7, .3) * st * .8;
       metal = gd * .8; spec = gd; amb = 1.7;
     }
-    case 18: {         // embers
-      let f = fbm3(V3(wp.x * 4., wp.y * 3. - G.time * .25, G.time * .12), 3) * .5 + .5;
-      let hgt = ss(1.1, 0., uv.y) * ss(.5, .2, abs(uv.x - .5));
-      emit = V3(1., .33, .06) * pow(f * hgt * 1.7, 2.5) * 5. + V3(.25, .03, 0.) * hgt; alb = V3(.01);
+    case 18: {         // the fire: tongues rising from the logs, a bed of embers
+      let x = uv.x - .5; let y = uv.y * 1.9;
+      let f = fbm3(V3(wp.x * 5., y * 2.6 - G.time * .7, G.time * .2), 3) * .5 + .5;
+      let tg = ss(.0, .5, f - y * (.28 + 1.3 * x * x) + .22) * ss(.52, .3, abs(x)) * ss(.05, .25, y);
+      emit = mix(V3(1., .2, .02), V3(1., .75, .3), tg) * tg * 7. + V3(1., .25, .03) * ss(.4, .0, y) * (.5 + f) * ss(.5, .35, abs(x));
+      alb = V3(.008);
     }
     case 19: {         // vault ribs: cream with gilded edges and rosettes
       let e = abs(uv.x - .5);
       let ro = length(V2(e * .6, fract(uv.y / 1.1) - .5) * V2(1., 1.1));
       let gd = max(ss(.36, .38, e) * ss(.47, .45, e), ss(.1, .09, ro) * step(.045, ro) + ss(.03, .025, ro));
-      alb = mix(alb, V3(.85, .58, .18), gd * near + .3 * (1. - near)); metal = gd * near; spec = metal; amb = 1.3;
+      alb = mix(alb, V3(1., .66, .22), gd * near + .3 * (1. - near)); metal = gd * near; spec = metal; amb = 1.3;
     }
     case 20: {         // floating book cover
       alb = leather(in.mi.w) * 1.4; spec = .3;
       let b = max(abs(uv.x - .5), abs(uv.y - .5));
       let gd = ss(.015, 0., abs(b - .42)) + ss(.02, 0., abs(length(uv - .5) - .16));
-      alb = mix(alb, V3(.85, .58, .18), gd); metal = gd; spec += gd;
+      alb = mix(alb, V3(1., .66, .22), gd); metal = gd; spec += gd;
     }
-    case 24: {         // gilded railing lattice (blended)
-      let q = V2(uv.x + uv.y, uv.x - uv.y) / .21; let l = abs(fract(q) - .5);
-      let e = fwu / .21 * 1.5;
-      var a = max(ss(.43 - e, .43 + e, max(l.x, l.y)), ss(.17 + e, .17 - e, length(l)) * ss(.1 - e, .1 + e, length(l)));
+    case 24: {         // gilded railing lattice (blended); melts into an even gold veil with distance
+      let q = V2(uv.x + uv.y, uv.x - uv.y) / .3; let l = abs(fract(q) - .5);
+      let e = fwu / .3 * 1.5;
+      var a = max(ss(.44 - e, .44 + e, max(l.x, l.y)), ss(.2 + e, .2 - e, length(l)) * ss(.13 - e, .13 + e, length(l)));
       a = max(a, ss(.035 + fwu, .035, min(uv.y, .92 - uv.y)));
-      alpha = mix(a, .42, ss(.03, .1, fwu));
-      alb = V3(.85, .58, .18); metal = 1.; spec = .8; shin = 40.; refl = .3;
+      alpha = mix(a, .33, ss(.008, .03, fwu));
+      alb = V3(1., .66, .22); metal = 1.; spec = .8; shin = 40.; refl = .3;
     }
-    case 26: {         // fountain water (blended)
-      let w = wp.xz * 3.; let t = G.time * .5;
-      let g = V2(snoise2(w + V2(t, .3 * t)) + .5 * snoise2(w * 2.3 - t), snoise2(w.yx - V2(.4 * t, t)) + .5 * snoise2(w.yx * 2.3 + t));
-      n = normalize(V3(g.x * .09, 1., g.y * .09));
-      let f = .04 + .96 * pow(1. - max(dot(n, v), 0.), 5.);
+    case 26: {         // fountain water (blended): ripples, fresnel, the oculus mirrored, the basin seen through
+      let w = wp.xz * 3.; let t = G.time * .5; let c0 = wp.xz - V2(47., 0.); let rr = length(c0);
+      var g = V2(snoise2(w + V2(t, .3 * t)) + .5 * snoise2(w * 2.3 - t), snoise2(w.yx - V2(.4 * t, t)) + .5 * snoise2(w.yx * 2.3 + t));
+      g += c0 / max(rr, .1) * sin(rr * 16. - G.time * 2.6) * 1.2 * ss(3., 1.2, rr);
+      n = normalize(V3(g.x * .06, 1., g.y * .06));
+      let f = .03 + .97 * pow(1. - max(dot(n, v), 0.), 5.);
       let r = reflect(-v, n);
-      emit = (sky(r) * 1.3 + roofLight((wp + r * (13. - wp.y) / max(r.y, .05)).xz, .1) * .9) * f + V3(.01, .07, .08);
-      alb = V3(.02, .1, .1); alpha = .55 + .45 * f; spec = 1.; shin = 200.;
+      let hit = (wp + r * (12.9 - wp.y) / max(r.y, .05)).xz - V2(47., 0.);
+      let oc = rose(hit * .5, 1., .04) * 2.2 + sky(r) * step(length(hit), 1.9) * 1.3;
+      let bed = V3(.03, .2, .22) * (.5 + .5 * vnoise2(wp.xz * 5. + g * .15)) * (.35 + 1.5 * sunC(wp + V3(g.x, 0., g.y) * .12, 1.));
+      emit = mix(bed, mix(V3(.25, .22, .18), oc, step(length(hit), 5.6)), f);
+      alb = V3(0.); alpha = .8 + .2 * f; spec = 1.; shin = 200.;
     }
     default: {}
   }
   // light
   let sun = sunAt(wp, 1.) * (SUNC * SUNI);
-  let s = G.sunDir;
+  let s = select(G.sunDir, CDIR, wp.x > 37.6);
   let lam = lamps(wp, n);
   let tint = mix(V3(1.), mix(mix(V3(1., .86, .72), V3(.72, .95, .92), step(wp.z, 0.)), mix(V3(1., .8, .58), V3(.84, .76, 1.), step(wp.x, 0.)), step(abs(wp.z), 7.)), ss(5., 16., max(abs(wp.x), abs(wp.z))));
   var L = mix(V3(.15, .12, .095), V3(.27, .245, .21), n.y * .5 + .5) * tint * (amb * ao);
-  if (wp.x > 37.6) { L += V3(.08, .1, .13) * (.5 + .5 * n.y) * ao; }
-  L += sun * wrapDiffuse(n, s, .25) + lam * mix(ao, 1., .5);
-  var c = alb * L * (1. - metal * .75) + emit;
+  if (wp.x > 37.6) { L += V3(.3, .28, .25) * (.6 + .4 * n.y) * ao * mix(.5, 1., ss(8.6, 7.6, max(abs(wp.z), wp.x - 47.)) + step(7., wp.y)); }
+  L += sun * max(dot(n, s), 0.) + lam * mix(ao, 1., .5);
+  var c = alb * L * (1. - metal * .93) + emit;
   let r = reflect(-v, n);
   if (spec > 0.) {
     let sc = mix(V3(1.), alb, metal);
-    c += sc * spec * (sun * specBlinn(n, s, v, shin) * .4 + lamps(wp, r) * 1.2 * mix(1., 2.5, metal));
-    c += sc * metal * mix(V3(.035, .025, .015), V3(.42, .36, .27) * tint, ss(-.4, .9, r.y)) * ao;
+    c += sc * spec * (sun * specBlinn(n, s, v, shin) * .4 + min(lamps(wp, r) * 1.2 * mix(1., 2.5, metal), V3(1.6)));
+    let ev = r.y + .4 * vnoise3(r * 2.5 + wp * .3);
+    c += sc * metal * mix(V3(.015, .008, .004), V3(.62, .54, .4) * tint, ss(-.2, .3, ev) * (.3 + .7 * ss(.5, .95, ev))) * ao;
   }
   if (refl > 0.) {
     let f = mix(.035 + .965 * pow(1. - max(dot(n, v), 0.), 5.), 1., metal);
@@ -320,9 +348,9 @@ fn fwOf(uv: V2) -> V3 { let a = dpdx(uv); let b = dpdy(uv); return V3(max(length
 @fragment fn fsT(in: VO, @builtin(front_facing) ff: bool) -> @location(0) V4 {
   let fw = fwOf(in.uv);
   if (i32(in.mi.x + .5) == 25) {
-    let d = length(in.uv); let g = exp(-d * d * 5.) * .5 + exp(-d * d * 40.) * 1.2;
+    let d = length(in.uv); let g = exp(-d * d * 6.) * .2 + exp(-d * d * 40.) * .8;
     let f = 1. - exp(-pow(distance(in.wp, G.camPos) * .0105, 2.));
-    return V4(V3(1., .55, .2) * (g * ss(1., .6, d) * in.col.g * (1. - f)), 0.);
+    return V4(V3(1., .55, .2) * (g * ss(1., .6, d) * in.col.g * (1. - f) * (1. - f)), 0.);
   }
   return shade(in, ff, fw);
 }
@@ -368,8 +396,8 @@ fn birdPos(i: u32, t: f32) -> V3 {
   var o: BO;
   let p0 = birdPos(ii, G.time); let fw = normalize(birdPos(ii, G.time + .4) - p0);
   let rt = normalize(cross(fw, V3(0., 1., 0.))); let up = cross(rt, fw);
-  let tri = vi / 3u; let c = vi % 3u; let sd = select(-1., 1., tri < 2u); let tip = (tri & 1u) == 1u;
-  // corners: 0 nose, 1 tail, 2 wing mid, 3 wing tip
+  let tri = vi / 3u; let c = vi % 3u; let sd = select(-1., 1., (tri & 2u) == 0u); let tip = (tri & 1u) == 1u;
+  // corners: 0 nose, 1 tail, 2 wing mid, 3 wing tip; triangles 4 and 5 are the tail
   var id = c; if (tip) { id = select(c + 1u, 0u, c == 0u); if (c == 1u) { id = 2u; } if (c == 2u) { id = 3u; } }
   let hh = hash1u(ii * 31u + 5u);
   let fl = sin(G.time * (5. + 2. * hh) + hh * 40.) * (.35 + .35 * sin(G.time * .31 + hh * 20.)) + .25;
@@ -377,13 +405,19 @@ fn birdPos(i: u32, t: f32) -> V3 {
   if (id == 1u) { l = V3(0., 0., -.15); u = V2(0., 1.); }
   if (id == 2u) { l = V3(.15 * cos(fl), .15 * sin(fl), -.03); u = V2(.5, .6); }
   if (id == 3u) { l = V3(.15 * cos(fl) + .17 * cos(fl * 1.7), .15 * sin(fl) + .17 * sin(fl * 1.7), -.12); u = V2(1., 1.); }
-  o.wp = p0 + (rt * (l.x * sd) + up * l.y + fw * l.z) * 1.25;
-  o.pos = G.viewProj * V4(o.wp, 1.); o.uv = u;
+  var tone = select(1., .62, tip) * select(.85, 1., sd > 0.);
+  var sg = sd;
+  if (tri > 3u) {
+    l = V3(0., 0., -.12); tone = .5; sg = select(-1., 1., tri == 4u);
+    if (c == 1u) { l = V3(.07, .012, -.3); } if (c == 2u) { l = V3(0., .04, -.23); }
+  }
+  o.wp = p0 + (rt * (l.x * sg) + up * l.y + fw * l.z) * 1.25;
+  o.pos = G.viewProj * V4(o.wp, 1.); o.uv = V2(tone, u.y);
   o.c = sunAt(p0, 0.) * 2. + lamps(p0, up) * .6;
   return o;
 }
 @fragment fn fsBird(in: BO) -> @location(0) V4 {
-  let ink = step(.5, fract(in.uv.y * 9.)) * step(.15, in.uv.x) * .25;
-  let c = V3(.9, .78, .55) * (.4 + in.c) * (1. - ink) + V3(1., .62, .28) * (.2 + .5 * in.uv.x);
+  let ink = step(.5, fract(in.uv.y * 9.)) * .2;
+  let c = (V3(.9, .78, .55) * (.4 + in.c) * (1. - ink) + V3(1., .62, .28) * .3) * in.uv.x;
   return V4(haze(c, in.wp), 1.);
 }

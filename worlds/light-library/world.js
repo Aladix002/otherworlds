@@ -10,7 +10,7 @@ const look = (x, y, z, tx, ty, tz, t) => ({ pos: [x, y, z], yaw: yawTo(x, z, tx,
 // fly-through: nave -> past the door and back -> stair side -> crossing -> court -> west transept -> nook -> up to the gallery
 const PATH = [[0, 1.7, 26], [0.6, 1.7, 34], [1.6, 1.7, 40.5], [0, 1.8, 37], [-1.2, 1.8, 28], [0.8, 2.2, 18], [1.5, 3, 8], [3, 3.4, 1], [12, 2.4, -0.5], [24, 1.9, 0.5],
   [36, 1.8, 0], [43, 1.9, 3.6], [50.5, 2.2, 2], [49, 2.4, -4], [41, 2, -2.5], [30, 2.6, 0], [14, 4.5, 0.8], [0, 6.5, 2], [-14, 4, 0.5], [-28, 2.2, -0.5],
-  [-40, 1.8, 0.5], [-44, 1.8, 0.2], [-36, 3.2, -1], [-22, 6.4, 3.5], [-8, 6.7, 5.6], [-5.7, 6.7, 12], [-5.4, 6.8, 22], [-2, 7.5, 30], [0, 8, 20]];
+  [-40, 1.8, 0.5], [-44, 1.8, 0.2], [-36, 3.2, -1], [-22, 6.7, 5.5], [-8, 6.8, 5.6], [-5.6, 6.8, 12], [-5.6, 6.9, 22], [-3, 8.4, 30], [0, 8.6, 20]];
 function flyPath() {
   const out = []; let prev = 0;
   for (let i = 0; i < PATH.length; i++) {
@@ -20,7 +20,7 @@ function flyPath() {
     while (yaw - prev > Math.PI) yaw -= 2 * Math.PI;
     while (yaw - prev < -Math.PI) yaw += 2 * Math.PI;
     prev = yaw;
-    out.push({ pos: p, yaw, pitch: i > 22 ? -0.22 : i === 7 || i === 17 ? 0.3 : 0.04 });
+    out.push({ pos: p, yaw, pitch: i > 22 ? -0.27 : i === 7 || i === 17 ? 0.3 : 0.04 });
   }
   return out;
 }
@@ -47,16 +47,16 @@ export default {
     look(-4.7, 7.5, 10.5, 1.5, 4.6, 0, 20),          // upper gallery looking down on the crossing and orrery
     look(-1.4, 1.65, 38.6, 0.3, 1.25, 44, 20),        // the door between the shelves
     look(40.2, 1.8, 3.8, 48, 2.2, -1, 20),            // fountain court
-    look(-43.2, 1.5, 1.4, -45.9, 0.9, 3.6, 20),       // the sleeping cat in the nook
+    look(-39.4, 1.6, 1.9, -46.4, 1.75, -4.4, 20),          // the nook: great window, hearth, the cat asleep by the fire
   ],
   flythrough: flyPath(),
   flythroughDuration: 75,
   doors: [{ pos: DOOR, yaw: Math.PI, to: 'turtle-island' }],
   bounds: { min: [-49, -1, -47.5], max: [57.2, 30, 47.5] },
-  env: { sunDir: [0.6, 0.68, -0.42], sunColor: [0.5, 0.42, 0.34], fogColor: [0.5, 0.33, 0.15], fogDensity: 0.004,
+  env: { sunDir: [0.6, 0.68, -0.42], sunColor: [0.5, 0.42, 0.34], fogColor: [0.34, 0.2, 0.085], fogDensity: 0.004,
     ambientSky: [0.34, 0.3, 0.26], ambientGround: [0.2, 0.16, 0.12] },
-  post: { exposure: 1.05, bloom: 0.16, bloomThreshold: 1.0, bloomKnee: 0.6, bloomRadius: 1.15, vignette: 0.28, saturation: 1.08, contrast: 1.03 },
-  clearColor: [0.5, 0.33, 0.15],
+  post: { exposure: 1.08, bloom: 0.095, bloomThreshold: 1.35, bloomKnee: 0.5, bloomRadius: 0.75, vignette: 0.3, saturation: 1.08, contrast: 1.1, lift: [-0.012, -0.012, -0.012] },
+  clearColor: [0.34, 0.2, 0.085],
   doorLight: [0.1, 0.08, 0.06],
   eyeHeight: 1.6,
   foot: 0,
@@ -89,9 +89,9 @@ export default {
     this.RD = new Float32Array(NR * 8); this.ringI = ctx.buffer(this.RD, 'vertex');
     for (let i = 0; i < 5; i++) this.RD.set([ORB[i][0], ORB[i][3], ORB[i][4], 0.028, OC[0], OC[1], OC[2], 0], i * 8);
     // lights: orrery sun, door candles, fireplace, lamps, fountain, celestial globe
-    const LD = new Float32Array([0, 9, 0, 19, 9, 5.6, 2.4, 0, 1.7, 1.9, 44, 7, 2.6, 1.6, 0.7, 0, -1.7, 1.9, 44, 7, 2.6, 1.6, 0.7, 0,
-      -43, 0.9, -6.3, 9, 5, 1.8, 0.5, 0, -45.9, 1.35, 3.65, 5, 1.6, 1.0, 0.45, 0, 3.35, 1.35, 29.4, 5, 1.6, 1.0, 0.45, 0,
-      47, 2.2, 0, 8, 0.5, 1.1, 1.2, 0, 0, 2.2, -28, 6, 0.9, 0.7, 0.5, 0]);
+    const LD = new Float32Array([0, 9, 0, 19, 9, 5.6, 2.4, 0, 1.7, 2.5, 44, 7, 1.7, 1.05, 0.45, 0, -1.7, 2.5, 44, 7, 1.7, 1.05, 0.45, 0,
+      -43, 0.7, -6.2, 11, 6.5, 2.3, 0.6, 0, -44.3, 1.25, 3.15, 5, 1.3, 1.3, 0.6, 0, 3.35, 1.25, 29.4, 5, 1.3, 1.3, 0.6, 0,
+      47, 4.5, 0, 14, 2.2, 1.9, 1.5, 0, 0, 2.2, -28, 6, 0.9, 0.7, 0.5, 0]);
     const uL = ctx.layout(['uniform']), sL = ctx.layout(['storage']);
     this.dL = ctx.layout(['texture-depth']); this.vL = ctx.layout(['texture', 'sampler']);
     this.uBG = ctx.bindGroup(uL, [ctx.buffer(LD, 'uniform')]);
@@ -117,7 +117,7 @@ export default {
       P({ module: fx, vs: 'vsFs', fs: 'fsVol', layouts: [uL, this.dL], format: 'rgba16float', depthFormat: null, label: 'vol' }),
       P({ module: fx, vs: 'vsFs', fs: 'fsMix', layouts: [uL, this.dL, this.vL], blend: 'add', depthFormat: null, label: 'mix' }),
     ]);
-    this.nMote = [1200, 2600, 4500][lv]; this.nBird = [30, 48, 72][lv]; this.nDrop = [90, 150, 220][lv];
+    this.nMote = [1500, 3600, 6000][lv]; this.nBird = [30, 48, 72][lv]; this.nDrop = [90, 150, 220][lv];
     this.volDiv = lv > 1 ? 1.5 : 2;
     this.resize(ctx);
     this.pageT = 0; this.stepT = 0;
@@ -140,7 +140,7 @@ export default {
   update(ctx, dt, t, cam) {
     this.foot = cam.pos[1] - cam.eyeHeight;
     // the sun drifts slowly, so the colours creep across floor and shelves
-    const el = 0.75 + 0.06 * Math.sin(t * 0.013), az = 0.61 + 0.1 * Math.sin(t * 0.019 + 1), S = ctx.env.sunDir;
+    const el = 0.87 + 0.045 * Math.sin(t * 0.013), az = 0.61 + 0.1 * Math.sin(t * 0.019 + 1), S = ctx.env.sunDir;
     S[0] = Math.cos(el) * Math.cos(az); S[1] = Math.sin(el); S[2] = -Math.cos(el) * Math.sin(az);
     // spheres: orrery sun, planets and a moon, three globes
     this.k = 0;
@@ -214,7 +214,7 @@ export default {
     this.draw(pass, this.sph, this.sphI, NS, this.pObj); this.draw(pass, this.quill, this.quillI, 1, this.pObj);
     pass.setPipeline(this.pBook); pass.setVertexBuffer(0, this.bookV); pass.setVertexBuffer(1, this.bookI); pass.setIndexBuffer(this.bookX, 'uint16');
     pass.drawIndexed(this.nBookI, NBK);
-    pass.setPipeline(this.pBird); pass.draw(12, this.nBird);
+    pass.setPipeline(this.pBird); pass.draw(18, this.nBird);
   },
   renderTransparent(ctx, pass) {
     pass.setBindGroup(1, this.uBG);
@@ -257,7 +257,7 @@ export default {
     a.every(9, 22, (when) => a.whoosh({ dur: 0.3, f0: 3000, f1: 5500, filter: 'bandpass', q: 0.8, gain: 0.005, reverb: 0.9, pan: a.rng.range(-0.8, 0.8), when }), { startDelay: 6 });   // far pages
     // places
     a.noiseBed({ color: 'white', filter: 'bandpass', freq: 1700, q: 0.5, gain: 0.09, mod: 0.15, modRate: 0.3, bus: a.spatial({ pos: [47, 1.5, 0], ref: 5, rolloff: 1.4, reverb: 0.3 }) });
-    a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 110, q: 3, gain: 0.5, mod: 0.5, modRate: 0.33, gainMod: 0.6, bus: a.spatial({ pos: [-45.9, 1, 3.4], ref: 1.2, rolloff: 2.2, reverb: 0.1 }) });   // purr
+    a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 110, q: 3, gain: 0.5, mod: 0.5, modRate: 0.33, gainMod: 0.6, bus: a.spatial({ pos: [-43.1, 0.4, -4.9], ref: 1.5, rolloff: 2.2, reverb: 0.1 }) });   // purr
     const fire = a.spatial({ pos: [-43, 0.8, -6.5], ref: 3, rolloff: 1.6, reverb: 0.25 });
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 400, gain: 0.09, mod: 0.5, modRate: 0.5, bus: fire });
     a.every(0.6, 2.8, (when) => a.chirp({ f0: a.rng.range(900, 2200), f1: 400, dur: 0.02, gain: 0.02, bus: fire, when }));

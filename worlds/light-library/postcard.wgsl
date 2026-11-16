@@ -22,7 +22,7 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
       let q = floor(vec2f(p.x + p.z, p.x - p.z) / .85); let e = exp(-tf * .05);
       c = mix(vec3f(.72, .66, .56), vec3f(.46, .34, .3), fract((q.x + q.y) * .5) * 2. * e + .5 * (1. - e)) * .3;
       let pz = p.z - 7.6;
-      let m = smoothstep(1.7, 1.2, abs(fract(pz / 6.) * 6. - 3.)) * smoothstep(-4.6, -4.2, p.x) * smoothstep(-1.9, -2.4, p.x) * step(8., abs(p.z + 1.));
+      let m = smoothstep(1.7, 1.2, abs(fract(pz / 6.) * 6. - 3.)) * smoothstep(-3.5, -3.1, p.x) * smoothstep(.1, -.4, p.x) * step(8., abs(p.z + 1.));
       c += hsv2rgb(vec3f(fract(hash21(floor(vec2f(p.x * 3. + pz * 2., pz * 3. - p.x * 2.))) * .9 + select(.45, .9, p.z > .0)), .85, 1.)) * m * 1.4;
     }
   }
@@ -44,8 +44,8 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
     c = mix(c, vec3f(.5, .42, .3), step(.44, abs(vz - .5)));
     if (abs(p3.z) < 7.) { c = vec3f(.03, .06, .2); }
   }
-  let d = tt * .0105;
-  c = mix(c, vec3f(.5, .33, .15), 1. - exp(-d * d));
+  let d = tt * .0085;
+  c = mix(c, vec3f(.34, .2, .085), 1. - exp(-d * d));
   let oc = max(dot(rd, normalize(vec3f(.0, 9., .0) - o)), .0);                  // the orrery
   return c + vec3f(1., .55, .16) * (pow(oc, 9000.) * 6. + pow(oc, 300.) * .5 + pow(oc, 30.) * .08 * (.9 + .1 * sin(t * .3)));
 }

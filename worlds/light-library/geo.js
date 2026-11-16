@@ -2,10 +2,10 @@
 import { STAIR, TURN, GY, NAVE, EAST, WEST } from './layout.js';
 
 export const PL = 0, GOLD = 1, WOOD = 2, FLOOR = 3, BOOKS = 4, FRESCO = 5, GLASS = 6, EMIT = 7, CLEAR = 8, PAPER = 9, VELVET = 10, RUG = 11,
-  LEAF = 12, CAT = 13, SPH = 14, STONE = 15, DOME = 16, WRITE = 17, FIRE = 18, RIB = 19, ROSE = 21, RAIL = 24, HALO = 25, WATER = 26;
-const C = { pl: [0.78, 0.72, 0.62], pil: [0.7, 0.58, 0.52], gold: [0.85, 0.58, 0.18], wood: [0.2, 0.1, 0.05], woodL: [0.36, 0.22, 0.11],
+  LEAF = 12, CAT = 13, SPH = 14, STONE = 15, DOME = 16, WRITE = 17, FIRE = 18, RIB = 19, ROSE = 21, MARBLE = 22, RAIL = 24, HALO = 25, WATER = 26;
+const C = { pl: [0.78, 0.72, 0.62], pil: [0.74, 0.6, 0.52], ivory: [0.85, 0.8, 0.66], gold: [1, 0.66, 0.22], wood: [0.2, 0.1, 0.05], woodL: [0.36, 0.22, 0.11],
   lamp: [1, 0.68, 0.34], stone: [0.6, 0.5, 0.39], leaf: [0.1, 0.3, 0.07], w: [1, 1, 1] };
-const UP = [0, 1, 0], PI = Math.PI;
+const UP = [0, 1, 0], PI = Math.PI, WH = [0.9, 0.86, 0.78];
 const LEATHER = [[0.3, 0.035, 0.03], [0.2, 0.09, 0.04], [0.42, 0.27, 0.13], [0.04, 0.13, 0.07], [0.035, 0.06, 0.17], [0.24, 0.03, 0.09]];
 
 export class Geo {
@@ -28,12 +28,12 @@ export class Geo {
   }
   // faces bits: 1 -x, 2 +x, 4 -y, 8 +y, 16 -z, 32 +z
   box(x0, y0, z0, x1, y1, z1, m, col, f = 63) {
-    const q = (a, b, c, d) => this.quad(a, b, c, d, m, col);
+    const q = (a, b, c, d, uv) => this.quad(a, b, c, d, m, col, uv), R = [0, 0, 0, 1, 1, 1, 1, 0];
     if (f & 1) q([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]);
-    if (f & 2) q([x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]);
+    if (f & 2) q([x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1], R);
     if (f & 4) q([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]);
     if (f & 8) q([x0, y1, z0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0]);
-    if (f & 16) q([x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [x1, y0, z0]);
+    if (f & 16) q([x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [x1, y0, z0], R);
     if (f & 32) q([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]);
   }
   // a ctx.mesh geo, placed at (x, y, z) in the current frame
@@ -52,23 +52,67 @@ export class Geo {
 // rotate a ctx.mesh geo about X (pitch) in place
 const pitch = (g, a) => { const c = Math.cos(a), s = Math.sin(a); for (const A of [g.pos, g.nrm]) for (let i = 0; i < A.length; i += 3) { const y = A[i + 1], z = A[i + 2]; A[i + 1] = y * c - z * s; A[i + 2] = y * s + z * c; } return g; };
 
+let seed = 7;
+const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+const unit = (v, w = 1) => { const l = Math.hypot(v[0], v[1], v[2]) / w || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+// square prism between two points (ladder, logs, candelabra arms)
+function beam(B, a, b, w, m, col) {
+  const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], s = unit(cross(d, Math.abs(d[1]) > 0.9 * Math.hypot(d[0], d[1], d[2]) ? [1, 0, 0] : UP), w), t = unit(cross(d, s), w);
+  const P = (e, i, j) => [e[0] + i * s[0] + j * t[0], e[1] + i * s[1] + j * t[1], e[2] + i * s[2] + j * t[2]];
+  for (const [i, j, k, l] of [[-1, -1, 1, -1], [1, -1, 1, 1], [1, 1, -1, 1], [-1, 1, -1, -1]]) B.quad(P(a, i, j), P(a, k, l), P(b, k, l), P(b, i, j), m, col, undefined, P([0, 0, 0], i + k, j + l));
+}
+// two-faced leaf card at c, facing n
+function leaf(B, c, n, size) {
+  const a = unit(cross(n, Math.abs(n[1]) > 0.9 ? [1, 0, 0] : UP)), b = cross(n, a), g = rnd() * 6.28, ca = Math.cos(g) * size, sa = Math.sin(g) * size;
+  const P = (i, j) => [c[0] + a[0] * (i * ca - j * sa) + b[0] * (i * sa + j * ca), c[1] + a[1] * (i * ca - j * sa) + b[1] * (i * sa + j * ca), c[2] + a[2] * (i * ca - j * sa) + b[2] * (i * sa + j * ca)];
+  const k = 0.5 + rnd() * 0.9, col = [0.05 * k, 0.2 * k, 0.04 * k];
+  for (const f of [1, -1]) B.quad(P(-1, 0), P(0, 0.55), P(1, 0), P(0, -0.55), LEAF, col, [0, 0, 1, 0.5, 0, 1, 1, 0.5], [n[0] * f, n[1] * f, n[2] * f]);
+}
+function leafBall(B, x, y, z, r, cnt) {
+  B.add(B.M.sphere(r * 0.72, 1), LEAF, [0.012, 0.045, 0.012], x, y, z, 0);
+  for (let i = 0; i < cnt; i++) {
+    const d = unit([rnd() - 0.5, rnd() - 0.45, rnd() - 0.5]), k = r * (0.74 + 0.28 * rnd());
+    leaf(B, [x + d[0] * k, y + d[1] * k, z + d[2] * k], unit([d[0] + rnd() - 0.5, d[1] + rnd() - 0.5, d[2] + rnd() - 0.5]), 0.13 + 0.09 * rnd());
+  }
+}
+function ivy(B, x, y, z, nx, nz, len) {      // a vine hanging down a wall whose normal is (nx, nz)
+  let o = 0;
+  for (let h = 0; h < len; h += 0.05) {
+    o += (rnd() - 0.5) * 0.09; const w = o + (rnd() - 0.5) * 0.3 * (1 - h / len);
+    leaf(B, [x - nz * w + nx * 0.04, y - h, z + nx * w + nz * 0.04], unit([nx + rnd() - 0.5, rnd() * 0.6 - 0.2, nz + rnd() - 0.5]), 0.07 + 0.06 * rnd());
+  }
+}
+// gilt moulding rectangle on a wall plane x (facing -x)
+function frame(B, x, y0, y1, z0, z1, w = 0.05) {
+  B.box(x - 0.03, y0, z0, x, y0 + w, z1, GOLD, C.gold, 13); B.box(x - 0.03, y1 - w, z0, x, y1, z1, GOLD, C.gold, 13);
+  B.box(x - 0.03, y0, z0, x, y1, z0 + w, GOLD, C.gold, 49); B.box(x - 0.03, y0, z1 - w, x, y1, z1, GOLD, C.gold, 49);
+}
 function sconce(B, T, x, y) {
   B.box(x - 0.2, y - 0.13, -0.025, x, y - 0.09, 0.025, GOLD, C.gold);
   B.add(B.M.lathe([[0.02, -0.09], [0.07, -0.06], [0.09, 0]], 8), GOLD, C.gold, x - 0.2, y - 0.02, 0);
   B.add(B.M.sphere(0.1, 1), EMIT, C.lamp, x - 0.2, y + 0.06, 0);
-  T.halo(x - 0.2, y + 0.06, 0, 1.1, 1);
+  T.halo(x - 0.2, y + 0.06, 0, 0.8, 1);
+}
+// capital: necking, flared block, abacus and two volutes
+function capital(B, x, y) {
+  B.box(x - 0.22, y, -0.37, x, y + 0.05, 0.37, GOLD, C.gold, 61);
+  B.box(x - 0.25, y + 0.05, -0.4, x, y + 0.27, 0.4, GOLD, C.gold, 61);
+  B.box(x - 0.29, y + 0.27, -0.45, x, y + 0.35, 0.45, GOLD, C.gold, 61);
+  for (const s of [-1, 1]) B.add(B.M.sphere(0.1, 1), GOLD, C.gold, x - 0.26, y + 0.15, s * 0.37);
 }
 function pilasters(B, T, lower, upper = true) {
   if (lower) {
-    B.box(4.3, 0.5, -0.35, 4.5, 4.05, 0.35, PL, C.pil, 49);
-    B.box(4.26, 0, -0.4, 4.5, 0.5, 0.4, PL, C.pil, 57);
-    B.box(4.24, 4.05, -0.4, 4.5, 4.4, 0.4, GOLD, C.gold, 61);
+    B.box(4.3, 0.6, -0.35, 4.5, 4.05, 0.35, MARBLE, C.pil, 49);
+    B.box(4.24, 0, -0.42, 4.5, 0.44, 0.42, MARBLE, C.pil, 57); B.box(4.27, 0.44, -0.38, 4.5, 0.6, 0.38, GOLD, C.gold, 57);
+    capital(B, 4.5, 4.05);
     B.box(4.3, 4.4, -0.35, 4.5, 4.7, 0.35, PL, C.pl, 49);
     sconce(B, T, 4.3, 3.3);
   }
   if (upper) {
-    B.box(6.8, 5, -0.35, 7, 8.9, 0.35, PL, C.pil, 49);
-    B.box(6.74, 8.9, -0.4, 7, 9.25, 0.4, GOLD, C.gold, 61);
+    B.box(6.8, 5.3, -0.35, 7, 8.9, 0.35, MARBLE, C.pil, 49);
+    B.box(6.76, 5, -0.4, 7, 5.2, 0.4, MARBLE, C.pil, 57); B.box(6.78, 5.2, -0.37, 7, 5.3, 0.37, GOLD, C.gold, 57);
+    capital(B, 7, 8.9);
     B.box(6.8, 9.25, -0.35, 7, 9.8, 0.35, PL, C.pl, 49);
     sconce(B, T, 6.8, 8.3);
   }
@@ -86,6 +130,11 @@ function shelf(B, x, y, z0, z1, o, rows = 10) {      // wall of books at plane x
   B.quad([x, y, z0], [x, y, z1], [x, y + rows * 0.39, z1], [x, y + rows * 0.39, z0], BOOKS, C.w, [z0 + o, 0, z1 + o, 0, z1 + o, rows * 0.39, z0 + o, rows * 0.39]);
 }
 
+function cartouche(B, x, y) {
+  const M = B.M;
+  B.add(M.scale(M.sphere(1, 1), 0.06, 0.15, 0.3), GOLD, C.gold, x, y, 3);
+  for (const s of [-1, 1]) B.add(M.scale(M.sphere(1, 1), 0.04, 0.07, 0.16), GOLD, C.gold, x, y, 3 + s * 0.42);
+}
 function baySide(B, T, s) {
   B.sx = T.sx = s;
   B.g = T.g = 1;
@@ -94,6 +143,7 @@ function baySide(B, T, s) {
   B.box(4.44, 0.5, 0.35, 4.5, 4.4, 0.4, WOOD, C.wood, 33); B.box(4.44, 0.5, 5.6, 4.5, 4.4, 5.65, WOOD, C.wood, 17);
   B.box(4.36, 4.4, 0.35, 4.5, 4.7, 5.65, WOOD, C.wood, 5);
   B.box(4.345, 4.5, 0.35, 4.36, 4.56, 5.65, GOLD, C.gold, 13);
+  cartouche(B, 4.35, 4.55);
   B.box(4.25, 4.7, 0, 7, 5, 6, PL, C.pl, 5);
   B.quad([4.25, 5, 0], [4.25, 5, 6], [7, 5, 6], [7, 5, 0], WOOD, C.woodL);
   B.box(4.225, 4.8, 0, 4.25, 4.88, 6, GOLD, C.gold, 13);
@@ -106,6 +156,7 @@ function baySide(B, T, s) {
   B.box(6.94, 5.35, 0.35, 7, 9.25, 0.4, WOOD, C.wood, 33); B.box(6.94, 5.35, 5.6, 7, 9.25, 5.65, WOOD, C.wood, 17);
   B.box(6.86, 9.25, 0.35, 7, 9.8, 5.65, WOOD, C.wood, 5);
   B.box(6.845, 9.4, 0.35, 6.86, 9.46, 5.65, GOLD, C.gold, 13);
+  cartouche(B, 6.85, 9.52);
   pilasters(B, T, false);
   B.box(6.62, 9.8, 0, 7, 9.95, 6, PL, C.pl, 5); B.box(6.5, 9.95, 0, 7, 10.12, 6, PL, C.pl, 13);
   B.box(6.47, 10, 0, 6.5, 10.07, 6, GOLD, C.gold, 13);
@@ -116,10 +167,15 @@ function baySide(B, T, s) {
   for (let i = 0; i < N; i++) {
     const a = ip(PI * i / N), b = ip(PI * (i + 1) / N), c = op(PI * i / N), d = op(PI * (i + 1) / N), tm = PI * (i + 0.5) / N;
     B.quad([7, a[1], a[0]], [7, c[1], c[0]], [7, d[1], d[0]], [7, b[1], b[0]], PL, C.pl, undefined, F);
-    B.quad([7, a[1], a[0]], [7.3, a[1], a[0]], [7.3, b[1], b[0]], [7, b[1], b[0]], PL, C.gold, undefined, [0, -Math.sin(tm), -Math.cos(tm)]);
+    B.quad([7, a[1], a[0]], [7.3, a[1], a[0]], [7.3, b[1], b[0]], [7, b[1], b[0]], PL, C.pl, undefined, [0, -Math.sin(tm), -Math.cos(tm)]);
+    const g = (t, r) => [6.985, 13.6 + r * Math.sin(t), 3 + r * Math.cos(t)];       // gilt archivolt
+    B.quad(g(PI * i / N, 1.7), g(PI * i / N, 1.88), g(PI * (i + 1) / N, 1.88), g(PI * (i + 1) / N, 1.7), GOLD, C.gold, undefined, F);
   }
-  B.quad([7, 10.7, 1.3], [7.3, 10.7, 1.3], [7.3, 13.6, 1.3], [7, 13.6, 1.3], PL, C.gold, undefined, [0, 0, 1]);
-  B.quad([7, 10.7, 4.7], [7.3, 10.7, 4.7], [7.3, 13.6, 4.7], [7, 13.6, 4.7], PL, C.gold, undefined, [0, 0, -1]);
+  B.quad([7, 10.7, 1.3], [7.3, 10.7, 1.3], [7.3, 13.6, 1.3], [7, 13.6, 1.3], PL, C.pl, undefined, [0, 0, 1]);
+  B.quad([7, 10.7, 4.7], [7.3, 10.7, 4.7], [7.3, 13.6, 4.7], [7, 13.6, 4.7], PL, C.pl, undefined, [0, 0, -1]);
+  for (const z of [1.12, 4.7]) B.quad([6.985, 10.6, z], [6.985, 10.6, z + 0.18], [6.985, 13.6, z + 0.18], [6.985, 13.6, z], GOLD, C.gold, undefined, F);
+  B.quad([6.985, 10.52, 1.12], [6.985, 10.52, 4.88], [6.985, 10.7, 4.88], [6.985, 10.7, 1.12], GOLD, C.gold, undefined, F);
+  B.box(6.88, 15.3, 2.82, 7, 15.62, 3.18, GOLD, C.gold, 61);
   B.quad([7, 10.7, 1.3], [7.3, 10.7, 1.3], [7.3, 10.7, 4.7], [7, 10.7, 4.7], PL, C.pl, undefined, UP);
   B.quad([7.3, 10.7, 1.3], [7.3, 10.7, 4.7], [7.3, 15.3, 4.7], [7.3, 15.3, 1.3], GLASS, C.w, [-1.7, 0, 1.7, 0, 1.7, 4.6, -1.7, 4.6], F);
 }
@@ -142,7 +198,8 @@ export function buildBay(M) {
 }
 
 // wall across a hall at local z with an arched opening; outer edge = the vault section or a W x H rectangle
-function archWall(B, z, hw, sill, spring, face, W = 7, H = 0, depth = 0, mat = PL, col = C.pl) {
+function archWall(B, z, hw, sill, spring, face, W = 7, H = 0, depth = 0, trim = 0.22) {
+  const mat = PL, col = C.pl;
   const F = [0, 0, face], q = (a, b, c, d) => B.quad([a[0], a[1], z], [b[0], b[1], z], [c[0], c[1], z], [d[0], d[1], z], mat, col, undefined, F);
   const top = H || 15.4, N = 16;
   for (const s of [1, -1]) q([s * hw, sill], [s * W, 0], [s * W, top], [s * hw, spring]);
@@ -151,25 +208,30 @@ function archWall(B, z, hw, sill, spring, face, W = 7, H = 0, depth = 0, mat = P
     const a = PI * i / N, b = PI * (i + 1) / N, tm = (a + b) / 2;
     const ip = (t) => [hw * Math.cos(t), spring + hw * Math.sin(t)], op = (t) => H ? [W * Math.cos(t), H] : [7 * Math.cos(t), 15.4 + 7 * Math.sin(t)];
     q(ip(a), op(a), op(b), ip(b));
+    { const g = (t, r) => [r * Math.cos(t), spring + r * Math.sin(t), z + face * 0.015]; B.quad(g(a, hw), g(a, hw + trim), g(b, hw + trim), g(b, hw), GOLD, C.gold, undefined, F); }
     if (depth) { const A = ip(a), Bp = ip(b); B.quad([A[0], A[1], z], [A[0], A[1], z + depth], [Bp[0], Bp[1], z + depth], [Bp[0], Bp[1], z], mat, col, undefined, [-Math.cos(tm), -Math.sin(tm), 0]); }
   }
-  if (depth) for (const s of [1, -1]) B.quad([s * hw, sill, z], [s * hw, sill, z + depth], [s * hw, spring, z + depth], [s * hw, spring, z], mat, col, undefined, [-s, 0, 0]);
+  for (const s of [1, -1]) {
+    B.quad([s * hw, sill, z + face * 0.015], [s * (hw + trim), sill, z + face * 0.015], [s * (hw + trim), spring, z + face * 0.015], [s * hw, spring, z + face * 0.015], GOLD, C.gold, undefined, F);
+    if (depth) B.quad([s * hw, sill, z], [s * hw, sill, z + depth], [s * hw, spring, z + depth], [s * hw, spring, z], mat, col, undefined, [-s, 0, 0]);
+  }
 }
 
 function desk(B, T, x, z, yaw, o = {}) {
+  const M = B.M;
   B.at(x, 0, z, yaw);
-  B.box(-0.5, 0.74, -1.2, 0.5, 0.82, 1.2, WOOD, C.wood);
-  for (const sx of [-0.42, 0.42]) for (const sz of [-1.1, 1.1]) B.box(sx - 0.04, 0, sz - 0.04, sx + 0.04, 0.74, sz + 0.04, WOOD, C.wood, 51);
-  B.box(-0.46, 0.6, -1.16, 0.46, 0.74, 1.16, WOOD, C.wood, 51);
-  // open book
-  const bz = o.bz ?? 0.1, m = o.write ? WRITE : PAPER;
+  B.box(-0.55, 0.76, -1.25, 0.55, 0.82, 1.25, WOOD, C.wood); B.box(-0.56, 0.775, -1.26, 0.56, 0.8, 1.26, GOLD, C.gold, 51);
+  for (const sx of [-0.44, 0.44]) for (const sz of [-1.12, 1.12]) B.add(M.lathe([[0.03, 0], [0.05, 0.08], [0.028, 0.3], [0.055, 0.6], [0.045, 0.66]], 8), WOOD, C.wood, sx, 0, sz);
+  B.box(-0.48, 0.64, -1.16, 0.48, 0.76, 1.16, WOOD, C.wood, 51);
+  const bz = o.bz ?? 0.1, m = o.write ? WRITE : PAPER;      // open book
   B.box(-0.17, 0.82, bz - 0.25, 0.17, 0.835, bz + 0.25, VELVET, LEATHER[o.c ?? 0]);
   B.quad([-0.15, 0.85, bz], [-0.15, 0.85, bz + 0.23], [0.15, 0.862, bz + 0.23], [0.15, 0.845, bz], m, C.w, [0, 1, 1, 1, 1, 0, 0, 0], UP);
   B.quad([-0.15, 0.85, bz], [-0.15, 0.85, bz - 0.23], [0.15, 0.862, bz - 0.23], [0.15, 0.845, bz], PAPER, C.w, [0, 1, 1, 1, 1, 0, 0, 0], UP);
   pile(B, x, 0.82, z, yaw, 0.1, -0.75, 4, x * 7 + z);
-  if (o.lamp) {
-    B.add(B.M.lathe([[0.1, 0], [0.02, 0.03], [0.015, 0.4], [0.05, 0.42]], 8), GOLD, C.gold, 0.25, 0.82, 0.8);
-    B.add(B.M.sphere(0.085, 2), EMIT, C.lamp, 0.25, 1.3, 0.8); T.halo(x + 0.25 * B.cs + 0.8 * B.sn, 1.3, z - 0.25 * B.sn + 0.8 * B.cs, 0.9, 0.8);
+  if (o.lamp) {          // green-shaded reading lamp
+    B.add(M.lathe([[0.11, 0], [0.1, 0.02], [0.02, 0.05], [0.014, 0.4], [0.03, 0.42]], 10), GOLD, C.gold, 0.25, 0.82, 0.8);
+    B.add(M.lathe([[0.19, 0.38], [0.17, 0.45], [0.09, 0.5], [0.001, 0.51]], 14), EMIT, [0.03, 0.2, 0.07], 0.25, 0.82, 0.8);
+    B.add(M.sphere(0.045, 1), EMIT, C.lamp, 0.25, 1.21, 0.8); T.halo(x + 0.25 * B.cs + 0.8 * B.sn, 1.2, z - 0.25 * B.sn + 0.8 * B.cs, 0.6, 0.7);
   }
   B.at(0, 0, 0);
 }
@@ -186,20 +248,27 @@ function pile(B, x, y, z, yaw, lx, lz, n, seed) {
   B.at(x, 0, z, yaw);
 }
 function candelabra(B, T, x, z) {
-  B.at(x, 0, z);
-  B.add(B.M.lathe([[0.24, 0], [0.07, 0.08], [0.035, 0.3], [0.06, 0.8], [0.03, 0.9], [0.03, 1.5], [0.07, 1.56], [0.02, 1.6]], 10), GOLD, C.gold);
-  for (const [dx, dz, h] of [[0, 0, 1.78], [0.2, 0, 1.66], [-0.2, 0, 1.66], [0, 0.2, 1.66], [0, -0.2, 1.66]]) {
-    if (h < 1.7) B.box(dx * 0.1 - 0.012, 1.5, dz * 0.1 - 0.012, dx + 0.012, 1.53, dz + 0.012, GOLD, C.gold);
-    B.add(B.M.cylinder(0.02, 0.02, h - 1.52, 6), VELVET, [0.8, 0.74, 0.6], dx, 1.52, dz);
-    B.add(B.M.scale(B.M.sphere(0.03, 1), 1, 2, 1), EMIT, C.lamp, dx, h + 0.06, dz);
+  const M = B.M; B.at(x, 0, z);
+  B.add(M.lathe([[0.26, 0], [0.25, 0.03], [0.1, 0.07], [0.05, 0.14], [0.04, 0.3], [0.075, 0.38], [0.04, 0.46], [0.03, 0.85], [0.06, 0.92], [0.03, 1.0], [0.026, 1.42], [0.08, 1.5], [0.03, 1.56], [0.001, 1.58]], 16), GOLD, C.gold);
+  for (let k = 0; k < 5; k++) {
+    const a = k * 1.5708, r = k ? 0.24 : 0, dx = r * Math.cos(a), dz = r * Math.sin(a), h = k ? 1.56 : 1.7;
+    if (k) { beam(B, [dx * 0.2, 1.42, dz * 0.2], [dx * 0.75, 1.36, dz * 0.75], 0.012, GOLD, C.gold); beam(B, [dx * 0.75, 1.36, dz * 0.75], [dx, 1.5, dz], 0.012, GOLD, C.gold); }
+    B.add(M.lathe([[0.012, -0.06], [0.05, -0.02], [0.055, 0], [0.001, 0]], 10), GOLD, C.gold, dx, h, dz);
+    B.add(M.cylinder(0.017, 0.015, 0.2, 8), MARBLE, C.ivory, dx, h, dz);
+    B.add(M.lathe([[0.001, 0], [0.014, 0.016], [0.011, 0.04], [0.001, 0.075]], 6), EMIT, C.lamp, dx, h + 0.21, dz);
   }
-  T.halo(x, 1.82, z, 1.5, 1.4);
+  T.halo(x, 1.85, z, 0.75, 0.9);
   B.at(0, 0, 0);
 }
 function armchair(B, x, z, yaw, col) {
-  B.at(x, 0, z, yaw);
-  B.box(-0.42, 0.12, -0.4, 0.42, 0.48, 0.42, VELVET, col); B.box(-0.42, 0.48, 0.28, 0.42, 1.2, 0.5, VELVET, col);
-  for (const s of [-1, 1]) { B.box(s * 0.42 - 0.09, 0.12, -0.4, s * 0.42 + 0.09, 0.72, 0.5, VELVET, col); B.box(s * 0.4 - 0.04, 0, -0.36, s * 0.4 + 0.04, 0.12, -0.28, WOOD, C.wood); B.box(s * 0.4 - 0.04, 0, 0.38, s * 0.4 + 0.04, 0.12, 0.46, WOOD, C.wood); }
+  const M = B.M, c2 = [col[0] * 1.5, col[1] * 1.5, col[2] * 1.5]; B.at(x, 0, z, yaw);
+  B.box(-0.4, 0.14, -0.38, 0.4, 0.4, 0.4, VELVET, col); B.add(M.scale(M.sphere(1, 2), 0.38, 0.1, 0.36), VELVET, c2, 0, 0.43, -0.02);
+  B.box(-0.42, 0.4, 0.26, 0.42, 1.0, 0.48, VELVET, col); B.add(M.scale(M.sphere(1, 2), 0.44, 0.3, 0.13), VELVET, col, 0, 1.0, 0.37);
+  B.add(M.scale(M.sphere(1, 2), 0.3, 0.3, 0.07), VELVET, c2, 0, 0.75, 0.24);
+  for (const s of [-1, 1]) {
+    B.box(s * 0.44 - 0.08, 0.14, -0.36, s * 0.44 + 0.08, 0.62, 0.46, VELVET, col); B.add(M.scale(M.sphere(1, 1), 0.1, 0.08, 0.44), VELVET, col, s * 0.44, 0.62, 0.05);
+    for (const f of [-0.3, 0.4]) B.add(M.lathe([[0.03, 0], [0.045, 0.1], [0.04, 0.14]], 6), WOOD, C.wood, s * 0.38, 0, f);
+  }
   B.at(0, 0, 0);
 }
 function globeStand(B, x, z, r, y) {
@@ -209,21 +278,38 @@ function globeStand(B, x, z, r, y) {
   B.add(M.torus(r + 0.1, 0.02 + r * 0.02, 28, 6), GOLD, C.gold, 0, y, 0);
   B.at(0, 0, 0);
 }
+// a run of n columns along +x carrying round arches and an entablature
+function arcade(B, n) {
+  const M = B.M, sp = 3.2;
+  for (let i = 0; i < n; i++) {
+    B.add(M.lathe([[0.38, 0], [0.38, 0.22], [0.28, 0.34], [0.22, 4.4]], 14), MARBLE, WH, i * sp, 0, 0);
+    B.add(M.lathe([[0.22, 4.4], [0.3, 4.45], [0.24, 4.55], [0.36, 4.8], [0.4, 4.85], [0.001, 4.85]], 14), GOLD, C.gold, i * sp, 0, 0);
+    if (i === n - 1) break;
+    const xc = i * sp + sp / 2;
+    for (let j = 0; j < 8; j++) {
+      const a = PI * j / 8, b = PI * (j + 1) / 8, ip = (t, z) => [xc + 1.38 * Math.cos(t), 4.85 + 1.38 * Math.sin(t), z], op = (t, z) => [xc + 1.6 * Math.cos(t), 6.6, z];
+      for (const f of [1, -1]) B.quad(ip(a, 0.2 * f), op(a, 0.2 * f), op(b, 0.2 * f), ip(b, 0.2 * f), PL, WH, undefined, [0, 0, f]);
+      B.quad(ip(a, -0.2), ip(a, 0.2), ip(b, 0.2), ip(b, -0.2), PL, WH, undefined, [-Math.cos((a + b) / 2), -Math.sin((a + b) / 2), 0]);
+    }
+    for (const f of [1, -1]) for (const s of [1, -1]) B.quad([xc + s * 1.38, 4.85, 0.2 * f], [xc + s * 1.6, 4.85, 0.2 * f], [xc + s * 1.6, 6.6, 0.2 * f], [xc + s * 1.6, 6.6, 0.2 * f], PL, WH, undefined, [0, 0, f]);
+  }
+  B.box(-0.4, 6.6, -0.3, (n - 1) * sp + 0.4, 7, 0.3, PL, WH); B.box(-0.43, 6.74, -0.33, (n - 1) * sp + 0.43, 6.82, 0.33, GOLD, C.gold);
+}
 function tree(B, x, z) {
   const M = B.M; B.at(x, 0, z);
-  B.add(M.lathe([[0.6, 0], [0.78, 0.7], [0.7, 0.72], [0.62, 0.6], [0.001, 0.6]], 12), STONE, C.stone);
-  B.add(M.cylinder(0.15, 0.09, 2.6, 8), WOOD, [0.16, 0.1, 0.06], 0, 0.6, 0);
-  [[0, 3.7, 0, 1.3], [0.8, 3.3, 0.3, 0.9], [-0.7, 3.4, 0.5, 0.95], [0.2, 3.2, -0.8, 0.9], [-0.4, 4.4, -0.3, 0.9], [0.5, 4.3, 0.5, 0.75]].forEach(([a, b, c, r]) => B.add(M.sphere(r, 2), LEAF, C.leaf, a, b, c));
-  B.add(M.sphere(0.5, 1), LEAF, [0.08, 0.22, 0.05], 0.3, 0.75, 0.3);
+  B.add(M.lathe([[0.55, 0], [0.6, 0.08], [0.5, 0.16], [0.74, 0.66], [0.78, 0.72], [0.68, 0.72], [0.62, 0.62], [0.001, 0.62]], 14), MARBLE, C.pl);
+  B.add(M.cylinder(0.13, 0.08, 2.5, 8), WOOD, [0.16, 0.1, 0.06], 0, 0.62, 0);
+  leafBall(B, 0, 3.7, 0, 1.3, 190); leafBall(B, 0.3, 4.75, 0.2, 0.8, 80); leafBall(B, 0.25, 0.85, 0.2, 0.42, 30);
   B.at(0, 0, 0);
 }
-function cat(B, x, y, z, yaw) {
-  const M = B.M, col = [0.55, 0.3, 0.12]; B.at(x, y, z, yaw);
-  B.add(M.scale(M.sphere(1, 2), 0.27, 0.13, 0.19), CAT, col, 0, 0.12, 0, 1);
-  B.add(M.scale(M.sphere(1, 2), 0.095, 0.085, 0.09), CAT, col, 0.2, 0.1, 0.12, 0.25);
-  for (const s of [-1, 1]) B.add(M.cone(0.03, 0.06, 5), CAT, col, 0.2 + s * 0.045, 0.165, 0.12 + s * 0.03, 0);
-  const path = []; for (let i = 0; i <= 10; i++) { const a = -0.4 + i * 0.26; path.push([-0.05 + 0.28 * Math.cos(a + 2.2), 0.04, 0.22 * Math.sin(a + 2.2) + 0.04]); }
-  B.add(M.tube(path, (t) => 0.035 - 0.012 * t, 6), CAT, col, 0, 0, 0, 0);
+function cat(B, x, y, z, yaw, s) {
+  const M = B.M, col = [0.5, 0.26, 0.1], P = (g, sx, sy, sz, px, py, pz, w) => B.add(M.scale(g, sx * s, sy * s, sz * s), CAT, col, px * s, py * s, pz * s, w);
+  B.at(x, y, z, yaw);
+  P(M.sphere(1, 2), 0.27, 0.14, 0.2, 0, 0.13, 0, 1); P(M.sphere(1, 2), 0.15, 0.13, 0.15, -0.14, 0.14, -0.03, 1);
+  P(M.sphere(1, 2), 0.1, 0.09, 0.095, 0.2, 0.17, 0.11, 0.2); P(M.sphere(1, 1), 0.045, 0.035, 0.04, 0.27, 0.14, 0.15, 0);
+  for (const e of [-1, 1]) P(M.cone(1, 1, 5), 0.038, 0.085, 0.03, 0.2 + e * 0.02, 0.235, 0.11 + e * 0.065, 0);
+  const path = []; for (let i = 0; i <= 12; i++) { const a = 2.5 - i * 0.25; path.push([(-0.02 + 0.3 * Math.cos(a)) * s, (0.045 + 0.02 * Math.sin(i * 0.5)) * s, (0.02 + 0.25 * Math.sin(a)) * s]); }
+  B.add(M.tube(path, (t) => (0.04 - 0.015 * t) * s, 6), CAT, col, 0, 0, 0, 0);
   B.at(0, 0, 0);
 }
 
@@ -278,6 +364,7 @@ export function buildStatic(M) {
       T.quad(P(a, R, ya + 0.06), P(b, R, yb + 0.06), P(b, R, yb + 0.98), P(a, R, ya + 0.98), RAIL, C.w, [a * R, 0, b * R, 0, b * R, 0.92, a * R, 0.92]);
     }
     B.add(M.tube(path, 0.045, 6), GOLD, C.gold);
+    for (const p of [path[0], path[S]]) { B.add(M.cylinder(0.06, 0.05, 1.3, 8), GOLD, C.gold, p[0], p[1] - 1.3, p[2]); B.add(M.sphere(0.1, 1), GOLD, C.gold, p[0], p[1] + 0.06, p[2]); }
     B.at(0, 0, 0); T.at(0, 0, 0);
   }
 
@@ -292,56 +379,70 @@ export function buildStatic(M) {
   for (const s of [1, -1]) { B.sx = T.sx = s; B.at(37, 0, 0, PI / 2); T.at(37, 0, 0, PI / 2); pilasters(B, T, true); }
   B.sx = T.sx = 1;
   B.at(7, 0, 0, PI / 2);
-  archWall(B, 30.6, 4.5, 0, 6.5, 1, 10, 13, 0, STONE, C.stone);
+  archWall(B, 30.6, 4.5, 0, 6.5, 1, 10, 13);
   B.at(0, 0, 0); T.at(0, 0, 0);
-  // ---- fountain court
-  B.quad([37, 0, -10], [37, 0, 10], [57, 0, 10], [57, 0, -10], STONE, C.stone);
-  B.quad([37.6, 0, -10], [57, 0, -10], [57, 13, -10], [37.6, 13, -10], STONE, C.stone, undefined, [0, 0, 1]);
-  B.quad([37.6, 0, 10], [57, 0, 10], [57, 13, 10], [37.6, 13, 10], STONE, C.stone, undefined, [0, 0, -1]);
-  B.quad([57, 0, -10], [57, 0, 10], [57, 13, 10], [57, 13, -10], STONE, C.stone, undefined, [-1, 0, 0]);
-  B.quad([37.6, 13, -10], [57, 13, -10], [57, 13, 10], [37.6, 13, 10], CLEAR, [1, 0, 0], [37.6, -10, 57, -10, 57, 10, 37.6, 10], [0, -1, 0]);
-  const colm = M.lathe([[0.36, 0], [0.36, 0.25], [0.27, 0.35], [0.22, 4.5], [0.3, 4.7], [0.38, 4.85]], 12);
-  for (let i = 0; i < 6; i++) for (const s of [-1, 1]) B.add(colm, STONE, C.stone, 39.6 + i * 3.2, 0, s * 8.7);
-  for (let i = 0; i < 4; i++) B.add(colm, STONE, C.stone, 55.6, 0, -5.4 + i * 3.6);
-  for (const s of [-1, 1]) B.box(37.6, 4.85, s * 8.7 - 0.35, 57, 5.35, s * 8.7 + 0.35, STONE, C.stone);
-  B.box(55.25, 4.85, -8.35, 55.95, 5.35, 8.35, STONE, C.stone);
-  B.add(M.lathe([[3.15, 0], [3.2, 0.5], [3.1, 0.58], [2.9, 0.58], [2.86, 0.2], [0.001, 0.2]], 32), STONE, C.stone, 47, 0, 0);
-  B.add(M.lathe([[0.55, 0.2], [0.4, 0.5], [0.3, 1.2], [0.5, 1.42], [1.35, 1.62], [1.38, 1.67], [1.3, 1.64], [0.35, 1.5], [0.2, 1.55], [0.16, 2.2], [0.3, 2.42], [0.62, 2.55], [0.64, 2.6], [0.57, 2.57], [0.16, 2.48], [0.1, 2.55], [0.13, 2.78], [0.001, 2.92]], 24), STONE, [0.62, 0.56, 0.48], 47, 0, 0);
-  for (const [r, y] of [[2.88, 0.46], [1.31, 1.6], [0.58, 2.55]]) T.add(M.lathe([[0.001, 0], [r, 0]], 28), WATER, C.w, 47, y, 0);
+  // ---- fountain court: white arcade, a glazed oculus to the galaxy, the fountain on a plinth
+  B.quad([37, 0, -10], [37, 0, 10], [57, 0, 10], [57, 0, -10], FLOOR, C.w);
+  for (const [a, b, f] of [[[37.6, -10], [57, -10], [0, 0, 1]], [[57, 10], [37.6, 10], [0, 0, -1]], [[57, -10], [57, 10], [-1, 0, 0]]]) {
+    B.quad([a[0], 0, a[1]], [b[0], 0, b[1]], [b[0], 13, b[1]], [a[0], 13, a[1]], PL, [0.6, 0.47, 0.4], undefined, f);
+    for (let i = 1; i < 6; i++) { const t = (i + rnd() * 0.5 - 0.25) / 6; ivy(B, a[0] + (b[0] - a[0]) * t + f[0] * 0.02, 12.6 - rnd() * 2, a[1] + (b[1] - a[1]) * t + f[2] * 0.02, f[0], f[2], 3 + rnd() * 4.5); }
+  }
+  B.quad([37.6, 13, -10], [57, 13, -10], [57, 13, 10], [37.6, 13, 10], PL, C.pl, undefined, [0, -1, 0]);
+  for (let i = 0; i < 32; i++) {
+    const a = i / 32 * 2 * PI, b = (i + 1) / 32 * 2 * PI, p = (t, r) => [47 + r * Math.cos(t), 12.94, r * Math.sin(t)];
+    B.quad(p(a, 0.02), p(a, 5.6), p(b, 5.6), p(b, 0.02), ROSE, C.w, [0, 0, 2.8 * Math.cos(a), 2.8 * Math.sin(a), 2.8 * Math.cos(b), 2.8 * Math.sin(b), 0, 0], [0, -1, 0]);
+  }
+  B.add(M.torus(5.68, 0.22, 48, 8), GOLD, C.gold, 47, 12.9, 0);
+  B.at(39.6, 0, 8.7); arcade(B, 6); B.at(39.6, 0, -8.7); arcade(B, 6); B.at(55.6, 0, -5.4, -PI / 2); arcade(B, 4);
+  B.at(0, 0, 0);
+  B.add(M.lathe([[3.8, 0], [3.8, 0.1], [3.65, 0.15], [3.3, 0.15], [3.24, 0.22], [3.14, 0.64], [3.0, 0.68], [2.88, 0.64], [2.86, 0.3], [0.001, 0.3]], 40), STONE, C.pl, 47, 0, 0);
+  B.add(M.lathe([[0.55, 0.3], [0.4, 0.55], [0.3, 1.2], [0.5, 1.42], [1.35, 1.62], [1.38, 1.67], [1.3, 1.64], [0.35, 1.5], [0.2, 1.55], [0.16, 2.2], [0.3, 2.42], [0.62, 2.55], [0.64, 2.6], [0.57, 2.57], [0.16, 2.48], [0.1, 2.55]], 28), STONE, C.pl, 47, 0, 0);
+  B.add(M.lathe([[0.1, 2.55], [0.13, 2.78], [0.06, 2.84], [0.09, 2.9], [0.001, 2.98]], 12), GOLD, C.gold, 47, 0, 0);
+  B.add(M.torus(3.07, 0.05, 48, 6), GOLD, C.gold, 47, 0.68, 0);
+  for (const [r, y] of [[2.88, 0.56], [1.31, 1.6], [0.58, 2.55]]) T.add(M.lathe([[0.001, 0], [r, 0]], 32), WATER, C.w, 47, y, 0);
   for (const [x, z] of [[41.5, 6.6], [41.5, -6.6], [52.5, 6.6], [52.5, -6.6]]) tree(B, x, z);
-  for (const s of [-1, 1]) { B.box(45.5, 0, s * 6.2 - 0.25, 48.5, 0.42, s * 6.2 + 0.25, STONE, C.stone); B.add(M.sphere(0.45, 1), LEAF, C.leaf, 44.6, 0.3, s * 6.3); B.add(M.sphere(0.5, 1), LEAF, C.leaf, 49.5, 0.3, s * 6.2); }
+  for (const s of [-1, 1]) { B.box(45.6, 0.34, s * 6.3 - 0.27, 48.4, 0.44, s * 6.3 + 0.27, MARBLE, C.pl); for (const x of [45.9, 48.1]) B.box(x - 0.12, 0, s * 6.3 - 0.22, x + 0.12, 0.34, s * 6.3 + 0.22, MARBLE, C.pl, 51); }
 
   // ---- west end: the reading nook under the great window
   B.at(-7, 0, 0, -PI / 2); T.at(-7, 0, 0, -PI / 2);
-  archWall(B, 42, 4, 1.2, 9, -1, 7, 0, 0.35);
+  archWall(B, 42, 4, 1.2, 9, -1, 7, 0, 0.35, 0.3);
   B.quad([-4, 1.2, 42.35], [4, 1.2, 42.35], [4, 13, 42.35], [-4, 13, 42.35], CLEAR, [0, 0, 0], [-4, 0, 4, 0, 4, 11.8, -4, 11.8], [0, 0, -1]);
-  B.box(-4, 0, 41.2, 4, 0.5, 42, WOOD, C.wood, 24); B.box(-3.95, 0.5, 41.25, 3.95, 0.62, 42, VELVET, [0.3, 0.04, 0.05], 24);
+  B.box(-4, 0, 41.2, 4, 0.5, 42, WOOD, C.wood, 24); B.box(-3.95, 0.5, 41.25, 3.95, 0.62, 42, VELVET, [0.04, 0.16, 0.18], 24);
+  [[-3.2, [0.5, 0.3, 0.08]], [-2.5, [0.3, 0.04, 0.06]], [3.1, [0.5, 0.3, 0.08]]].forEach(([x, c]) => B.add(M.scale(M.sphere(1, 1), 0.3, 0.26, 0.12), VELVET, c, x, 0.85, 41.8));
   B.quad([-3.4, 0.012, 32.6], [-3.4, 0.012, 39.4], [3.4, 0.012, 39.4], [3.4, 0.012, 32.6], RUG, C.w, [-1, -1, -1, 1, 1, 1, 1, -1]);
+  B.box(-4.5, 0, 29.9, 4.5, 0.012, 30.1, GOLD, C.gold, 8);
   for (const s of [1, -1]) {
     B.sx = T.sx = s;
-    B.quad([4.5, 0, 30], [4.5, 0, 42], [7, 0, 42], [7, 0, 30], WOOD, C.woodL);
+    B.quad([4.5, 0, 30], [4.5, 0, 42], [7, 0, 42], [7, 0, 30], FLOOR, C.w);
     B.quad([4.5, 0, 30], [7, 0, 30], [7, 4.7, 30], [4.5, 4.7, 30], PL, C.pl, undefined, [0, 0, 1]);
     B.box(4.25, 4.7, 29.9, 7, 5, 30, PL, C.pl, 37); rail(B, T, [4.32, 29.95], [7, 29.95]);
-    B.box(6.9, 0, 30, 7, 1.1, 42, WOOD, C.wood, 9);
+    B.box(6.9, 0, 30, 7, 1.1, 42, WOOD, C.wood, 9); B.box(6.87, 1.1, 30, 7, 1.17, 42, GOLD, C.gold, 13);
+    B.box(4.1, 0, 41.9, 7, 1.1, 42, WOOD, C.wood, 24); B.box(4.3, 0, 41.87, 7, 1.17, 42, GOLD, C.gold, 8);
     B.box(6.7, 4.7, 30, 7, 5, 42, PL, C.pl, 5); B.box(6.67, 4.8, 30, 6.7, 4.88, 42, GOLD, C.gold, 13);
-    if (s > 0) { shelf(B, 7, 1.1, 30.4, 41.6, 130, 9); B.box(6.9, 4.61, 30, 7, 4.7, 42, WOOD, C.wood, 5); }
-    else {
+    if (s > 0) { shelf(B, 7, 1.17, 30.4, 41.6, 130, 9); B.box(6.9, 4.68, 30, 7, 4.7, 42, WOOD, C.wood, 5); }
+    else {           // the hearth wall
       B.quad([7, 1.1, 30], [7, 1.1, 42], [7, 4.7, 42], [7, 4.7, 30], PL, C.pl);
-      B.box(6.45, 0, 34.9, 7, 1.7, 35.3, STONE, C.stone); B.box(6.45, 0, 36.7, 7, 1.7, 37.1, STONE, C.stone);
-      B.box(6.4, 1.7, 34.8, 7, 2.0, 37.2, STONE, C.stone); B.box(6.35, 2.0, 34.7, 7, 2.08, 37.3, WOOD, C.wood);
-      B.quad([6.9, 0, 35.3], [6.9, 0, 36.7], [6.9, 1.7, 36.7], [6.9, 1.7, 35.3], FIRE, C.w, [0, 0, 1, 0, 1, 1.4, 0, 1.4]);
-      B.box(6.4, 0, 35.3, 6.9, 0.05, 36.7, STONE, [0.2, 0.18, 0.16], 9);
-      B.box(6.93, 2.5, 35.0, 7, 4.2, 37.0, GOLD, C.gold, 49 | 12); B.quad([6.92, 2.62, 35.12], [6.92, 2.62, 36.88], [6.92, 4.08, 36.88], [6.92, 4.08, 35.12], FRESCO, C.w, [0.3, 0.3, 0.7, 0.3, 0.7, 0.7, 0.3, 0.7]);
+      frame(B, 7, 1.5, 4.3, 30.6, 34.1); frame(B, 7, 1.5, 4.3, 37.9, 41.4);
+      for (const z of [34.55, 36.95]) { B.box(6.35, 0, z, 7, 1.9, z + 0.5, MARBLE, C.pl); B.box(6.3, 1.72, z - 0.04, 7, 1.9, z + 0.54, GOLD, C.gold); }
+      B.box(6.3, 1.9, 34.5, 7, 2.25, 37.5, MARBLE, C.pl); B.box(6.2, 2.25, 34.4, 7, 2.34, 37.6, GOLD, C.gold);
+      B.quad([6.95, 0, 35.05], [6.95, 0, 36.95], [6.95, 1.9, 36.95], [6.95, 1.9, 35.05], FIRE, C.w, [0, 0, 1, 0, 1, 1, 0, 1]);
+      B.box(5.9, 0, 34.5, 7, 0.04, 37.5, MARBLE, [0.05, 0.04, 0.04], 9);
+      for (const [a, b] of [[[6.55, 0.12, 35.3], [6.7, 0.14, 36.7]], [[6.75, 0.13, 35.25], [6.6, 0.12, 36.6]], [[6.66, 0.3, 35.45], [6.68, 0.27, 36.55]]]) beam(B, a, b, 0.075, WOOD, [0.05, 0.03, 0.02]);
+      frame(B, 7, 2.55, 4.4, 35.0, 37.0, 0.12);
+      B.quad([6.975, 2.6, 35.05], [6.975, 2.6, 36.95], [6.975, 4.35, 36.95], [6.975, 4.35, 35.05], FRESCO, C.w, [0.4, 0.42, 0.6, 0.42, 0.6, 0.58, 0.4, 0.58]);
+      for (const z of [34.8, 37.2]) { B.add(M.lathe([[0.05, 0], [0.012, 0.03], [0.012, 0.16], [0.03, 0.18]], 8), GOLD, C.gold, 6.6, 2.34, z); B.add(M.lathe([[0.001, 0], [0.014, 0.016], [0.011, 0.04], [0.001, 0.075]], 6), EMIT, C.lamp, 6.6, 2.53, z); }
     }
     B.at(-37, 0, 0, -PI / 2); T.at(-37, 0, 0, -PI / 2); pilasters(B, T, true, false);
-    B.at(-49, 0, 0, -PI / 2); T.at(-49, 0, 0, -PI / 2); B.g = 0; pilasters(B, T, false);
+    B.at(-49, 0, 0, -PI / 2); T.at(-49, 0, 0, -PI / 2); pilasters(B, T, false);
     B.at(-7, 0, 0, -PI / 2); T.at(-7, 0, 0, -PI / 2);
   }
   B.sx = T.sx = 1; B.at(0, 0, 0); T.at(0, 0, 0);
   desk(B, T, -45.1, 3.4, PI / 2, { lamp: 1, c: 3 });
-  cat(B, -45.9, 0.82, 3.35, 0.5);
-  armchair(B, -41.6, -4.3, PI + 0.25, [0.05, 0.16, 0.1]); armchair(B, -44.4, -4.3, PI - 0.25, [0.3, 0.04, 0.06]);
-  pile(B, -43, 0, -3.2, 0.4, 0, 0, 7, 3); pile(B, -42.6, 0, -3.5, 1.3, 0, 0, 4, 5); pile(B, -47.2, 0.62, -2, 0.2, 0, 0, 3, 8);
+  armchair(B, -41.3, -4.2, PI + 0.5, [0.04, 0.13, 0.08]); armchair(B, -44.9, -4.4, PI - 0.45, [0.24, 0.035, 0.05]);
+  B.add(M.scale(M.sphere(1, 2), 0.62, 0.1, 0.5), VELVET, [0.28, 0.04, 0.06], -43.1, 0.09, -4.9);
+  cat(B, -43.1, 0.15, -4.9, 2.6, 1.8);
+  B.add(M.lathe([[0.26, 0], [0.05, 0.05], [0.035, 0.52], [0.3, 0.56], [0.3, 0.6], [0.001, 0.6]], 12), WOOD, C.wood, -46.2, 0, -4.6);
+  pile(B, -46.2, 0.6, -4.6, 0.4, 0, 0, 3, 3); pile(B, -40.3, 0, -5.6, 1.3, 0, 0, 6, 5); pile(B, -40.75, 0, -5.9, 0.2, 0, 0, 3, 8);
   globeStand(B, -47.6, 4.6, 0.45, 1.25);
   B.at(0, 0, 0);
 
@@ -349,15 +450,23 @@ export function buildStatic(M) {
   B.quad([-2.4, 0.012, 41.6], [-2.4, 0.012, 46.4], [2.4, 0.012, 46.4], [2.4, 0.012, 41.6], RUG, C.w, [-1, -1, -1, 1, 1, 1, 1, -1]);
   candelabra(B, T, 1.7, 44); candelabra(B, T, -1.7, 44);
   desk(B, T, 3.1, 28.6, 0, { lamp: 1, write: 1, c: 0 }); desk(B, T, -3.1, 34.6, 0, { c: 4, bz: -0.3 });
-  desk(B, T, -3.1, -18, 0, { lamp: 1, c: 1 }); desk(B, T, 3.1, -36.6, 0, { c: 2 }); desk(B, T, -20.6, 3.1, PI / 2, { lamp: 1, c: 5 });
+  for (const z of [-12, -18, -24]) desk(B, T, -3.1, z, 0, { lamp: 1, c: -z / 6 });      // reading row with green lamps
+  desk(B, T, 3.1, -36.6, 0, { c: 2 }); desk(B, T, -20.6, 3.1, PI / 2, { lamp: 1, c: 5 });
+  for (const z of [21.4, 22]) beam(B, [-3.5, 0, z], [-4.43, 4.25, z], 0.03, WOOD, C.woodL);          // ladder bay
+  for (let i = 1; i < 14; i++) beam(B, [-3.5 - i * 0.0664, i * 0.3036, 21.4], [-3.5 - i * 0.0664, i * 0.3036, 22], 0.018, WOOD, C.woodL);
+  for (let k = 0; k < 4; k++) {       // marble busts at the corners of the crossing
+    B.at(0, 0, 0, k * PI / 2 + PI / 4);
+    B.add(M.scale(M.lathe([[0.3, 0], [0.3, 0.1], [0.22, 0.16], [0.2, 1.2], [0.27, 1.26], [0.27, 1.32], [0.32, 1.36], [0.34, 1.5], [0.2, 1.66], [0.09, 1.72], [0.085, 1.8], [0.14, 1.86], [0.165, 1.98], [0.13, 2.1], [0.001, 2.14]], 14), 0.75, 1, 1), MARBLE, C.pl, 0, 0, 5.55);
+  }
+  B.at(0, 0, 0);
   globeStand(B, 3.2, 21, 0.45, 1.25);
   B.at(0, 0, -28);
   B.add(M.lathe([[1.1, 0], [1.0, 0.22], [0.3, 0.36], [0.22, 0.62], [0.4, 0.7]], 16), WOOD, C.wood);
   { const t = M.torus(1.34, 0.045, 40, 6); pitch(t, PI / 2); B.add(t, GOLD, C.gold, 0, 1.95, 0); B.add(M.torus(1.42, 0.06, 40, 6), GOLD, C.gold, 0, 1.95, 0); }
   B.at(0, 0, 0);
   for (const [x, z] of [[16, 3.4], [16, -3.4], [28, 3.4], [28, -3.4]]) {
-    B.add(M.lathe([[0.3, 0], [0.34, 0.1], [0.2, 0.25], [0.36, 0.7], [0.42, 0.95], [0.3, 1.0], [0.001, 0.98]], 12), PL, C.pil, x, 0, z);
-    B.add(M.sphere(0.55, 2), LEAF, C.leaf, x, 1.35, z); B.add(M.sphere(0.35, 1), LEAF, C.leaf, x + 0.3, 1.75, z - 0.2);
+    B.add(M.lathe([[0.3, 0], [0.34, 0.1], [0.2, 0.25], [0.36, 0.7], [0.42, 0.95], [0.3, 1.0], [0.001, 0.98]], 12), MARBLE, C.pil, x, 0, z);
+    leafBall(B, x, 1.4, z, 0.55, 60);
   }
   return [B.done(), T.done()];
 }
