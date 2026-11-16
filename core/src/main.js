@@ -221,7 +221,7 @@ async function boot(world, P, ui, canvas, gpu, flags) {
   function startAudio() {
     if (!audioWanted || ctx.audio) { if (ctx.audio && ctx.audio.ctx.state !== 'running') ctx.audio.resume(); return; }
     try {
-      const a = createAudio(); ctx.audio = a;
+      const a = createAudio(); ctx.audio = a; if (P.has('listen')) window.__owAudio = a;
       a.setVolume(settings.volume); a.setMuted(store.get('muted', false));
       if (world.audio) world.audio(ctx, a);
       a.fadeIn(via ? 2.5 : 4);
@@ -489,6 +489,7 @@ async function boot(world, P, ui, canvas, gpu, flags) {
   readyResolve();
   if (shot || bench) { entered = false; }
   else if (via) { entered = true; startAudio(); if (!ctx.audio || ctx.audio.ctx.state !== 'running') ui.message(touch ? 'Tap for sound' : 'Click for sound and mouse look'); ui.dot(true); }
+  else if (P.has('listen')) { entered = true; startAudio(); ui.dot(true); }   // debug: ?listen=1 starts audio, no click (tools/listen.mjs)
   else ui.showStart(enter);
   if (P.has('flythrough') && !shot) startFlythrough(true);
 }

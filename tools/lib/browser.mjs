@@ -20,8 +20,8 @@ export function parseArgs(argv) {
   return o;
 }
 
-export async function launch({ width = 1920, height = 1080 } = {}) {
-  const profile = join(ROOT, '.chrome-profile-' + randomBytes(5).toString('hex'));
+export async function launch({ width = 1920, height = 1080, autoplay = false, prefix = '.chrome-profile-' } = {}) {
+  const profile = join(ROOT, prefix + randomBytes(5).toString('hex'));
   mkdirSync(profile, { recursive: true });
   const cleanup = () => { try { rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch (_) { /* */ } };
   const onSig = () => { cleanup(); process.exit(130); };
@@ -33,7 +33,7 @@ export async function launch({ width = 1920, height = 1080 } = {}) {
       defaultViewport: { width, height, deviceScaleFactor: 1 },
       args: ['--no-sandbox', '--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=vulkan', '--ignore-gpu-blocklist',
         '--enable-webgpu-developer-features', '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
-        '--disable-backgrounding-occluded-windows', '--autoplay-policy=user-gesture-required', `--window-size=${width},${height}`],
+        '--disable-backgrounding-occluded-windows', autoplay ? '--autoplay-policy=no-user-gesture-required' : '--autoplay-policy=user-gesture-required', `--window-size=${width},${height}`],
     });
   } catch (e) { cleanup(); throw e; }
   const close = async () => { try { await browser.close(); } catch (_) { /* */ } cleanup(); process.off('SIGINT', onSig); process.off('SIGTERM', onSig); };

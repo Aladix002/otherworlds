@@ -382,6 +382,10 @@ node tools/perf.mjs <id> [--quality medium] [--series] [--no-build]
      # (`doors`, `doorMaxMs` in the JSON; WARN above 16.7 ms, not part of the gate): the fly-through may never pass the door.
 node tools/probe.mjs <id> [--at 0,10,20] [--params "..."]  # GPU ms at scale 1 at fly-through times (finds the heavy spot; locked)
 node tools/smoke.mjs <id> [--movement walk]  # interactive e2e: enter, WASD, Esc menu, open door, walk through, arrival
+node tools/listen.mjs <id|all> [--seconds 60] [--skip 5] [--no-build] [--eval "js using a"]
+     # records the master output (after the volume node) of dist/<id>.html?listen=1 -> shots/audio/<id>.wav (16-bit stereo) and prints
+     # RMS/peak dBFS, spectral centroid, onsets/min. `all` writes shots/audio/baseline.json. Locked on perf/.lock; camera idle, music must
+     # play by itself. `?listen=1` = audio starts without click, world auto-entered, `window.__owAudio` = engine. `--skip` = warmup seconds.
 node tools/debug.mjs <id> ["shot=1&pose=2"] [--wait 6] [--png out.png]   # print console output of a page
 ```
 All tools build first (unless `--no-build`), use the real AMD adapter (they fail on SwiftShader), keep the browser profile
@@ -390,7 +394,7 @@ The iGPU is shared with the desktop (and with other agents' shoots), so single-f
 
 **URL parameters** (for the HTML in `dist/`): `?pose=N`, `?t=SECONDS` (freeze time), `?shot=1` (no UI, no audio, no start
 overlay, scale 1), `?quality=low|medium|high`, `?flythrough=1` (looping fly-through), `?movement=`, `?scale=0.75` (fixed
-render scale), `?bench=1`, `?post.<param>=value`, `?via=door` (arrival).
+render scale), `?bench=1`, `?listen=1` (audio debug, see listen.mjs), `?post.<param>=value`, `?via=door` (arrival).
 
 **Harness `window.__ow`:** `ready` (Promise), `info`, `stats(series?)`, `resetStats()`, `frames(n)`, `setPose(i)`,
 `setTime(t)` (freeze), `unfreeze()`, `settle(t, sec = 2)` (run time from t−sec to t at 1/60 s, then freeze),
