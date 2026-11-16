@@ -398,8 +398,31 @@ export default {
     const wind = a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 420, q: 0.7, gain: 0.05, mod: 0.6, modRate: 0.05, gainMod: 0.5 });
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 160, gain: 0.05, mod: 0.3, modRate: 0.03 });
     a.noiseBed({ color: 'white', filter: 'bandpass', freq: 2600, q: 1.2, gain: 0.006, mod: 0.5, modRate: 0.09, gainMod: 0.8 });   // high airy gusts
-    a.drone({ freq: a.hz(41), partials: [1, 2, 3.01], gain: 0.02, cutoff: 500 });
-    a.pad({ chords: [[69, 76, 81, 85], [66, 73, 78, 81], [71, 78, 83, 86], [64, 71, 76, 80]], gain: 0.016, attack: 7, change: [18, 32], cutoff: 2400, reverb: 0.8 });
+    a.drone({ freq: a.hz(38), partials: [1, 2, 3.01], gain: 0.02, cutoff: 500 });                  // D2, bare
+    // MUSIC: D "yo" (D E G A B) koto phrases, shakuhachi long tones, free time, lots of air
+    const yo = a.scale(62, 'yo', 3), inn = a.scale(62, 'in', 3), rng = a.rng;
+    const MOT = [[2, 3, 4, 3, 1], [4, 3, 2, 0], [1, 2, 4, 6, 4], [3, 4, 3, 2, 1, 0]];   // degrees: the recurring koto motif and its kin
+    let n = 0;
+    const kotoPhrase = (when, sc, shift) => {
+      const m = MOT[n++ % 2 === 0 ? 0 : rng.int(MOT.length)].slice();
+      if (rng() < 0.4) m.pop();                                                              // alternate ending
+      const notes = [];
+      m.forEach((d, i) => {
+        notes.push({ deg: Math.max(0, d + shift), dur: i === 0 ? 1.4 : 0.9 + rng() * 1.4, vel: 0.8 + rng() * 0.3 });
+        if (rng() < 0.3) notes.push({ rest: 1, dur: 1.2 + rng() });
+      });
+      return a.phrase({ notes, inst: (o) => a.koto({ ...o, bend: rng() < 0.3 ? 1 : 0, bendTime: 0.25 }), opts: { gain: 0.03, reverb: 0.7, pan: rng.range(-0.4, 0.4) }, when, tempo: 56 + rng.int(14), scale: sc });
+    };
+    a.every(42, 80, (when) => {
+      const sc = rng() < 0.25 ? inn : yo, end = kotoPhrase(when, sc, rng.pick([0, 0, 2, 3]));
+      if (rng() < 0.5) a.flute({ preset: 'shakuhachi', midi: rng.pick([62, 69, 74]), dur: 5 + rng() * 3, gain: 0.03, reverb: 0.85, when: end + 1.5 });
+    }, { startDelay: 7 });
+    a.every(24, 55, (when) => {                                                            // single plucked notes between phrases
+      const d = rng.pick([0, 1, 3, 4, 5, 7]);
+      a.koto({ midi: yo[d + 2], bend: rng() < 0.4 ? 1 : 0, gain: 0.022, reverb: 0.8, when, pan: rng.range(-0.5, 0.5) });
+      if (rng() < 0.4) a.koto({ midi: yo[d + 1], gain: 0.016, reverb: 0.8, when: when + 1.3 + rng(), pan: rng.range(-0.5, 0.5) });
+    }, { startDelay: 22 });
+    a.every(70, 130, (when) => a.flute({ preset: 'shakuhachi', midi: rng.pick([57, 62, 64, 69]), dur: 6 + rng() * 4, gain: 0.026, reverb: 0.9, when }), { startDelay: 45 });
     for (const i of [0, 1, 2]) {                                                        // nearest waterfalls, spatialised
       const f = this.fallList[i], s = a.spatial({ pos: [f[0], f[1] - 8, f[2]], ref: 14, rolloff: 1.1, reverb: 0.4, gain: 1 });
       a.noiseBed({ color: 'white', filter: 'bandpass', freq: 1300 + i * 250, q: 0.5, gain: 0.07, mod: 0.15, modRate: 0.2, bus: s });
@@ -408,8 +431,6 @@ export default {
       const f = 520 + a.rng() * 160, pan = a.rng.range(-0.8, 0.8), n = 2 + a.rng.int(2);
       for (let i = 0; i < n; i++) a.chirp({ f0: f * (1 + 0.06 * i), f1: f * 1.32, dur: 0.22, vib: 14, vibRate: 28, gain: 0.011, when: when + i * 0.42, pan, reverb: 0.9 });
     }, { startDelay: 9 });
-    const notes = a.scale(81, 'pentatonic', 2);
-    a.every(11, 30, (when) => a.bell({ freq: a.hz(a.rng.pick(notes)), gain: 0.008, decay: 6, when, pan: a.rng.range(-0.6, 0.6), reverb: 0.9 }), { startDelay: 5 });
     // sky-manta song: slow low calls from wherever the nearest one is gliding
     const song = a.spatial({ pos: [0, 90, -60], ref: 30, rolloff: 0.8, maxDistance: 400, reverb: 0.8 });
     a.every(13, 34, (when) => {
@@ -417,7 +438,7 @@ export default {
       for (let i = 0; i < n; i++) a.additive({ freq: f * [1, 1.5, 1.335][i], partials: [1, 0.3, 0.08], attack: 1.4, decay: 4.5, gain: 0.03, when: when + i * 2.1, bus: song });
     }, { startDelay: 6 });
     // wind chimes at the shrine, songbirds over the waterfall island
-    const chime = a.spatial({ pos: this.shrine, ref: 9, rolloff: 1.2, reverb: 0.6 }), cn = a.scale(86, 'pentatonic', 1);
+    const chime = a.spatial({ pos: this.shrine, ref: 9, rolloff: 1.2, reverb: 0.6 }), cn = a.scale(86, 'yo', 2);
     a.every(1.5, 7, (when) => { for (let i = 0, n = 1 + a.rng.int(3); i < n; i++) a.bell({ freq: a.hz(a.rng.pick(cn)), gain: 0.03, decay: 2.5, ratio: 2.76, index: 0.8, when: when + i * (0.15 + 0.3 * a.rng()), bus: chime }); });
     const tw = a.spatial({ pos: [I1.x, I1.y + 14, I1.z], ref: 16, rolloff: 1.1, reverb: 0.5 });
     a.every(4, 13, (when) => { const f = 2100 + a.rng() * 1300; a.chirp({ f0: f, f1: f * (1.1 + 0.3 * a.rng()), dur: 0.09, repeat: 2 + a.rng.int(4), gap: 0.07, vib: 40, gain: 0.02, when, bus: tw }); }, { startDelay: 3 });
