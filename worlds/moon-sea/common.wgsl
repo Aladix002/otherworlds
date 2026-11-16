@@ -6,7 +6,7 @@ struct MU {
   refl: vec4f,             // xy = uv scale of the valid region of the reflection texture
   door: vec4f,             // x, z, yaw, open (0..1)
   misc: vec4f,             // x = door swing side
-  lamps: array<vec4f, 3>,  // xyz, intensity (tree lantern, two door lanterns)
+  lamps: array<vec4f, 4>,  // xyz, intensity (tree lantern, two door lanterns, the lighthouse lamp)
   steps: array<vec4f, 12>, // x, z, start time, strength
 };
 @group(1) @binding(0) var<uniform> U: MU;
@@ -31,29 +31,9 @@ fn skyBase(rd: vec3f) -> vec3f {
   let v = clamp(asin(clamp(abs(rd.y), 0.0, 1.0)) / (PI * 0.5), 0.002, 0.998);
   return textureSampleLevel(skyT, sRep, vec2f(u, v), 0.0).rgb;
 }
-fn meteor(rd: vec3f) -> vec3f {
-  let T = 31.0; let e = floor(G.time / T); let lt = G.time - e * T - 4.0;
-  let dur = 2.8;
-  if (lt < 0.0 || lt > dur) { return vec3f(0.0); }
-  let h = hash3u(vec3u(u32(e), 7u, 3u));
-  let az = (h.x - 0.5) * 5.0; let el = 0.45 + 0.5 * h.y;
-  let a = vec3f(sin(az) * cos(el), sin(el), -cos(az) * cos(el));
-  let az2 = az + 0.3 * sign(h.z - 0.5); let el2 = el - 0.2;
-  let b = vec3f(sin(az2) * cos(el2), sin(el2), -cos(az2) * cos(el2));
-  let k = lt / dur;
-  let head = normalize(mix(a, b, k)); let tv = normalize(a - b);
-  let len = 0.02 + 0.1 * smoothstep(0.0, 0.35, k);
-  let w = rd - head; let s = clamp(dot(w, tv), 0.0, len); let d = length(w - tv * s);
-  let px = 2.0 * G.tanHalfFov * G.invResolution.y;
-  let wd = max(0.0012, px * 1.3);
-  let fade = sin(k * PI);
-  let tail = exp(-d * d / (wd * wd)) * pow(1.0 - s / len, 2.0);
-  let hd = exp(-dot(w, w) / (wd * wd * 6.0));
-  return vec3f(0.75, 0.88, 1.0) * (tail * 0.9 + hd * 1.6) * fade * fade;
-}
 fn sky(rd0: vec3f) -> vec3f {
   let rd = vec3f(rd0.x, abs(rd0.y), rd0.z);
-  var c = skyBase(rd) + meteor(rd);
+  var c = skyBase(rd);
   // the moon is drawn as a disc that stays round on screen (a true angular disc turns into an egg off-axis)
   let fl = select(1.0, -1.0, rd0.y < 0.0);
   let md = vec3f(U.moon.x, U.moon.y * fl, U.moon.z);
@@ -75,13 +55,21 @@ fn sky(rd0: vec3f) -> vec3f {
 const LT = 250.0;
 const WIND = vec2f(-0.82, -0.5);
 struct LS { p: vec3f, a: f32, fl: f32 };
-fn lanternAt(i0: vec4f, i1: vec4f) -> LS {   // i0: x, z, phase, seed.  i1: mode (1 = static), y, scale, bob
+fn lanternAt(i0: vec4f, i1: vec4f) -> LS {   // i0: x, z, phase (static: glow strength), seed.  i1: mode (0 sky, 1 static), y, scale, bob
   var o: LS;
   let sd = i0.w; let t = G.time;
   o.fl = 0.92 + 0.05 * sin(t * 2.1 + sd * 40.0) + 0.03 * sin(t * 4.7 + sd * 90.0);
+  if (i1.x > 1.5) {   // drifting floaters (2 = paper boat, 3 = lotus): a slow wander around home, radius i1.w
+    let a = t * 0.021 * (0.6 + sd) + sd * 40.0;
+    let xz = i0.xy + i1.w * vec2f(sin(a) + 0.4 * sin(a * 2.3 + sd * 9.0), cos(a * 0.83 + sd * 5.0) + 0.4 * sin(a * 1.7));
+    o.p = vec3f(xz.x, i1.y + 0.005 * sin(t * 0.9 + sd * 20.0), xz.y);
+    o.a = i0.z;
+    if (i1.x > 2.5) { o.a *= 0.3 + 0.7 * smoothstep(12.0, 4.5, distance(xz, G.camPos.xz)); }   // lotus candles brighten as you come close
+    return o;
+  }
   if (i1.x > 0.5) {
     o.p = vec3f(i0.x, i1.y + 0.012 * sin(t * 0.7 + sd * 20.0) * i1.w, i0.y);
-    o.a = 1.0;
+    o.a = i0.z;
     return o;
   }
   let age = fract(t / LT + i0.z) * LT;
@@ -96,7 +84,7 @@ fn lanternAt(i0: vec4f, i1: vec4f) -> LS {   // i0: x, z, phase, seed.  i1: mode
 }
 fn lampLight(p: vec3f, n: vec3f) -> vec3f {
   var c = vec3f(0.0);
-  for (var i = 0; i < 3; i++) {
+  for (var i = 0; i < 4; i++) {
     let L = U.lamps[i].xyz - p; let d2 = dot(L, L);
     c += WARM * U.lamps[i].w * (max(dot(n, L * inverseSqrt(d2)), 0.0) * 0.8 + 0.2) / (1.0 + d2 * 0.55);
   }

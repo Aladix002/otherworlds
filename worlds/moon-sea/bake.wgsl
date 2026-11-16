@@ -53,8 +53,14 @@ fn craH(p: vec3f, s: f32, th: f32) -> f32 {
   return step(th, h) * (exp(-pow((dd - 1.0) * 4.5, 2.0)) - 0.9 * smoothstep(1.0, 0.35, dd)) * r0 / s;
 }
 fn moonH(p: vec3f) -> f32 {
-  return craH(p, 2.6, 0.62) + craH(p, 5.5, 0.5) + craH(p, 11.0, 0.45) + craH(p, 23.0, 0.4) + craH(p, 47.0, 0.4) + craH(p, 90.0, 0.45)
+  return craH(p, 6.0, 0.8) + craH(p, 12.0, 0.55) + craH(p, 24.0, 0.45) + craH(p, 47.0, 0.4) + craH(p, 90.0, 0.45)
     + 0.004 * fbm3(p * 14.0, 4);
+}
+// small bright young craters with a soft ejecta blanket
+fn craB(p: vec3f, s: f32, th: f32) -> f32 {
+  let v = voronoi3(p * s + s * 3.1);
+  let h = fract(v.z * 61.7);
+  return step(th, h) * (exp(-v.x * v.x * 90.0) + 0.35 * exp(-v.x * v.x * 9.0)) * (0.4 + 0.6 * fract(v.z * 17.3));
 }
 @fragment fn fsMoon(in: VO) -> @location(0) vec4f {
   let q = vec2f(in.uv.x * 2.0 - 1.0, 1.0 - in.uv.y * 2.0) / 0.98;
@@ -63,28 +69,41 @@ fn moonH(p: vec3f) -> f32 {
   let n = vec3f(q, sqrt(1.0 - r2));
   let M = rotY(0.7) * rotX(-0.35);
   let p = M * n;
-  let m = fbm3(p * 1.25 + vec3f(3.1, 0.7, 1.9), 6);
-  let m2 = fbm3(p * 3.1 + m * 1.5, 6);
-  let mar = smoothstep(0.02, 0.2, m + 0.3 * m2 + 0.12 * p.y - 0.1 * p.x);
-  var alb = mix(0.86, 0.27, mar);
-  alb *= 0.86 + 0.14 * fbm3(p * 7.0, 5) + 0.1 * fbm3(p * 28.0, 4) + 0.07 * fbm3(p * 90.0, 3);
-  // relief: light grazes in from the upper left, so every rim has a lit and a shaded side
+  // maria: warped basins with ragged, layered shores and uneven floors
+  let wp = p + 0.22 * vec3f(fbm3(p * 2.3 + 11.0, 4), fbm3(p * 2.3 - 7.0, 4), fbm3(p * 2.3 + 23.0, 4));
+  let m = fbm3(wp * 1.25 + vec3f(3.1, 0.7, 1.9), 6);
+  let m2 = fbm3(wp * 3.1 + m * 1.5, 6);
+  let m3 = fbm3(p * 9.0 + 5.0, 5);
+  let ms = m + 0.3 * m2 + 0.07 * m3 + 0.12 * p.y - 0.1 * p.x;
+  let mar = smoothstep(0.03, 0.17, ms);
+  let deep = smoothstep(0.12, 0.5, ms);
+  let hi = fbm3(p * 2.2 - 4.0, 5);
+  var alb = mix(0.74 + 0.1 * hi, 0.36 - 0.1 * deep + 0.07 * m2, mar);
+  // regolith mottling at every scale
+  alb *= 0.88 + 0.1 * fbm3(p * 6.0, 5) + 0.08 * fbm3(p * 21.0, 4) + 0.06 * fbm3(p * 70.0, 3) + 0.035 * fbm3(p * 190.0, 2);
+  // a full moon is lit head-on: relief is faint, craters read mostly as brightness
   let L = M * normalize(vec3f(-0.6, 0.55, 0.0));
-  let e = 0.0035;
+  let e = 0.003;
   let h0 = moonH(p);
   let rel = (moonH(normalize(p + L * e)) - moonH(normalize(p - L * e))) / (2.0 * e);
-  alb *= 1.0 + clamp(rel * 1.5, -0.45, 0.6) * mix(1.0, 0.6, mar);
-  alb += h0 * 2.2 * mix(1.0, 0.5, mar);
-  // two young craters with soft ejecta (broad, no thin spokes)
-  for (var i = 0; i < 2; i++) {
-    let c0 = normalize(select(vec3f(0.45, -0.3, 0.84), vec3f(-0.5, 0.35, 0.79), i == 1));
+  alb *= 1.0 + clamp(rel * 0.55, -0.16, 0.2) * mix(1.0, 0.5, mar);
+  alb += clamp(h0, -0.02, 0.03) * 1.3 * mix(1.0, 0.4, mar);
+  alb += (craB(p, 9.0, 0.86) * 0.2 + craB(p, 21.0, 0.8) * 0.16 + craB(p, 48.0, 0.8) * 0.1) * mix(0.75, 1.0, mar);
+  // three young ray craters: a bright core and long feathered rays
+  for (var i = 0; i < 3; i++) {
+    var c0 = vec3f(0.3, -0.62, 0.72);
+    if (i == 1) { c0 = vec3f(-0.42, 0.2, 0.88); }
+    if (i == 2) { c0 = vec3f(-0.66, 0.45, 0.6); }
+    c0 = normalize(c0);
     let dv = p - c0; let dl = length(dv);
     let t1 = normalize(cross(c0, vec3f(0.0, 1.0, 0.3))); let t2 = cross(c0, t1);
     let a = atan2(dot(dv, t2), dot(dv, t1));
-    let ray = smoothstep(0.1, 0.9, fbm2(vec2f(cos(a), sin(a)) * 2.6 + f32(i) * 9.0, 3) * 0.5 + 0.5);
-    alb += 0.13 * ray * exp(-dl * select(3.0, 4.5, i == 1)) * smoothstep(0.02, 0.09, dl) + 0.25 * exp(-dl * dl * 1500.0);
+    let cs = vec2f(cos(a), sin(a));
+    let ray = pow(smoothstep(-0.2, 0.9, fbm2(cs * 3.4 + f32(i) * 9.0, 3)), 2.0) * (0.6 + 0.4 * fbm2(cs * 11.0 + dl * 3.0, 2));
+    let k = select(1.0, 0.5, i > 0);
+    alb += k * (0.16 * ray * exp(-dl * select(6.0, 2.2, i == 0)) * smoothstep(0.015, 0.07, dl) + 0.1 * exp(-dl * dl * 260.0) + 0.22 * exp(-dl * dl * 2600.0));
   }
-  alb *= mix(0.28, 1.0, pow(n.z, 0.6));
-  let col = mix(vec3f(1.0, 0.95, 0.87), vec3f(0.76, 0.87, 1.0), mar) * clamp(alb, 0.0, 1.15) * 0.87;
+  alb *= mix(0.55, 1.0, pow(n.z, 0.5));
+  let col = mix(vec3f(1.0, 0.965, 0.9), vec3f(0.84, 0.9, 1.0), mar * 0.8) * clamp(alb, 0.0, 1.1) * 0.9;
   return vec4f(col, smoothstep(1.0, 0.972, sqrt(r2)));
 }
