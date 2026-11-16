@@ -31,7 +31,7 @@ export function hw(z) {                                 // half width at the flo
 const mesa2 = (x, z) => { const qx = Math.abs(x) - 16, qz = Math.abs(z) - 22; return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - 14; };
 // 1 deep in the canyon (dusk light), 0 out on the night dunes
 export const warm = (x, z) => { const w = hw(z), d = Math.abs(x - cx(z)); return ss(43, 30, Math.abs(z)) * ss(w + 6, w + 3.5, d); };
-export const dusk = (x, z) => ss(36, 22, Math.abs(z)) * ss(8, 4, Math.abs(x - cx(z)) - hw(z));
+export const dusk = (x, z) => ss(34, 24, Math.abs(z)) * ss(8, 4, Math.abs(x - cx(z)) - hw(z));
 
 export const DOOR = [-4, 0, 56];
 export const ARCH = [24, 0, -88, 0.5];
@@ -61,14 +61,19 @@ function ground0(x, z) {
   return h + 1.5 * Math.exp(-dd * dd / 160);                               // the door stands on a low knoll
 }
 DOOR[1] = ground0(DOOR[0], DOOR[2]);
+export const OASIS = [-66, 0, -30];                     // hidden pool; y = water level
+OASIS[1] = ground0(OASIS[0], OASIS[2]) - 1.25;
 export function ground(x, z) {
-  const lx = Math.abs(x - DOOR[0]), lz = z - DOOR[2], dd = Math.hypot(lx, lz);
+  const lx = Math.abs(x - DOOR[0]), lz = z - DOOR[2], dd = Math.hypot(lx, lz), od = Math.hypot(x - OASIS[0], z - OASIS[2]);
   let h = ground0(x, z);
+  if (od < 16) h += (OASIS[1] + 0.25 - 0.9 * Math.max(0, 1 - od * od / 36) - h) * ss(16, 6, od);     // the oasis bowl
   if (dd < 7) h = DOOR[1] + (h - DOOR[1]) * ss(2.6, 7, dd) + 0.17 * Math.exp(-((lx - 1.05) ** 2) / 0.1 - lz * lz / 0.45);   // flat sill, drifts by the posts
   return h;
 }
 for (const b of BEAMS) b.f[1] = ground(b.f[0], b.f[2]);
 ARCH[1] = ground(ARCH[0], ARCH[2]) - 0.9;
+// dancing sand spirals out on the dunes
+export const DEVILS = [[14, -50], [-46, -76], [17, 50]].map((p) => [p[0], ground(p[0], p[1]), p[1]]);
 
 // ---------------------------------------------------------------- rock SDF (positive in air)
 const AC = Math.cos(ARCH[3]), AS = Math.sin(ARCH[3]);
@@ -159,7 +164,7 @@ export async function meshBox(X0, Y0, Z0, X1, Y1, Z1, H, tick) {
     const px = P[v * 3], py = P[v * 3 + 1], pz = P[v * 3 + 2], nx = N[v * 3], ny = N[v * 3 + 1], nz = N[v * 3 + 2];
     const a1 = sdRock(px + nx * 0.8, py + ny * 0.8, pz + nz * 0.8) / 0.8, a2 = sdRock(px + nx * 2.6, py + ny * 2.6, pz + nz * 2.6) / 2.6;
     const ao = Math.min(1, Math.max(0.2, 0.25 + 0.75 * a1)) * Math.min(1, Math.max(0.4, 0.5 + 0.5 * a2));
-    out.set([px, py, pz, canyonLight(px, py, pz), nx, ny, nz, ao, warm(px, pz), 0, 0, 0], v * 12);
+    out.set([px, py, pz, canyonLight(px, py, pz), nx, ny, nz, ao, warm(px, pz) * ss(1, -4, mesa2(px, pz)), 0, 0, 0], v * 12);
   }
   return { verts: out, idx: idx.slice(0, ni) };
 }

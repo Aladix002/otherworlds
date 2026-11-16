@@ -1,6 +1,6 @@
 // Púšť snov — a slot canyon of light beams and dancing dust that opens onto night dunes with glowing creatures. See NOTES.md.
-import { cx, ground, sdRock, meshBox, terrain, detailMips, DOOR, ARCH, BEAMS, BLEN, dusk } from './geo.js';
-import { makeLife, lizardAt, RINGS, NLZ, NSN } from './life.js';
+import { cx, ground, sdRock, meshBox, terrain, detailMips, DOOR, ARCH, BEAMS, BLEN, dusk, OASIS, DEVILS, ss } from './geo.js';
+import { makeLife, lizardAt, RINGS, NLZ, NSN, NLT } from './life.js';
 import COMMON from './common.wgsl';
 import SCENE from './scene.wgsl';
 import SKY from './sky.wgsl';
@@ -10,7 +10,9 @@ import FX from './fx.wgsl';
 
 const HORIZ = [0.032, 0.022, 0.07], WARMFOG = [0.3, 0.05, 0.1];
 const v3 = (a) => `vec3f(${a[0].toFixed(4)}, ${a[1].toFixed(4)}, ${a[2].toFixed(4)})`;
-const HDR = `const NB = 3; const BLEN = ${BLEN}.0; const DOORP = ${v3(DOOR)}; const HORIZ = ${v3(HORIZ)};
+const PER = [900, 1700, 2600];
+const hdr = (lv) => `const PER = ${PER[lv]}u; const OASP = ${v3(OASIS)}; const ARCHP = vec4f(${ARCH}); const MF = array<vec3f, 6>(${BEAMS.map((b) => v3(b.f))}, ${DEVILS.map(v3)});
+const NB = 3; const BLEN = ${BLEN}.0; const DOORP = ${v3(DOOR)}; const HORIZ = ${v3(HORIZ)};
 const BF = array<vec3f, 3>(${BEAMS.map((b) => v3(b.f))}); const BD = array<vec3f, 3>(${BEAMS.map((b) => v3(b.d))});\n` + COMMON;
 
 const yawTo = (x, z, tx, tz) => Math.atan2(x - tx, z - tz);
@@ -18,13 +20,13 @@ const look = (x, y, z, tx, ty, tz, t) => ({ pos: [x, y, z], yaw: yawTo(x, z, tx,
 const eye = (x, z, h = 1.6) => ground(x, z) + h;
 const B0 = BEAMS[0].f, LZ = lizardAt(0, 10);
 const lizPose = () => {
-  const [x, y, z, fx, fz] = LZ, sx = -fz, sz = fx, px = x + fx * 1.25 + sx * 1.45, pz = z + fz * 1.25 + sz * 1.45;
-  return look(px, ground(px, pz) + 0.62, pz, x - fx * 0.75, y + 0.12, z - fz * 0.75);
+  const [x, y, z, fx, fz] = LZ, sx = -fz, sz = fx, px = x + fx * 0.9 + sx * 1.15, pz = z + fz * 0.9 + sz * 1.15;
+  return look(px, ground(px, pz) + 0.55, pz, x - fx * 0.7, y + 0.1, z - fz * 0.7);
 };
 function flyPath() {
   const P = [[1, 64], [-1.5, 58.5], [-2, 52], [-4.5, 45], [cx(39), 39]];
   for (let z = 33; z >= -33; z -= 6) P.push([cx(z) + (Math.abs(z - 9) < 4 || Math.abs(z + 7) < 4 || Math.abs(z + 23) < 4 ? -1 : 0), z]);
-  P.push([cx(-39), -39], [-5, -47], [-1, -57], [8, -68], [17, -79], [ARCH[0] - 1.5, ARCH[2] + 1], [31, -97], [42, -92]);
+  P.push([cx(-39), -39], [-8, -47], [-26, -46], [-44, -40], [-57, -37], [-60, -45], [-48, -60], [-24, -68], [0, -72], [14, -80], [ARCH[0] - 1.5, ARCH[2] + 1], [31, -97]);
   const out = [];
   let prev = 0;
   for (let i = 0; i < P.length; i++) {
@@ -46,8 +48,8 @@ export default {
   poses: [
     look(cx(18.5) + 0.2, eye(cx(18.5), 18.5), 18.5, B0[0], 2.6, B0[2]),                 // beam and dancing dust
     look(cx(1.5), eye(cx(1.5), 1.5), 1.5, cx(-3) + 2.6, 3.6, -3),                       // flowing strata, close
-    look(cx(-30), eye(cx(-30), -30), -30, cx(-39) - 0.5, 2.4, -44),                      // canyon exit onto the dunes
-    look(-12, eye(-12, -49, 2.2), -49, -8, eye(-12, -49) + 16, -110),                   // dunes under the Milky Way
+    look(cx(-32.5) + 0.3, eye(cx(-32.5), -32.5), -32.5, cx(-39) + 1.5, 3.2, -46),                      // canyon exit onto the dunes
+    look(OASIS[0] + 4, OASIS[1] + 2.6, OASIS[2] + 12.5, OASIS[0] - 3, OASIS[1] + 3.2, OASIS[2] - 8),   // hidden oasis under the Milky Way
     lizPose(),                                                                          // glowing lizard and its tracks
     look(DOOR[0] + 2.6, DOOR[1] + 1.5, DOOR[2] - 6.6, DOOR[0], DOOR[1] + 1.25, DOOR[2]), // the door on its dune
   ],
@@ -66,7 +68,7 @@ export default {
   sdf(x, y, z) { return sdRock(x, y, z); },
 
   async init(ctx, progress) {
-    const lv = ctx.q.level, M = ctx.mesh, dev = ctx.device;
+    const lv = ctx.q.level, M = ctx.mesh, dev = ctx.device, HDR = hdr(lv);
     const life = this.life = makeLife(lv);
     await progress(0.04);
     const ter = terrain([320, 448, 520][lv], life.glows);
@@ -108,12 +110,12 @@ export default {
     this.ptsBuf = ctx.buffer(life.pts, 'storage'); this.tubeBuf = ctx.buffer(life.tubes, 'storage');
     this.tBG = ctx.bindGroup(tL, [this.ptsBuf, this.tubeBuf]);
     this.dynPts = life.pts.subarray(0, life.nDynPts * 4); this.dynTubes = life.tubes.subarray(0, life.nDynTubes * 12);
-    this.printBuf = ctx.buffer(life.prints, 'vertex'); this.haloBuf = ctx.buffer(life.halos, 'vertex');
+    this.printBuf = ctx.buffer(life.prints, 'vertex'); this.haloBuf = ctx.buffer(life.halos, 'vertex'); this.lantBuf = ctx.buffer(life.lant, 'vertex');
 
     const scene = ctx.shader(HDR + SCENE, 'scene'), sky = ctx.shader(HDR + SKY, 'sky'), lifeM = ctx.shader(HDR + LIFE, 'life'), fx = ctx.shader(HDR + FX, 'fx');
     const v4 = (n, step) => ({ arrayStride: n * 16, stepMode: step, attributes: Array.from({ length: n }, (_, i) => ({ shaderLocation: i, offset: i * 16, format: 'float32x4' })) });
     const P = (d) => ctx.pipelineAsync(d), add = { blend: 'add', cull: 'none' };
-    [this.pSky, this.pStar, this.pRock, this.pTer, this.pTube, this.pTrail, this.pPrint, this.pHalo, this.pMote, this.pBeam] = await Promise.all([
+    [this.pSky, this.pStar, this.pRock, this.pTer, this.pTube, this.pTrail, this.pPrint, this.pHalo, this.pMote, this.pBeam, this.pWater, this.pLant] = await Promise.all([
       P({ module: sky, layouts: [sL], depthTest: false, depthWrite: false, cull: 'none', label: 'sky' }),
       P({ module: sky, vs: 'vsStar', fs: 'fsStar', buffers: [v4(2, 'instance')], ...add, depthTest: false, label: 'star' }),
       P({ module: scene, fs: 'fsRock', buffers: [v4(3, 'vertex')], layouts: [gL], label: 'rock' }),
@@ -124,8 +126,10 @@ export default {
       P({ module: lifeM, vs: 'vsHalo', fs: 'fsHalo', buffers: [v4(2, 'instance')], ...add, label: 'halo' }),
       P({ module: fx, vs: 'vsMote', fs: 'fsMote', ...add, label: 'mote' }),
       P({ module: fx, vs: 'vsBeam', fs: 'fsBeam', layouts: [this.dL], blend: 'add', depthFormat: null, label: 'beam' }),
+      P({ module: sky, vs: 'vsWater', fs: 'fsWater', layouts: [sL], cull: 'none', label: 'water' }),
+      P({ module: lifeM, vs: 'vsHalo', fs: 'fsLant', buffers: [v4(2, 'instance')], ...add, label: 'lantern' }),
     ]);
-    this.nm = [900, 1700, 2600][lv] * 3;
+    this.nm = PER[lv] * 3;
     this.k = -1; this.ka = -1; this.inside = false;
     this.resize(ctx);
     await progress(1);
@@ -140,10 +144,11 @@ export default {
   update(ctx, dt, t, cam) {
     const L = this.life, e = cam.eye, env = ctx.env;
     L.update(t);
-    ctx.write(this.ptsBuf, this.dynPts); ctx.write(this.tubeBuf, this.dynTubes); ctx.write(this.printBuf, L.prints); ctx.write(this.lightBuf, L.lights);
+    ctx.write(this.ptsBuf, this.dynPts); ctx.write(this.tubeBuf, this.dynTubes); ctx.write(this.printBuf, L.prints); ctx.write(this.lightBuf, L.lights); ctx.write(this.lantBuf, L.lant);
     // dusk in the canyon -> night on the dunes
     const k = this.k = dusk(e[0], e[2]);
     env.params[0] = k;
+    env.params[1] = ss(34, 9, Math.hypot(e[0] - ARCH[0], e[2] - ARCH[2]));
     for (let i = 0; i < 3; i++) env.fogColor[i] = HORIZ[i] + (WARMFOG[i] - HORIZ[i]) * k;
     env.fogDensity = 0.0035 + 0.005 * k;
     this.inside = Math.abs(e[0]) < 75 && Math.abs(e[2]) < 85;
@@ -158,6 +163,7 @@ export default {
     for (let i = 0; i < 2; i++) { const g = this.geo[i]; pass.setVertexBuffer(0, g.vb); pass.setIndexBuffer(g.ib, 'uint32'); pass.drawIndexed(g.n); }
     const g = this.ter;
     pass.setPipeline(this.pTer); pass.setVertexBuffer(0, g.vb); pass.setIndexBuffer(g.ib, 'uint32'); pass.drawIndexed(g.n);
+    pass.setPipeline(this.pWater); pass.setBindGroup(1, this.sBG); pass.draw(6);
     pass.setPipeline(this.pTube); pass.setBindGroup(1, this.tBG);
     pass.draw(RINGS[0] * 60, NLZ + NSN, 0, 0);
     pass.draw(RINGS[1] * 60, NLZ * 4, 0, NLZ + NSN);
@@ -169,7 +175,10 @@ export default {
     pass.setPipeline(this.pPrint); pass.setVertexBuffer(0, this.printBuf); pass.draw(6, L.nPrints);
     pass.setPipeline(this.pTrail); pass.setBindGroup(1, this.tBG); pass.draw(RINGS[2] * 60, NSN, 0, NLZ * 5 + NSN);
     pass.setPipeline(this.pHalo); pass.setVertexBuffer(0, this.haloBuf); pass.draw(6, L.halos.length / 8);
-    if (this.inside) { pass.setPipeline(this.pMote); pass.draw(6, this.nm); }
+    pass.setPipeline(this.pLant); pass.setVertexBuffer(0, this.lantBuf); pass.draw(6, NLT);
+    pass.setPipeline(this.pMote);
+    if (this.inside) pass.draw(6, this.nm);
+    pass.draw(6, this.nm, 0, this.nm);
   },
 
   afterScene(ctx, enc) {
@@ -199,6 +208,12 @@ export default {
     }, { startDelay: 4 });
     a.every(8, 22, (when) => a.chirp({ f0: a.rng.range(2300, 3400), f1: a.rng.range(2700, 3900), dur: 0.06, repeat: 2 + a.rng.int(3), gap: 0.1, vib: 0.02, gain: 0.006,
       reverb: 0.5, pan: a.rng.range(-0.9, 0.9), bus: dun, when }), { startDelay: 7 });
+    // places: the oasis trickles, the carved arch hums, the lantern caravan chimes now and then
+    const oa = a.spatial({ pos: OASIS, ref: 6, rolloff: 1.3, reverb: 0.4 }), ar = a.spatial({ pos: ARCH, ref: 7, rolloff: 1.2, reverb: 0.7 });
+    a.noiseBed({ color: 'white', filter: 'bandpass', freq: 2300, q: 2, gain: 0.018, mod: 0.8, modRate: 0.45, bus: oa });
+    a.every(2, 7, (when) => a.chirp({ f0: a.rng.range(1500, 2200), f1: 850, dur: 0.05, gain: 0.02, bus: oa, when }));
+    a.drone({ freq: a.hz(57), partials: [1, 2.01, 3.02], amps: [1, 0.4, 0.15], detune: 4, cutoff: 800, gain: 0.05, attack: 5, bus: ar });
+    a.every(11, 28, (when) => a.bell({ freq: a.hz(a.rng.pick(notes) + 24), gain: 0.012, decay: 4, reverb: 0.8, pan: a.rng.range(-0.7, 0.7), bus: dun, when }), { startDelay: 9 });
     this.ka = -1;
   },
 };

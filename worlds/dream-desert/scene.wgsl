@@ -50,11 +50,23 @@ fn farFog(col: vec3f, p: vec3f, dist: f32) -> vec3f {
   warm *= mix(vec3f(1.0), vec3f(1.12, 0.84, 1.25), smoothstep(-0.2, 0.6, sin(sy * 1.7 + 0.5)));
 
   // night side: red sandstone under the Milky Way
-  var alb = mix(vec3f(0.3, 0.12, 0.11), vec3f(0.56, 0.3, 0.22), 0.5 + 0.5 * band) * (0.75 + 0.5 * h2);
+  var alb = mix(vec3f(0.4, 0.15, 0.2), vec3f(0.75, 0.36, 0.34), 0.5 + 0.5 * band) * (0.85 + 0.3 * h2);
   let V = (G.camPos - p) / dist;
   var night = alb * nightLight(nd, ao);
   night += alb * G.ambientSky * pow(1.0 - max(dot(nd, V), 0.0), 3.0) * 1.5 * ao;
 
+  // carvings on the lone arch: rings, strokes and dots that wake as you come near
+  let aq = p - ARCHP.xyz;
+  if (dot(aq, aq) < 220.0) {
+    let ca = cos(ARCHP.w); let sa = sin(ARCHP.w); let u = aq.x * ca + aq.z * sa;
+    let g = vec2f(atan2(aq.y, u) * 7.0, length(vec2f(u, aq.y * 1.12)) * 1.7);
+    let id = floor(g); let f = fract(g) - 0.5; let hs = hash22(id + 7.0); let r = length(f);
+    let on = step(0.62, hs.x); let rr = 0.2 + 0.14 * hs.y;
+    var gl = smoothstep(0.06, 0.025, abs(r - rr)) * on + smoothstep(0.09, 0.05, r) * step(hs.x, 0.2);
+    gl += smoothstep(0.05, 0.02, abs(f.x * cos(hs.y * TAU) + f.y * sin(hs.y * TAU))) * step(r, rr) * on;
+    gl *= smoothstep(0.45, 0.8, abs(ng.z * ca - ng.x * sa)) * (1.0 - smoothstep(25.0, 60.0, dist));
+    night += hsv2rgb(vec3f(0.47 + 0.12 * hs.y, 0.75, 1.0)) * gl * (0.3 + 3.0 * G.params.y * (0.7 + 0.3 * sin(G.time * 0.8 + hs.y * 20.0)));
+  }
   return vec4f(farFog(mix(night, warm, in.l.z), p, dist), 1.0);
 }
 
@@ -67,7 +79,7 @@ fn farFog(col: vec3f, p: vec3f, dist: f32) -> vec3f {
   let t1 = textureSample(dtex, dsmp, p.xz * 0.047 + 0.31);
   let t2 = textureSample(dtex, dsmp, p.xz * 0.93);
   // wind ripples at two scales, forked by a slow warp, faded out where they would alias
-  let ph = dot(p.xz, vec2f(0.8, 0.6)) * 36.0 + t1.r * 26.0;
+  let ph = dot(p.xz, vec2f(0.8, 0.6)) * 36.0 + t1.r * 15.0;
   let fa = 1.0 - smoothstep(0.45, 1.5, fwidth(ph));
   let r1 = sin(ph) + 0.25 * sin(2.0 * ph + 1.0);
   let d1 = (cos(ph) + 0.5 * cos(2.0 * ph + 1.0)) * fa;
@@ -76,7 +88,7 @@ fn farFog(col: vec3f, p: vec3f, dist: f32) -> vec3f {
   let d2 = (cos(ph2) + 0.5 * cos(2.0 * ph2 + 1.0)) * fb;
   let gf = 1.0 - smoothstep(4.0, 18.0, dist);
   var nd = ng;
-  nd = normalize(vec3f(nd.x, nd.y, nd.z) - vec3f(0.8, 0.0, 0.6) * d1 * 0.17 - vec3f(0.6, 0.0, 0.8) * d2 * 0.06 * (0.4 + t0.r)
+  nd = normalize(vec3f(nd.x, nd.y, nd.z) - vec3f(0.8, 0.0, 0.6) * d1 * 0.11 - vec3f(0.6, 0.0, 0.8) * d2 * 0.06 * (0.4 + t0.r)
     - vec3f(t2.g - 0.5, 0.0, t2.b - 0.5) * 0.5 * gf - vec3f(t1.g - 0.5, 0.0, t1.b - 0.5) * 0.25);
   let shade = 0.9 + 0.12 * r1 * fa + 0.08 * sin(ph2) * fb + 0.1 * (t2.r - 0.5) * gf;
 
@@ -100,6 +112,9 @@ fn farFog(col: vec3f, p: vec3f, dist: f32) -> vec3f {
   let Lw = in.l.x * (0.5 + 0.3 * nd.y) * shade + beamSpot(p) * 0.85 * (0.75 + 0.5 * t1.r) * max(nd.y, 0.0);
   var col = mix(night, ramp(Lw) * mix(vec3f(1.0), vec3f(1.1, 0.9, 1.2), t0.r), in.l.z);
 
+  // the oasis: wet sand and a luminous shoreline
+  let od = distance(p.xz, OASP.xz);
+  col = col * (1.0 - 0.45 * smoothstep(8.0, 5.6, od)) + alb * vec3f(0.02, 0.3, 0.26) * exp(-pow(od - 5.9, 2.0) * 0.9);
   // the door: contact shadow under the frame, a breath of warm light on the sill
   let q = p - DOORP;
   col *= 1.0 - 0.6 * exp(-(pow(max(abs(q.x) - 0.62, 0.0), 2.0) * 7.0 + q.z * q.z * 5.0)) * step(abs(q.y), 1.0);

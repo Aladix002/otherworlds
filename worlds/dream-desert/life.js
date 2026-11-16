@@ -1,9 +1,9 @@
 // Dream desert life: glowing lizards and snakes (CPU skeletons -> spline tubes built in the vertex shader), their fading
 // footprints and trails, and the strange plants. Everything is an analytic function of time (deterministic shots).
-import { ground, DOOR, ARCH, ss } from './geo.js';
+import { ground, DOOR, ARCH, OASIS, ss } from './geo.js';
 import { makeRng } from '../../core/src/math.js';
 
-export const NLZ = 5, NSN = 4, NPR = 14, NL = 13;
+export const NLZ = 5, NSN = 5, NPR = 14, NL = 13, NLT = 12, NBT = 10;
 const LP = 18, GP = 5, SP = 28, TP = 36, PI = Math.PI;
 export const RINGS = [44, 10, 72, 16];                  // bodies, legs, trails, plants
 // loop centre x, z, radii x, z, wobble, wobble phase, start angle, speed (m/s), hue, size
@@ -17,7 +17,9 @@ const C = [
   [4, -84, 9, 6, 0.8, 2.6, 4.2, 0.24, 0.55, 1.1],
   [-6, -112, 14, 8, 1.4, 0.2, 2.9, 0.28, 0.16, 1.2],
   [-30, 60, 9, 6, 0.8, 5.0, 1.7, 0.25, 0.4, 0.95],
+  [0, -75, 95, 60, 7, 1.0, 0.5, 2.6, 0.78, 20],          // the sky serpent
 ];
+const BC = [];                                          // beetle loops (filled in makeLife)
 const o = new Float64Array(5);                          // x, z, tangent x, z, metres per unit u
 function path(c, u) {
   const a = u / c[2] + c[6], p = c[5];
@@ -37,17 +39,23 @@ const LC = [0.15, 0.15, 0.145, 0.14, 0.125, 0.115, 0.105, 0.1, 0.098, 0.096, 0.0
 // where lizard i's head is at time t: [x, y, z, heading x, z]
 export function lizardAt(i, t) { const c = C[i]; path(c, uAt(c, t, i)); return [o[0], ground(o[0], o[1]), o[1], o[2], o[3]]; }
 export function snakeAt(i, t) { return lizardAt(NLZ + i, t); }
+// lantern i of the caravan drifting around the desert
+function lantern(i, t, out, q) {
+  const a = t * 0.006 + 3.9 - i * 0.04 - (i % 3) * 0.012, x = 105 * Math.cos(a) + 6 * Math.sin(a * 5 + i), z = -30 + 85 * Math.sin(a);
+  out[q] = x; out[q + 1] = ground(x, z) + 5.5 + (i % 4) * 0.7 + 0.5 * Math.sin(t * 0.21 + i * 1.7); out[q + 2] = z;
+}
+export function lanternAt(i, t) { const o3 = [0, 0, 0]; lantern(i, t, o3, 0); return o3; }
 
 export function makeLife(level) {
   const rng = makeRng(4242);
   // ---------------- plants (static tubes)
   const samples = [];
   for (const c of C) for (let k = 0; k < 90; k++) { path(c, k / 90 * 2 * PI * c[2]); samples.push(o[0], o[1]); }
-  const spots = [[5, -47, 0], [-14, -47, 1], [-11, 51, 0], [4, 63, 1], [16, -76, 0], [-16, -70, 1], [33, -84, 1]];
+  const spots = [[5, -47, 0], [-14, -47, 1], [-11, 51, 0], [4, 63, 1], [16, -76, 0], [-16, -70, 1], [33, -84, 1], [OASIS[0] - 3, OASIS[2] - 10, 0], [OASIS[0] - 8, OASIS[2] - 4, 1]];
   const np = [9, 14, 20][level];
   for (let tries = 0; spots.length < np && tries < 900; tries++) {
     const a = rng() * 2 * PI, r = rng.range(52, 125), x = Math.cos(a) * r, z = Math.sin(a) * r * 0.9 - 14;
-    if (Math.abs(x) < 46 && Math.abs(z) < 50 || Math.hypot(x - DOOR[0], z - DOOR[2]) < 9 || Math.hypot(x - ARCH[0], z - ARCH[2]) < 13) continue;
+    if (Math.abs(x) < 46 && Math.abs(z) < 50 || Math.hypot(x - OASIS[0], z - OASIS[2]) < 18 || Math.hypot(x - DOOR[0], z - DOOR[2]) < 9 || Math.hypot(x - ARCH[0], z - ARCH[2]) < 13) continue;
     let ok = true;
     for (let k = 0; k < samples.length && ok; k += 2) ok = (samples[k] - x) ** 2 + (samples[k + 1] - z) ** 2 > 16;
     for (const s of spots) ok = ok && Math.hypot(s[0] - x, s[1] - z) > 12;
@@ -79,6 +87,19 @@ export function makeLife(level) {
     }
   }
 
+  // night-blooming trumpet flowers ringing the oasis pool
+  for (let k = 0; k < 11; k++) {
+    const a = k * 0.571 + rng.range(-0.15, 0.15), r = rng.range(5.7, 7.6), x0 = OASIS[0] + Math.cos(a) * r, z0 = OASIS[2] + Math.sin(a) * r, y0 = ground(x0, z0);
+    const h = [0.72, 0.9, 0.56][k % 3], H = rng.range(0.45, 0.9), lx = -Math.cos(a) * 0.5 + rng.range(-0.3, 0.3), lz = -Math.sin(a) * 0.5 + rng.range(-0.3, 0.3), st = sp.length / 4;
+    for (const [f, up, r2] of [[0, -0.05, 0.016], [0.1, 0.45, 0.014], [0.3, 0.85, 0.013], [0.55, 1.05, 0.02], [0.72, 1.12, 0.07], [0.88, 1.2, 0.13], [1.0, 1.3, 0.2]]) sp.push(x0 + lx * f * H, y0 + up * H, z0 + lz * f * H, r2);
+    sh.push(st, 7, RINGS[3], 8, h, rng(), H, 1, 0.3, 0, 1, 1);
+    hue(h, 1, col, 0);
+    halos.push(x0 + lx * H, y0 + 1.12 * H, z0 + lz * H, 0.3, col[0], col[1], col[2], rng() * 6.283);
+    if (k % 2 === 0) glows.push(x0, y0, z0, 1.2, col[0] * 0.4, col[1] * 0.4, col[2] * 0.4, 0);
+  }
+  // beetles circle the plants
+  for (let i = 0; i < NBT; i++) { const s = spots[(i * 3) % spots.length], r = rng.range(1.6, 3.4); BC[i] = [s[0] + rng.range(-1, 1), s[1] + rng.range(-1, 1), r, r * 0.8, r * 0.12, rng() * 6, rng() * 6, 0.11, [0.13, 0.45, 0.95, 0.3][i % 4], rng.range(0.8, 1.2)]; }
+
   // ---------------- buffers
   const nDynPts = NLZ * (LP + 4 * GP) + NSN * (SP + TP), nDynTubes = NLZ * 5 + NSN * 2;
   const pts = new Float32Array(nDynPts * 4 + sp.length), tubes = new Float32Array(nDynTubes * 12 + sh.length);
@@ -93,10 +114,12 @@ export function makeLife(level) {
   }
   for (let i = 0; i < NSN; i++) {
     const c = C[NLZ + i], st = NLZ * 38 + i * (SP + TP);
-    tube(NLZ + i, st, SP, RINGS[0], 2, c, 3.2 * c[9], 0.86);
+    tube(NLZ + i, st, SP, RINGS[0], i > 3 ? 6 : 2, c, 3.2 * c[9], i > 3 ? 0.4 : 0.86);
     tube(NLZ + NSN + NLZ * 4 + i, st + SP, TP, RINGS[2], 5, c, TP * 0.3, 0.1);
   }
-  const prints = new Float32Array(NLZ * 4 * NPR * 12), PK = new Int32Array(NLZ * 4 * NPR).fill(-1e9), lights = new Float32Array(NL * 8);
+  const NP0 = NLZ * 4 * NPR, nPrints = NP0 + NBT * 8;
+  const prints = new Float32Array(nPrints * 12), PK = new Int32Array(nPrints).fill(-1e9), lights = new Float32Array(NL * 8), lant = new Float32Array(NLT * 8);
+  for (let i = 0; i < NLT; i++) { hue([0.07, 0.1, 0.04, 0.93, 0.5][i % 5], 1, lant, i * 8 + 4); lant[i * 8 + 3] = 1.7; lant[i * 8 + 7] = i * 2.4; }
   const F = new Float64Array(3);
 
   // footprint k of leg l of lizard i (cached): fills F with its position
@@ -168,25 +191,49 @@ export function makeLife(level) {
   }
 
   function snake(i, t) {
-    const n = NLZ + i, c = C[n], sc = c[9], len = 3.2 * sc, u = uAt(c, t, n);
+    const n = NLZ + i, c = C[n], sc = c[9], len = 3.2 * sc, u = uAt(c, t, n), sky = i > 3, D = (sky ? 0.12 : 0.3) * sc;
     path(c, u);
     const g = o[4];
     let q = (NLZ * 38 + i * (SP + TP)) * 4;
     for (let j = 0; j < SP + TP; j++, q += 4) {
       const tr = j >= SP, m = j - SP;
       const s = tr ? len : j / (SP - 1) * len;
-      const uj = tr ? (m === 0 ? u - len / g : (Math.floor((u - len / g) / 0.3) - m + 1) * 0.3) : u - s / g;
+      const uj = tr ? (m === 0 ? u - len / g : (Math.floor((u - len / g) / D) - m + 1) * D) : u - s / g;
       path(c, uj);
-      const sw = (0.04 + 0.2 * ss(0, 0.9, s)) * sc * Math.sin(2 * PI * uj / 1.5 + n);
+      const sw = (0.04 + 0.2 * ss(0, 0.9, s)) * sc * Math.sin(2 * PI * uj / (1.5 * sc) + n);
       const x = o[0] - o[3] * sw, z = o[1] + o[2] * sw, f = s / len;
       const r = tr ? 0.075 * sc : j === 0 ? 0.012 : j === 1 ? 0.05 * sc : j === 2 ? 0.043 * sc : (0.062 * Math.pow(Math.max(1 - Math.pow(f, 2.6), 0), 0.62) + 0.004) * sc;
-      pts[q] = x; pts[q + 1] = ground(x, z) + (tr ? 0.03 : r * 0.8 + 0.09 * sc * ss(0.45, 0, s)); pts[q + 2] = z; pts[q + 3] = r;
-      if (j === 5 || j === 17) { const li = (NLZ + i * 2 + (j === 5 ? 0 : 1)) * 8; lights[li] = x; lights[li + 1] = pts[q + 1] + 0.15; lights[li + 2] = z; lights[li + 3] = 0.7 * sc; hue(c[8] + (j === 5 ? 0 : 0.14), 0.8, lights, li + 4); }
+      pts[q] = x; pts[q + 1] = sky ? 58 + 8 * Math.sin(uj * 0.021) + sw * 0.6 : ground(x, z) + (tr ? 0.03 : r * 0.8 + 0.09 * sc * ss(0.45, 0, s)); pts[q + 2] = z; pts[q + 3] = r;
+      if (!sky && (j === 5 || j === 17)) { const li = (NLZ + i * 2 + (j === 5 ? 0 : 1)) * 8; lights[li] = x; lights[li + 1] = pts[q + 1] + 0.15; lights[li + 2] = z; lights[li + 3] = 0.7 * sc; hue(c[8] + (j === 5 ? 0 : 0.14), 0.8, lights, li + 4); }
     }
   }
 
+  // glowing scarabs: a body sprite (negative size) and a short trail of cached dots
+  function beetle(i, t) {
+    const c = BC[i], u = uAt(c, t, i + 9), s0 = NP0 + i * 8, k0 = Math.floor(u / 0.22);
+    path(c, u);
+    let q = s0 * 12;
+    const x = o[0], z = o[1], e = 0.1, y = ground(x, z), nx = ground(x - e, z) - ground(x + e, z), nz = ground(x, z - e) - ground(x, z + e), nl = Math.hypot(nx, 2 * e, nz);
+    prints[q] = x; prints[q + 1] = y + 0.02; prints[q + 2] = z; prints[q + 3] = -0.05 * c[9];
+    prints[q + 4] = nx / nl; prints[q + 5] = 2 * e / nl; prints[q + 6] = nz / nl; prints[q + 7] = 1;
+    hue(c[8], 1, prints, q + 8); prints[q + 11] = Math.atan2(o[2], o[3]);
+    for (let m = 0; m < 7; m++) {
+      const kk = k0 - m, s = s0 + 1 + ((kk % 7) + 7) % 7; q = s * 12;
+      if (PK[s] !== kk) {
+        PK[s] = kk; path(c, kk * 0.22);
+        prints[q] = o[0]; prints[q + 1] = ground(o[0], o[1]); prints[q + 2] = o[1]; prints[q + 3] = 0.02;
+        prints[q + 5] = 1; hue(c[8] + 0.05, 1, prints, q + 8); prints[q + 11] = Math.atan2(o[2], o[3]);
+      }
+      prints[q + 7] = 0.8 * (1 - (u / 0.22 - kk) / 7) ** 1.5;
+    }
+  }
   return {
-    pts, tubes, prints, lights, glows, halos: new Float32Array(halos), nDynPts, nDynTubes, nPlantTubes: sh.length / 12, nPrints: NLZ * 4 * NPR,
-    update(t) { for (let i = 0; i < NLZ; i++) lizard(i, t); for (let i = 0; i < NSN; i++) snake(i, t); },
+    pts, tubes, prints, lights, lant, glows, halos: new Float32Array(halos), nDynPts, nDynTubes, nPlantTubes: sh.length / 12, nPrints,
+    update(t) {
+      for (let i = 0; i < NLZ; i++) lizard(i, t);
+      for (let i = 0; i < NSN; i++) snake(i, t);
+      for (let i = 0; i < NBT; i++) beetle(i, t);
+      for (let i = 0; i < NLT; i++) lantern(i, t, lant, i * 8);
+    },
   };
 }

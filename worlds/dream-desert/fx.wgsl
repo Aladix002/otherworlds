@@ -65,7 +65,7 @@ fn figure(k: u32, u: f32, v: f32, j: u32, tt: f32) -> vec3f {
 struct MO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) @interpolate(flat) col: vec3f };
 @vertex fn vsMote(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> MO {
   var cs = array<vec2f, 6>(vec2f(-1, -1), vec2f(1, -1), vec2f(-1, 1), vec2f(-1, 1), vec2f(1, -1), vec2f(1, 1));
-  let b = ii % u32(NB); let j = ii / u32(NB);
+  let b = ii / PER; let j = ii % PER; let dune = b >= u32(NB);
   let h = hash3u(vec3u(j, b, 7u)); let h2 = hash3u(vec3u(j, b, 19u));
   let lt = G.time + f32(b) * (MT + 3.0) + 17.0;
   let cyc = floor(lt / MT); let ph = lt - cyc * MT;
@@ -75,22 +75,24 @@ struct MO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) @
   cloud += 0.12 * vec3f(sin(G.time * 0.21 + h2.z * 40.0), sin(G.time * 0.17 + h2.x * 50.0), sin(G.time * 0.19 + h2.y * 60.0));
   let del = h2.z * 5.0;
   var w = smoothstep(del, del + 6.0, ph) * (1.0 - smoothstep(22.0 + del, 28.0 + del, ph)) * step(h2.x, 0.72);
-  let fig = figure((u32(cyc) + b * 2u) % 5u, h.x, h.y, j, lt) + (h2 - 0.5) * 0.035;
-  let L = mix(cloud, fig, w);
-  let d = beamD(i32(b)); let U = normalize(cross(d, vec3f(0.0, 0.0, 1.0))); let W = cross(d, U);
+  var fk = (u32(cyc) + b * 2u) % 5u;
+  if (dune) { fk = (fk * 3u + 3u) % 5u; cloud = vec3f(cloud.x, cloud.y * 0.5, cloud.z); }     // sand spirals: funnel, helix, vortices
+  let fig = figure(fk, h.x, h.y, j, lt) + (h2 - 0.5) * 0.035;
+  let L = mix(cloud, fig, w) * select(1.0, 1.5, dune);
+  var mf = MF; let d = select(vec3f(0.0, 1.0, 0.0), beamD(i32(b) % NB), !dune); let U = normalize(cross(d, vec3f(0.0, 0.0, 1.0))); let W = cross(d, U);
   let R = mix(BR0, BR1, clamp(L.y / BLEN, 0.0, 1.0));
-  let wp = beamF(i32(b)) + d * L.y + (U * L.x + W * L.z) * (R / BR0);
+  let wp = mf[b] + d * L.y + (U * L.x + W * L.z) * (R / BR0);
   let rr = (L.x * L.x + L.z * L.z) / (BR0 * BR0);
-  let lit = exp(-rr * 1.6) * 0.92 + 0.08;
+  let lit = select(exp(-rr * 1.6) * 0.92 + 0.08, 0.5, dune);
   let tw = 0.55 + 0.45 * sin(G.time * (0.8 + h2.y * 1.7) + h.z * 50.0);
   let dist = distance(wp, G.camPos);
   let px = dist * G.tanHalfFov * 2.0 * G.invResolution.y;      // world size of a pixel at the mote
-  let sz = (0.007 + 0.012 * h2.z * h2.z) * (1.0 + 0.6 * w);
+  let sz = (0.007 + 0.012 * h2.z * h2.z) * (1.0 + 0.6 * w) * select(1.0, 1.8, dune);
   let hs = max(sz, px * 1.25);
   var o: MO;
   o.c = cs[vi];
   o.pos = G.viewProj * vec4f(billboard(wp, o.c, vec2f(hs)), 1.0);
-  let tint = mix(vec3f(1.0, 0.62, 0.25), hsv2rgb(vec3f(h.x * 0.9 + lt * 0.011 + f32(b) * 0.3, 0.8, 1.0)), 0.3 + 0.6 * w);
+  let tint = mix(vec3f(1.0, 0.62, 0.25), hsv2rgb(vec3f(h.x * select(0.9, 0.3, dune) + lt * 0.011 + f32(b) * 0.3, 0.8, 1.0)), select(0.3 + 0.6 * w, 1.0, dune));
   o.col = tint * lit * tw * (sz * sz) / (hs * hs) * (2.2 + 3.0 * w) * smoothstep(0.25, 0.9, dist) * (1.0 - G.transition);
   return o;
 }
