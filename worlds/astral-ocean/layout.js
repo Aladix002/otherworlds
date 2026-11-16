@@ -10,19 +10,20 @@ export const PATHS = [
   [8, -6, -68, 12, 0.8, 2, -0.5, 1.9, 2.0, 2, -1, 0],
   [34, -25, -22, 60, 0.85, 3, -0.6, 1.3, 2.8, 5.682, -1, 11],     // escort shoal: whale 1's path, slot 11 = side offset
   [-40, 2, -92, 36, 0.8, 2, 0.4, 0.7, 1.5, 0, 1, 26],             // 6: nursery mother
-  [-40, 5.2, -92, 29.5, 0.8, 2, 0.4, 0.7, 1.5 * 29.5 / 36, 0, 1, 10],   // 7: her calf (same angular speed, tucked beside her back)
-  [50, -6, -26, 24, 0.8, 3, 0.9, 0.3, 2.4, 0, -1, 0],             // 8: ray pod around the reef
+  [-40, 0.3, -92, 27.5, 0.8, 2, 0.4, 0.7, 1.5 * 27.5 / 36, 0, 1, 10],   // 7: her calf (same angular speed, a body-width off her flank, a little lower)
+  [50, 12, -26, 24, 0.8, 3, 0.9, 0.3, 2.4, 0, -1, 0],             // 8: ray pod around the reef
   [5, -140, -20, 75, 0.75, 4, 0.2, 1.1, 1.6, 0, 1, 0],            // 9: the giant ray of the deep
 ];
 // regions: rose-gold nursery (toward the core), teal reef field, the crystal ring behind the islet, the quiet deep
-export const NURSERY = [-40, 2, -92], REEF = [50, -8, -26], RING = [-28, -3, 36], RAXIS = [0.2, 0.96, 0.18];
+export const NURSERY = [-40, 2, -92], REEF = [50, 8, -26], RING = [-50, 14, -6], RAXIS = [0.9, 0.15, 0.4];
+// (the reef floats well above whale 1's lane; the ring stands alone to the left of the spawn, like a gate)
 // reef asteroids: [dx, dy, dz, radius] around REEF
-export const ROCKS = [[0, 0, 0, 5.5], [11, 2.5, -6, 3.2], [-9, -2, 7, 3.6], [4, 4.5, 12, 2.4], [-13, 3, -9, 2.2], [15, -4, 8, 2.8], [-3, -6, -13, 2]];
+export const ROCKS = [[0, 0, 0, 5.5], [11, 2.5, -6, 3.2], [-9, -2, 7, 3.6], [4, 4.5, 12, 2.4], [-13, 3, -9, 2.2], [15, -4, 8, 2.8], [-3, -4, -13, 2]];
 // plankton clouds: [x, y, z, radius, palette]
-export const CLOUDS = [[-40, 4, -92, 8, 0], [-22, -2, -66, 6, 1], [50, -3, -26, 9, 2], [-7, 1, -15, 4.5, 3], [-8, -56, -14, 9, 4]];
+export const CLOUDS = [[-40, 4, -92, 8, 0], [-22, -2, -66, 6, 1], [50, 11, -26, 9, 2], [-7, 1, -15, 4.5, 3], [-8, -56, -14, 9, 4]];
 // jelly groups: [x, bottomY, z, radius, count, H, hueLo, hueHi, size multiplier]: 3 = nursery babies, 4 = giants of the deep
 export const JGROUPS = [[-14, -8, -45, 8, 20, 26, 0.0, 0.6], [45, -2, 2, 9, 14, 26, 0.3, 1.0], [-28, -16, 36, 7, 10, 22, 0.0, 0.85],
-  [-40, -7, -92, 8, 12, 18, 0.0, 0.3, 0.5], [-8, -80, -14, 15, 5, 38, 0.55, 1.0, 2.6]];
+  [-18, -13, -98, 6, 12, 14, 0.0, 0.3, 0.5], [-8, -80, -14, 15, 5, 38, 0.55, 1.0, 1.8]];
 
 export function pathPos(p, u, o) {
   const lx = p[3] * Math.cos(u), lz = p[4] * p[3] * Math.sin(u), ly = p[5] * (Math.sin(0.5 * u + p[7]) + 0.35 * Math.sin(1.37 * u + 2 * p[7]));
@@ -67,7 +68,7 @@ const WP = [
   [[1.2, -0.5, 22.3], [0, -1, 26]], [[3.5, -0.2, 18], [-1.5, -1.6, 27]], [[4, 0.6, 9], [-8, 7, -30]], [[3, 1.5, -1], [-36, 19, -48]],
   [[8, 3.5, -15], add(G0c, [7, 9, -6])], [[2, 6, -24], add(G0c, [5, 4, -2])],
   [add(JC, [1, 0, 0]), add(G0c, [6, 4, -2])], [add(JC, [-3, -2, -3]), add(G0c, [6, 5, -2])],
-  [[0, 0, -36], [50, -5, -30]], [[15, -3, -31], [50, -7, -26]], [[29, -5, -18], [52, -7, -28]], [[36, -3, -8], [52, -9, -30]],
+  [[0, 2, -36], [50, 9, -30]], [[15, 6, -31], [50, 9, -26]], [[29, 10, -18], [52, 8, -28]], [[36, 12, -8], [52, 6, -30]],
 ];
 {
   const pts = WP.map(([p, l]) => { const L = lookAt(p, l); return { pos: p, yaw: L.yaw, pitch: Math.max(-0.7, Math.min(0.7, L.pitch)) }; });
@@ -102,15 +103,15 @@ export const TF = 9.2, TJ = 30, TR = 49.2;      // motion-clip times: fish, jell
   const W1 = frame(PATHS[1], 40, 0.45);
   Object.assign(P[1], lookAt(add(add(W1.p, W1.r, 45), W1.u, 3), add(W1.p, W1.f, 5)), { t: 40 });
   // 2: the nursery. Mother and calf cross in front of the core; the pearl garland and baby jellies in the foreground
-  solvePhase(6, 20, 0.45, add(NURSERY, [-13, 0, -30]));
+  solvePhase(6, 20, 0.45, add(NURSERY, [9, 0, -29]));
   PATHS[7][9] = PATHS[6][9] - 0.26;
-  Object.assign(P[2], lookAt(add(NURSERY, [7, 1.5, 15]), add(NURSERY, [-8, 4, -20])), { t: 20 });
+  Object.assign(P[2], lookAt(add(NURSERY, [12, 1.5, 12]), add(NURSERY, [-2, 3, -22])), { t: 20 });
   // 3: the reef field with the ray pod gliding over it and the comet beyond
   solvePhase(8, 30, 0, add(REEF, [-9, 6, 2]));
   Object.assign(P[3], lookAt(add(REEF, [-20, 3.5, 11]), add(REEF, [3, 1.5, -3])), { t: 30 });
   // 4: the quiet deep: giant jellies, and the great ray passing far below
   solvePhase(9, 50, 0, [12, -140, -80]);
   Object.assign(P[4], lookAt([-46, -60, 0], [4, -141, -70]), { t: 50 });
-  // 5: the islet off-centre; jellies rise through the crystal ring behind it
+  // 5: the islet off-centre, jellies rising behind it
   Object.assign(P[5], lookAt([8.6, 0.4, 20.6], [-2.6, -3.2, 28.5]), { t: 26 });
 }

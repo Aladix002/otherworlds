@@ -140,7 +140,8 @@ struct TO { @builtin(position) pos: vec4f, @location(0) a: f32, @location(1) col
   let aa = abs(in.a);
   let ruf = (0.25 + 0.75 * smoothstep(0.35, 0.8, aa) * fr) * smoothstep(1.0, 0.8, aa);
   let a = mix(exp(-in.a * in.a * 2.5), ruf, in.uo.y);
-  return vec4f(in.col * a * 0.5, 0.0);
+  // strands grow out of the bell and dissolve at the tip: no cut ends
+  return vec4f(in.col * a * 0.5 * smoothstep(0.0, 0.1, in.uo.x) * smoothstep(1.0, 0.75, in.uo.x), 0.0);
 }
 
 // ---------------- soft halo around each bell ----------------

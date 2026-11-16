@@ -80,7 +80,7 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   e += mix(vec3f(0.015, 0.085, 0.13), vec3f(0.1, 0.03, 0.15), smoothstep(-0.35, 0.35, nh)) * smoothstep(-0.15, 0.6, nb) * nd * 0.75 * (0.35 + 0.65 * body);
   // rim of light; fins grow out of the body glow instead of meeting it at a seam
   let root = select(smoothstep(0.0, 0.22, in.part.y), 1.0, isBody || part == 2.0);
-  e += ICE * (pow(fres, 2.4) * 0.3 * body + pow(fres, 5.0) * 1.3) * (0.25 + 0.75 * root);
+  e += ICE * (pow(fres, 2.4) * 0.3 * body + pow(fres, 5.0) * mix(0.3, 1.3, body)) * (0.25 + 0.75 * root);
 
   // flowing lines: spine + lateral lines with light travelling toward the tail
   let tr = 0.22 + 0.78 * pow(0.5 + 0.5 * sin(t * 0.5 - s * 11.0 + kf * 2.0), 6.0);
@@ -129,7 +129,8 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
     let dg = i >= 2;
     let A = aoStar(ca, kf); let B = aoStar(ca + vec2f(1.0, select(0.0, 1.0, dg)), kf);
     let hl = hash22(ca + kf * 13.0 + 5.0);
-    cl += A.z * B.z * select(step(hl.x, 0.6), step(hl.y, 0.4), dg) * aoLine(aoSeg(sk, A.xy, B.xy), 0.008, fw);
+    let ds = aoSeg(sk, A.xy, B.xy);     // a thin core inside a soft glow
+    cl += A.z * B.z * select(step(hl.x, 0.6), step(hl.y, 0.4), dg) * (aoLine(ds, 0.008, fw) * 0.55 + exp(-ds * 40.0) * 0.3);
   }
   let tw = 0.75 + 0.25 * sin(t * 0.6 + dot(cid, vec2f(3.1, 1.7)));
   e += (mix(vec3f(1.5, 1.0, 0.55), vec3f(1.3, 1.15, 1.0), hs.y) * c * tw + vec3f(1.0, 0.8, 0.6) * cl * 0.45) * lod;
@@ -141,7 +142,7 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let dbn = min(abs(cx + 0.4), min(abs(cx), abs(cx - 0.42)));
   let bone = aoLine(dbn, 0.05, fwidth(dbn) + 1e-4) * select(0.0, 1.0, abs(part) == 1.0) * smoothstep(0.02, 0.2, in.part.y) * smoothstep(1.0, 0.7, in.part.y);
   e += ICE * fin * (ec * ec * (0.2 - 0.09 * cx) + 0.012 + bone * lod * (0.1 + 0.35 * tr));
-  var a = 0.13 + 0.42 * fres + (0.04 + 0.2 * ec) * (1.0 - body);
+  var a = 0.13 + 0.42 * fres * mix(0.35, 1.0, body) + (0.04 + 0.2 * ec) * (1.0 - body);
   // depth haze: far whales sink into the nebula
   let hz = 1.0 - exp(-dist * 0.0032);
   let bg = textureSampleLevel(farTex, fsamp, -V, 0.0).rgb;   // haze takes the colour of the nebula behind

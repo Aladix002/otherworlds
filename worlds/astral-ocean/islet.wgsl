@@ -29,6 +29,7 @@ fn aoBox2(p: vec2f, b: vec2f) -> f32 { let q = abs(p) - b; return length(max(q, 
 
 @fragment fn fs(in: VO, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
   let ty = in.uv.x;
+  let fc = normalize(cross(dpdx(in.w), dpdy(in.w)));     // flat facet normal (ring shards)
   let t = G.time;
   var n = normalize(in.n);
   let Vv = G.camPos - in.w;
@@ -49,7 +50,13 @@ fn aoBox2(p: vec2f, b: vec2f) -> f32 { let q = abs(p) - b; return length(max(q, 
     cao *= mix(0.5, 1.0, smoothstep(0.02, 0.3, d2));
   }
 
-  if ((ty > 0.5 && ty < 1.5) || ty > 7.5) {          // crystal: light held inside, brighter toward the tip, a hard bright edge
+  if (ty > 7.5) {                      // ring shards: faceted glass. Dark heart, bright dispersing rim, a glint toward the core
+    let f = 1.0 - abs(dot(fc, V));
+    let base = aoGlowCol(in.uv.y);
+    let gl = pow(abs(dot(fc, normalize(V + G.sunDir))), 60.0);
+    return vec4f(base * 0.025 + mix(base, base.zxy + 0.25, f) * pow(f, 3.0) * 1.5 + vec3f(1.3, 1.1, 1.0) * gl, 1.0);
+  }
+  if (ty > 0.5 && ty < 1.5) {          // crystal: light held inside, brighter toward the tip, a hard bright edge
     let base = aoGlowCol(in.uv.y);
     let band = 0.85 + 0.15 * sin(dot(in.o, vec3f(9.0, 31.0, 7.0)));
     var c = base * (0.12 + 0.85 * nd * nd * band + 0.25 * pow(nd, 8.0));
@@ -64,6 +71,7 @@ fn aoBox2(p: vec2f, b: vec2f) -> f32 { let q = abs(p) - b; return length(max(q, 
       let col = mix(vec3f(0.2, 0.95, 0.75), mix(vec3f(0.3, 0.7, 1.4), vec3f(0.95, 0.4, 1.3), step(0.75, hue)), step(0.45, hue));
       let pul = 0.8 + 0.2 * sin(t * 0.5 + hue * 30.0);
       var c = col * (0.012 + 0.75 * pow(tt, 2.4) * pul) * select(1.0, 1.4, ty < 5.5);
+      if (ty < 5.5) { c = c * (0.45 + 0.55 * nd * nd) + col * fres * 0.25 * tt; }     // stems are round: shaded core, lit rim
       c += vec3f(0.01, 0.02, 0.02) + spill * 0.03;
       c *= mix(0.35, 1.0, smoothstep(0.0, 0.3, tt));
       return vec4f(applyFog(c, in.w), 1.0);
@@ -84,6 +92,8 @@ fn aoBox2(p: vec2f, b: vec2f) -> f32 { let q = abs(p) - b; return length(max(q, 
   // ---- stone ----
   let q = in.o;
   let step7 = ty > 6.5;
+  let reef = ty > 3.97 && ty < 4.5;      // reef chunks: lighter stone in a teal fill
+  let far = smoothstep(70.0, 22.0, dist); // fine bright detail fades before it can sparkle
   let g1 = snoise3d(q * 1.7 + 3.0);
   let g2 = snoise3d(q * 6.1 + 11.0);
   let g3 = snoise3d(q * 23.0);
@@ -120,12 +130,13 @@ fn aoBox2(p: vec2f, b: vec2f) -> f32 { let q = abs(p) - b; return length(max(q, 
   let under = smoothstep(0.2, -0.6, geoUp);
   let vm = smoothstep(-0.1, 0.4, g1.w);
   let vein = (1.0 - smoothstep(0.0, 0.016 + dist * 0.002, edge)) * vm;
-  c += vec3f(0.25, 0.75, 1.5) * vein * (0.1 + 0.9 * under) * (0.7 + 0.3 * sin(t * 0.6 + in.w.y * 1.5)) * (1.0 - moss) * select(1.0, 0.0, step7);
+  if (reef) { c = c * 2.0 + alb * vec3f(0.08, 0.34, 0.33) + vec3f(0.03, 0.34, 0.37) * fres * 0.6; }
+  c += vec3f(0.25, 0.75, 1.5) * far * vein * (0.1 + 0.9 * under) * (0.7 + 0.3 * sin(t * 0.6 + in.w.y * 1.5)) * (1.0 - moss) * select(1.0, 0.0, step7);
   // tiny glowing lichen specks
   let sp = q.xz * 13.0;
   let sh = hash22(floor(sp));
   let sd = length(fract(sp) - 0.25 - 0.5 * sh);
-  c += vec3f(0.2, 0.8, 0.65) * moss * step(0.72, sh.x) * smoothstep(0.16, 0.0, sd) * 0.6;
+  c += vec3f(0.2, 0.8, 0.65) * moss * step(0.72, sh.x) * smoothstep(0.16, 0.0, sd) * 0.6 * far;
   // worn runes inlaid around the threshold: a broken band of glyph strokes with a soft, uneven glow
   let rd = aoBox2(loc.xz, vec2f(0.8, 0.36));
   let onTop = select(0.0, 1.0, step7) * smoothstep(0.8, 0.95, geoUp) * smoothstep(-0.03, -0.01, loc.y);

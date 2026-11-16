@@ -243,10 +243,16 @@ export default {
     this.jelBuf = ctx.buffer(this.jd, 'storage');
     const jelL = ctx.layout(['storage']);
     this.jelBG = ctx.bindGroup(jelL, [this.jelBuf]);
-    const bell = M.lathe([[0.84, -0.07], [0.97, 0.0], [1.0, 0.1], [0.97, 0.25], [0.88, 0.42], [0.72, 0.58], [0.5, 0.7], [0.25, 0.77], [0.0, 0.79]], [16, 36, 44][q]);
+    // bell profile, smoothed (Catmull-Rom midpoints) so large bells keep a round silhouette
+    const bp = [[0.84, -0.07], [0.97, 0.0], [1.0, 0.1], [0.97, 0.25], [0.88, 0.42], [0.72, 0.58], [0.5, 0.7], [0.25, 0.77], [0.0, 0.79]], bq = [];
+    bp.forEach((b, i) => {
+      bq.push(b);
+      if (i < 8 && q) { const a = bp[Math.max(0, i - 1)], c = bp[i + 1], d = bp[Math.min(8, i + 2)]; bq.push([0, 1].map((k) => (9 * (b[k] + c[k]) - a[k] - d[k]) / 16)); }
+    });
+    const bell = M.lathe(bq, [16, 36, 44][q]);
     this.bellMesh = M.upload(bell);
     this.bell = ctx.pipeline({ code: UTIL + JELLY, buffers: [M.layout], layouts: [jelL], blend: 'add', cull: 'none', label: 'ao-bell' });
-    this.NSEG = [10, 16, 20][q];
+    this.NSEG = [10, 20, 24][q];
     this.jhalo = ctx.pipeline({ code: UTIL + JELLY, vs: 'vsg', fs: 'fsg', layouts: [jelL], blend: 'add', cull: 'none', label: 'ao-jhalo' });
     this.tent = ctx.pipeline({ code: UTIL + JELLY, vs: 'vst', fs: 'fst', layouts: [jelL], blend: 'add', cull: 'none', constants: { NSEG: this.NSEG }, label: 'ao-tent' });
     await progress(0.85);
@@ -481,9 +487,10 @@ export default {
       const coral = (p, d, h, lvl, n) => {
         const path = [], bx = (rng2() - 0.5) * 0.5, bz = (rng2() - 0.5) * 0.5;
         for (let k = 0; k <= 5; k++) { const t = k / 5; path.push([p[0] + (d[0] + bx * t) * h * t, p[1] + (d[1] + 0.25 * t) * h * t, p[2] + (d[2] + bz * t) * h * t]); }
-        const g = M.tube(path, (t) => h * (0.085 - 0.035 * t), 5);
-        for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = 5; g.uv[i + 1] = (n - lvl - 1 + g.uv[i + 1]) / n; }
+        const g = M.tube(path, (t) => h * (0.13 - 0.06 * t), 5);
+        for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = 5; g.uv[i + 1] = Math.pow((n - lvl - 1 + g.uv[i + 1]) / n, 0.6); }
         parts.push(g);
+        if (!lvl) glows.push(...path[5], h * 0.5, ...(rng2() < 0.3 ? [0.1, 0.03, 0.08] : [0.02, 0.09, 0.08]), 0);     // every tip carries a light
         if (lvl) for (let b = 0; b < 3; b++) coral(path[5], hat([d[0] + (rng2() - 0.5) * 1.5, d[1] + (rng2() - 0.5) * 1.5 + 0.3, d[2] + (rng2() - 0.5) * 1.5]), h * 0.62, lvl - 1, n);
       };
       ROCKS.forEach(([dx, dy, dz, R], k) => {
@@ -492,17 +499,16 @@ export default {
         M.scale(top, R, R * 0.62, R * 0.9); M.translate(top, c[0], c[1], c[2]);
         M.scale(keel, R * 0.95, R * (0.8 + 0.5 * rng2()), R * 0.85); orient(keel, c, [0.15 * rng2(), -1, 0.15 * rng2()]);     // a rough keel hides the flat underside
         const nt = top.pos.length / 3, g = M.merge([M.computeNormals(top), M.computeNormals(keel)]);
-        parts.push(flag(g, 0, 0));
+        parts.push(flag(g, 4, 0));
         glows.push(c[0], c[1] - R * 0.5, c[2], R * 1.5, 0.008, 0.05, 0.06, 0);
         const nv = g.pos.length / 3;
-        for (let j = 0, m = 0; m < 4 + R * 6 && j < 600; j++) {
+        for (let j = 0, m = 0; m < (5 + R * 9) * [0.5, 1, 1.2][q] && j < 900; j++) {
           const v = Math.floor(rng2() * nv) * 3, p = [g.pos[v], g.pos[v + 1], g.pos[v + 2]], nr = [g.nrm[v], g.nrm[v + 1], g.nrm[v + 2]];
           if (v < nt * 3 ? nr[1] < 0.15 : nr[1] > -0.3 || rng2() < 0.7) continue;
           m++;
           const up = nr[1] < 0 ? -1 : 1, d = hat([nr[0], nr[1] + 0.6 * up, nr[2]]), kind = rng2();
           p[1] -= 0.05 * up;
-          if (kind < 0.4) coral(p, d, 0.5 + 0.8 * rng2(), 2, 3);
-          else if (kind < 0.5) crystal(p, d, 0.07 + 0.06 * rng2(), 0.4 + 0.6 * rng2(), 0.15 * rng2(), 0.7);
+          if (kind < 0.7) coral(p, d, 0.45 + 0.9 * rng2(), 2, 3);
           else for (let b = 0, nb = 4 + Math.floor(rng2() * 5); b < nb; b++) {       // weed tuft
             const a = rng2() * 6.28;
             blade(p[0], p[1], p[2], Math.cos(a), Math.sin(a), (0.25 + 0.5 * rng2()) * up, 0.3 + 0.6 * rng2(), 0.02 + 0.012 * rng2());
@@ -513,11 +519,16 @@ export default {
       // ---- the crystal ring: shards circling the jelly column behind the islet (material 8 turns in the shader) ----
       {
         const e1 = hat([RAXIS[1], -RAXIS[0], 0]), e2 = [RAXIS[1] * e1[2] - RAXIS[2] * e1[1], RAXIS[2] * e1[0] - RAXIS[0] * e1[2], RAXIS[0] * e1[1] - RAXIS[1] * e1[0]];
-        for (let i = 0; i < 18; i++) {
-          const a = i / 18 * 6.283 + rng2() * 0.15, R = 10.5 + rng2() * 1.2, ca = Math.cos(a) * R, sa = Math.sin(a) * R, y = (rng2() - 0.5) * 1.2;
-          const p = [0, 1, 2].map((j) => RING[j] + e1[j] * ca + e2[j] * sa + RAXIS[j] * y), d = hat([rng2() - 0.5, rng2() + 0.4, rng2() - 0.5]);
-          const r = 0.13 + 0.16 * rng2(), h = 0.5 + 0.9 * rng2(), col = (i % 3 ? 0.05 : 0.75) + 0.2 * rng2();
-          crystal(p, d, r, h, col, 0.6, 8); crystal(p, d.map((v) => -v), r, h * 0.7, col, 0, 8);
+        // irregular clusters: one long blade and a few splinters each, lying along the orbit
+        for (let i = 0, a = 0; a < 6.1; i++) {
+          a += 0.25 + 0.6 * rng2();
+          for (let k = 0, n = 1 + Math.floor(rng2() * 4); k < n; k++) {
+            const b = a + (rng2() - 0.5) * 0.16, R = 10 + (rng2() - 0.5) * (k ? 2 : 0.6), ca = Math.cos(b), sa = Math.sin(b), y = (rng2() - 0.5) * (k ? 1.6 : 0.4);
+            const p = [0, 1, 2].map((j) => RING[j] + (e1[j] * ca + e2[j] * sa) * R + RAXIS[j] * y);
+            const d = hat([0, 1, 2].map((j) => e2[j] * ca - e1[j] * sa + (rng2() - 0.5) * 0.7));     // orbit tangent, a little askew
+            const h = k ? 0.3 + 0.5 * rng2() : 1.1 + 1.4 * rng2(), r = h * (0.07 + 0.04 * rng2()) + 0.02, col = (i % 3 ? 0.08 : 0.8) + 0.15 * rng2();
+            crystal(p, d, r, h, col, k ? 0 : 0.35, 8); crystal(p, d.map((v) => -v), r, h * (0.5 + 0.5 * rng2()), col, 0, 8);
+          }
         }
       }
       glows.push(D[0], D[1] - 6.6, D[2], 3.6, 0.035, 0.07, 0.18, 0, D[0] + 0.9, D[1] - 5.2, D[2] - 0.6, 2.2, 0.03, 0.03, 0.1, 0, D[0] - 0.8, D[1] - 4.4, D[2] + 0.7, 1.8, 0.015, 0.05, 0.09, 0);
@@ -533,12 +544,12 @@ export default {
     }
     // ---- small life (see life.wgsl) ----
     {
-      for (let i = 0; i < NSPR; i++) _ld.set([RING[0] + 3 * Math.cos(i), RING[1] + 4 + Math.sin(i * 2), RING[2] + 3 * Math.sin(i), 0], i * 4);
+      for (let i = 0; i < NSPR; i++) _ld.set([RING[0] + 3 * Math.cos(i), RING[1] + Math.sin(i * 2), RING[2] + 3 * Math.sin(i), 0], i * 4);
       CLOUDS.forEach((c, i) => { _ld.set(c.slice(0, 4), (6 + i) * 4); _ld[(11 + i) * 4 + 2] = c[4]; });
       this.lifeBuf = ctx.buffer(_ld, 'storage');
       const L = ctx.layout(['storage']), NP = [1000, 2000, 3000][q], ND = [90, 160, 220][q], NE = 84, NC = [260, 500, 700][q];
       this.lifeBG = ctx.bindGroup(L, [this.lifeBuf]);
-      this.NL = NP + ND + NE + NC + NSPR * 9;
+      this.NL = NP + ND + 2 * NE + NC + NSPR * 9;
       this.life = ctx.pipeline({ code: UTIL + LIFE, layouts: [L], blend: 'add', cull: 'none', constants: { NP, ND, NE, NC, NR: ROCKS.length }, label: 'ao-life' });
     }
     this.nearJelly = 1e9; this.lt = 0;
@@ -570,7 +581,7 @@ export default {
     this.lead = lead;
     for (let i = 0; i < NSPR; i++) {
       const o = i * 4, l = lead * (1 - i * 0.14), a = t * 0.21 + i * 1.047, cr = Math.cos(a) * 2.6, cu = Math.sin(a * 1.3) * 1.3 + 0.3, cf = 5 + i * 0.5;
-      const hx = RING[0] + 3.5 * Math.cos(t * 0.11 + i * 1.05), hy = RING[1] + 3 + 2 * Math.sin(t * 0.17 + i * 2.1), hz = RING[2] + 3.5 * Math.sin(t * 0.13 + i * 1.05);
+      const hx = RING[0] + 3.5 * Math.cos(t * 0.11 + i * 1.05), hy = RING[1] + 2 * Math.sin(t * 0.17 + i * 2.1), hz = RING[2] + 3.5 * Math.sin(t * 0.13 + i * 1.05);
       for (let c = 0; c < 3; c++) {
         const h = c === 0 ? hx : c === 1 ? hy : hz, tg = P[c] + cam.fwd[c] * cf + cam.right[c] * cr + cam.up[c] * cu;
         ld[o + c] += (h + (tg - h) * l - ld[o + c]) * ks;

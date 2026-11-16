@@ -59,16 +59,18 @@ intensity by area, so they stay temporally stable.
 ## Variety and life pass (round 4)
 Four regions around the spawn, all in `layout.js` (`NURSERY`, `REEF`, `RING`, `ROCKS`, `CLOUDS`, paths 6-9):
 - **Rose-gold nursery** (toward the core, ~100 m ahead-left): a mother whale and her calf (paths 6/7, whale instances
-  3/4, rosier rim; the calf keeps the same angular speed and rides beside her back), a double helix of pearl "eggs",
+  3/4, rosier rim; the calf keeps the same angular speed and rides beside her back), a double helix of pearls on two faint threads (graded in size),
   baby jellies (JGROUPS[3], size x0.5), rose and gold plankton. The calf answers the whale song in a high voice.
 - **Teal reef field** (right of the spawn, inside whale 1's loop): seven asteroid chunks (top rock + keel) merged into
-  the islet mesh, grown with branching light-coral (material 5), weed (6) and crystals; tiny darters circle each
+  the islet mesh, (material 4 = lighter stone in a teal fill) grown with dense branching light-coral (material 5, a glow sprite on
+  every tip) and weed (6); the field floats at y = 8, well above whale 1's lane; tiny darters circle each
   rock; a pod of luminous rays glides in arcs over it (path 8); teal plankton; the comet hangs beyond. Rocks collide
   (`sdf`). Quiet positional plucks and chirps.
-- **Crystal ring** (behind the islet, around jelly column 2): 18 double-ended shards, material 8, turning in the
+- **Crystal ring** (alone, ~50 m left of the spawn, standing like a gate): irregular clusters of long glass blades and
+  splinters lying along the orbit, material 8 (faceted: dark heart, dispersing rim, glint), turning in the
   islet vertex shader about `RA` through `RC`. Home of six star-sprites: within ~60 m the bolder ones drift over and
   circle a few metres ahead of you, then go home (CPU state in `_ld[0..5]`, small bells when they are with you).
-- **The quiet deep** (below y = -40): five giant jellies (JGROUPS[4], x2.6) and the giant ray (path 9, y = -140, half
+- **The quiet deep** (below y = -40): five giant jellies (JGROUPS[4], x1.8) and the giant ray (path 9, y = -140, half
   span 64 m, ray instance 0): a dark silhouette with a faint edge, always a little out of reach under the bounds.
   A low drone layer swells as you sink.
 - Everywhere: five plankton clouds that glow when you are near and wind up into a slow whirl while you move through
@@ -87,11 +89,18 @@ Layout: the old whales' phases are frozen numbers now (the framing search is gon
 pair), 1 close whale, 2 nursery, 3 reef + rays + comet, 4 the deep, 5 islet + ring. Fly-through: islet -> spawn view
 -> fish -> jellies -> across to the reef (clip 3).
 
+## Round 5 (critic polish)
+Reef lifted clear of whale 1 and restyled; ring moved and re-made; pearls as small lit spheres on threads, nursery
+plankton halved, baby jellies moved off the helix; calf a body-width off the mother's flank; fins/flukes lose the
+strong fresnel fill; constellation links get a soft glow; ray tails are camera-facing tapered ribbons that lag in
+turns, wing tips rounded, spots round; jelly bells use a smoothed profile and strands fade in and out; comet has a
+soft coma and a longer, smoother tail; bright rock veins and specks fade with distance.
+
 ## Perf (Barcelo iGPU, 1920×1080)
-Medium: avg 5.3 ms, p99 8.1 ms, max 10.7 ms, scale 1.0 over the fly-through. Low: avg 3.7 ms, p99 15.8 ms (scale 0.85).
+Medium: avg 5.4 ms, p99 8.5 ms, scale 1.0 over the fly-through. Low: avg 2.7 ms, p99 3.7 ms (scale 0.85).
 
 ## Known issues / ideas
 - Whale depth prepass: things behind a whale are fully hidden, not dimmed (reads as volume; fine at these distances).
 - The islet rock shader is the most expensive thing in the world when it fills the screen.
 - Rays are single sheets (no thickness); edge-on they are thin. The reef rocks do not drift.
-- Bundle is ~187 KB (the other worlds' postcards alone put the baseline at 178 KB).
+- Bundle is ~189 KB (the other worlds' postcards alone put the baseline at 178 KB).
