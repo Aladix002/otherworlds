@@ -1,7 +1,7 @@
 // Aurora over a winter fjord. See NOTES.md.
 import { pcg, u2f } from '../../core/src/noise.js';
 import { ss, DOOR, DOOR_YAW, PIER, SPAWN, MOON, VN, KNOLL, CLR, ICE, HERD, height, buildLayout, buildTerrain, buildMap, heightAt, makeSdf } from './terrain.js';
-import { HOUSE, village, spruce, boulder, icefall, fox, deer, seal, owl, fisher, FISH_L } from './geo.js';
+import { HOUSE, village, spruce, boulder, icefall, fox, deer, seal, owl, fisher, FISH_L, whale, floe } from './geo.js';
 import COMMON from './common.wgsl';
 import SCENE from './scene.wgsl';
 import FX from './fx.wgsl';
@@ -60,7 +60,7 @@ export default {
   ],
   flythrough: [
     [-1.5, 21, -1, -60], [0.5, 15, 2, -40], [2, 8, 2, -60], [2, 0, -10, -80], [2, -9, -30, -90], [2, -15, 30, -70], [2.2, -8, 40, -20], [2, 2, 20, 10], [0, 13, -20, 5],
-    [-9, 15, -26, 0], [-19, 6, -34, -24], [-27, -8, -30, -40], [-31, -18, 0, -30], [-25, -4, 10, 20], [-13, 14, 9, 37], [-2, 24, 9, 37], [5, 31, 9, 37], [8.5, 39.5, 9.3, 36],
+    [-9, 15, -26, 0], [-21, 8, -34, -24], [-31, -6, -30, -40], [-35, -18, 0, -30], [-31, 3, 10, 20], [-13, 14, 9, 37], [-2, 24, 9, 37], [5, 31, 9, 37], [8.5, 39.5, 9.3, 36],
     [11.5, 41, 9, 37], [13, 36, 30, 40], [21, 37.8, 40, 50], [30, 38, 42, 50], [38, 46, 30, 0], [42.5, 51.5, 8, -60], [41, 44, 50, 15], [31, 37, 0, 0], [15, 31, -20, 10],
     [-2, 22, -30, 20], [-14, 13, -40, 22], [-28, 11, -50, 30], [-39, 21, -55, 31], [-45, 27, -62, 33], [-46.5, 33, -53, 29], [-41, 25, -20, 5], [-25, 9, 0, -30], [-10, 16, -1, -40], [-1.5, 21, -1, -60],
   ].map(([x, z, tx, tz]) => pose(x, EYE, z, tx, heightAt(x, z) + 1.5 + Math.hypot(tx - x, tz - z) * 0.04, tz)),
@@ -133,6 +133,7 @@ export default {
       const n = L.houses[v].length / 8; if (!n) return;
       const ib = inst(L.houses[v]);
       this.objs.push({ m: M.upload(H.geo), i: ib, n }); this.glows.push({ m: M.upload(H.glow), i: ib, n });
+      if (v === 4) this.cabI = ib;
     });
     // creatures (0 = the fox, moved every frame) and the drifting fishing boat
     this.fox = L.fox; this.foxD = Float32Array.of(0, 0, 0, 1, 0, 15.5, 0, 0); this.foxV = 1; this.foxLag = 0;
@@ -140,6 +141,12 @@ export default {
     this.boatD = Float32Array.of(0, -0.14, -44, 1, 0, 0.5, 1, 0); this.boatI = inst(this.boatD);
     this.objs.push({ m: M.upload(fisher()), i: this.boatI, n: 1 });
     ctx.env.params2[0] = L.hole[0]; ctx.env.params2[1] = L.hole[2];
+    // dream things: floating floes with cabins (bobbing), the sky whale + smoke fish from the chimneys
+    const fl = []; for (const [x, y, z, a] of L.floes) fl.push(x, y - 0.75, z, 4.2, a, 0.5, 1, 0);
+    this.floD = Float32Array.from(fl); this.floI = inst(fl); this.floY = L.floes.map((f) => f[1]); this.cabD = Float32Array.from(L.houses[4].slice(8));
+    this.objs.push({ m: M.upload(floe()), i: this.floI, n: 3 });
+    const wh = [0, 0, 0, 0]; L.chim.slice(0, 12).forEach((c, i) => wh.push(c[0], c[1], c[2], 1 + (i * 0.618) % 1 * 0.99));
+    this.whale = M.upload(whale()); this.whI = inst(wh); this.nWh = wh.length / 4;
     this.campY = L.camp[1]; this.owlPos = L.owlPosts[0];
     await progress(0.65);
     this.trees = makeBatch(ctx, [0, 1, 2].map((l) => M.upload(spruce(l, 3))), L.trees, [42, 150, 1000]);
@@ -157,7 +164,7 @@ export default {
     for (let i = 0; i < L.prints.length / 3; i++) { const x = L.prints[i * 3], z = L.prints[i * 3 + 1]; pr.set([x, heightAt(x, z), z, L.prints[i * 3 + 2]], (NPRINT + i) * 4); }
     for (let i = 0; i < NPRINT; i++) pr[i * 4 + 1] = -99;
     this.printI = ctx.buffer(pr, 'vertex'); this.nPrint = pr.length / 4; this.pr = pr.subarray(0, NPRINT * 4); this.pk = 0; this.walked = 0; this.side = 1;
-    this.nSnow = [1800, 3200, 5000][q]; this.nRib = 5;
+    this.nSnow = [1800, 3200, 5000][q]; this.nRib = 6;
     await progress(0.75);
 
     // ---------- reflection target + bind groups ----------
@@ -180,6 +187,7 @@ export default {
       { vs: 'vsTer', fs: 'fsTer', buffers: [M.layout] }, { buffers: [M.layout, IL] }, { vs: 'vsTree', fs: 'fsTree', buffers: [M.layout, IL], cull: 'none' },
       { fs: 'fsGlow', buffers: [M.layout, IL], blend: 'add' }, { vs: 'vsSky', fs: 'fsSky', depthWrite: false, cull: 'none' }, { vs: 'vsAur', fs: 'fsAur', blend: 'add', cull: 'none' },
       { module: fx, vs: 'vsLamp', fs: 'fsLamp', buffers: [I4], blend: 'add', cull: 'none' }, { vs: 'vsLife', buffers: [M.layout, IL] },
+      { vs: 'vsWh', fs: 'fsWh', buffers: [M.layout, I4], blend: 'add', cull: 'none' },
     ];
     const all = await Promise.all([
       ...defs.map((d) => P(d)), ...defs.map((d) => P({ ...d, cull: d.cull === 'none' ? 'none' : 'front', constants: mir })),
@@ -188,8 +196,8 @@ export default {
       P({ module: fx, vs: 'vsSmoke', fs: 'fsSmoke', buffers: [I4], blend: 'premul', cull: 'none' }),
       P({ module: fx, vs: 'vsPrint', fs: 'fsPrint', buffers: [I4], blend: 'multiply', cull: 'none' }),
     ]);
-    this.pm = all.slice(0, 8); this.pr2 = all.slice(8, 16);
-    [this.pWater, this.pSnow, this.pSmoke, this.pPrint] = all.slice(16);
+    this.pm = all.slice(0, 9); this.pr2 = all.slice(9, 18);
+    [this.pWater, this.pSnow, this.pSmoke, this.pPrint] = all.slice(18);
     await progress(1);
   },
 
@@ -206,6 +214,7 @@ export default {
     for (let i = 0; i < this.glows.length; i++) { const o = this.glows[i]; pass.setVertexBuffer(1, o.i); o.m.draw(pass, o.n); }
     pass.setPipeline(p[4]); pass.draw(3);
     pass.setPipeline(p[5]); pass.draw(1920, this.nRib);
+    pass.setPipeline(p[8]); pass.setVertexBuffer(1, this.whI); this.whale.draw(pass, this.nWh);
     pass.setPipeline(p[6]); pass.setVertexBuffer(0, this.lampI); pass.draw(6, this.nLamp);
   },
 
@@ -231,6 +240,9 @@ export default {
     B[0] = 1 + 10 * Math.sin(t * 0.013 + 1); B[1] = -0.14 + 0.012 * Math.sin(t * 0.7); B[2] = -44 + 7 * Math.sin(t * 0.009); B[4] = by;
     LD[0] = B[0] + FISH_L[0] * bc + FISH_L[2] * bs; LD[1] = B[1] + FISH_L[1]; LD[2] = B[2] - FISH_L[0] * bs + FISH_L[2] * bc;
     ctx.queue.writeBuffer(this.boatI, 0, B); ctx.queue.writeBuffer(this.lampI, (this.nLamp - 1) * 16, LD);
+    // the floes bob slowly, each at its own pace
+    for (let i = 0; i < 3; i++) { const y = this.floY[i] + 0.5 * Math.sin(t * (0.21 + i * 0.05) + i * 2); this.floD[i * 8 + 1] = y - 0.75; this.cabD[i * 8 + 1] = y; }
+    ctx.queue.writeBuffer(this.floI, 0, this.floD); ctx.queue.writeBuffer(this.cabI, 32, this.cabD);
     // the player's own footprints + crunch
     if (!cam.frozen && cam.mode === 'walk') {
       this.walked += Math.hypot(cam.vel[0], cam.vel[2]) * dt;

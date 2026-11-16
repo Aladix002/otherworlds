@@ -57,6 +57,14 @@ per-tree girth and droop on the spruces, a remodelled fox (walk gait, small sing
 capped posts), a hole in the ice by the sauna (`G.params2.xy`), signpost + woodpile + a third snowman on the way to the view hill,
 stockfish on the rack, softer aurora hem and ends, brighter stars, wider campfire light.
 
+## Dream pass (surreal elements)
+- **Sky whale** of aurora light circling over the fjord, and small **smoke fish** that the chimney smoke turns into (`vsWh`/`fsWh`,
+  one additive pipeline; instance w = 0 is the whale, 1 + seed a fish born at that chimney). Both are mirrored in the water.
+- **Ice floes with lit cabins** hanging in the air over the fjord (`L.floes`, sauna-variant instances + `floe()`), bobbing in `update`.
+- **A river of light**: the sixth aurora ribbon (`r = 5` in `aurP`) runs low from the shore out along the fjord.
+- **The fjord mirrors another sky**: a huge rose moon appears only in the water (`fsWater`).
+- **Rising flakes**: every sixth snowflake glows green and drifts upward (`vsSnow`).
+
 ## Known issues
 - The water position is reconstructed from the view ray (interpolating the 80 km quad gave 0.5 m steps).
 - Objects have no moon shadow on each other; house/tree shadows on the ground are baked per terrain vertex (1 m).

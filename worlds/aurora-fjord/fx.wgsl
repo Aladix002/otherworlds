@@ -9,7 +9,8 @@ fn corner(vi: u32) -> vec2f {
   let h = hash3u(vec3u(ii, 11u, 3u)); let h2 = hash3u(vec3u(ii, 5u, 77u));
   let far = f32(ii % 4u == 0u);
   let B = mix(22.0, 64.0, far); let t = G.time;
-  var p = h * B + vec3f(0.22, -0.5 - 0.45 * h2.x, 0.13) * t + vec3f(sin(t * 0.31 + h2.y * 40.0), 0.0, cos(t * 0.27 + h2.z * 40.0)) * (0.3 + 0.4 * h2.x);
+  let upw = f32(ii % 6u == 1u);          // some flakes glow and drift up toward the aurora
+  var p = h * B + vec3f(0.22, mix(-0.5 - 0.45 * h2.x, 0.3, upw), 0.13) * t + vec3f(sin(t * 0.31 + h2.y * 40.0), 0.0, cos(t * 0.27 + h2.z * 40.0)) * (0.3 + 0.4 * h2.x);
   p -= B * round((p - G.camPos) / B);
   let d = distance(p, G.camPos);
   let sz = 0.014 + 0.018 * h2.z * h2.z + 0.02 * far;
@@ -19,7 +20,7 @@ fn corner(vi: u32) -> vec2f {
   o.pos = G.viewProj * vec4f(billboard(p, c, vec2f(sz * k)), 1.0);
   o.c = c;
   let a = smoothstep(1.2, 4.5, d) * (1.0 - smoothstep(B * 0.36, B * 0.5, d)) * smoothstep(h2.y - 0.06, h2.y + 0.06, G.params.y) * (0.35 + 0.65 * h.z) * mix(1.0, 0.5, far) / k;
-  o.a = vec4f(vec3f(0.36, 0.5, 0.82) * (0.5 + 0.2 * G.params.x) + WARM * vmap(p.xz).r * 1.2, a);
+  o.a = vec4f(mix(vec3f(0.36, 0.5, 0.82) * (0.5 + 0.2 * G.params.x), AUR * 1.6 + vec3f(0.3, 0.1, 0.5) * h.x, upw) + WARM * vmap(p.xz).r * 1.2, a);
   return o;
 }
 @fragment fn fsSnow(in: PO) -> @location(0) vec4f {

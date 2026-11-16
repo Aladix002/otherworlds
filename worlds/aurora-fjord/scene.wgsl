@@ -258,6 +258,8 @@ struct WO { @builtin(position) pos: vec4f, @location(0) w: vec3f };
   let refl = (textureSampleLevel(RT, LS, uv + off, 0.0).rgb + textureSampleLevel(RT, LS, uv - off * 0.55, 0.0).rgb) * 0.5;
   let F = mix(0.55, 1.0, pow(1.0 - abs(vd.y), 5.0));
   var col = vec3f(0.002, 0.005, 0.011) + refl * F * 0.92;
+  let mr = length(normalize(vec3f(vd.x + g.x * 0.06, -vd.y, vd.z + g.y * 0.06)) - vec3f(0.158, 0.069, -0.985));
+  col += vec3f(1.0, 0.62, 0.6) * ((smoothstep(0.105, 0.09, mr) * (0.25 + 0.4 * r2.r) + 0.08 * exp(-mr * 9.0)) * F);
   let wI = 2.0 + 5.5 * ic2.a;
   let ice = smoothstep(-wI, -wI + 0.9, s + (ic.a - 0.5) * 1.2) * smoothstep(0.9, 1.2, distance(wp.xz, G.params2.xy) + ic.a * 0.3);
   if (ice > 0.0) {
@@ -303,6 +305,10 @@ fn stars(rd: vec3f, K: f32, px: f32) -> vec3f {
 struct AO { @builtin(position) pos: vec4f, @location(0) q: vec3f, @location(1) @interpolate(flat) r: f32 };
 fn aurP(u: f32, r: f32) -> vec3f {
   let t = G.time;
+  if (r > 4.5) {     // the sixth ribbon came down: a river of light from the shore out along the fjord
+    let z = 34.0 - 110.0 * (u + 1.0);
+    return vec3f(-5.5 + 3.2 * sin(z * 0.16 + t * 0.05) + 4.0 * sin(z * 0.023 - t * 0.04) * smoothstep(10.0, -30.0, z), 0.5 + 2.4 * (1.0 - exp(-max(z - 6.0, 0.0) / 14.0)), z);
+  }
   let x = 17000.0 * (0.3 * u + 0.7 * u * u * u); let xk = x * 0.001;
   let k = 1.0 + 0.27 * r - 0.11 * r * r * 0.5;                     // every band folds at its own scale
   let env = 0.65 + 0.35 * sin(xk * 0.31 * k + r * 1.9 + t * 0.011);
@@ -316,7 +322,8 @@ fn aurP(u: f32, r: f32) -> vec3f {
   let u = (f32(vi / 6u) + cx) / 320.0 * 2.0 - 1.0;
   let p = aurP(u, r);
   let tg = aurP(u + 0.004, r) - p;
-  let hgt = 3600.0 + 900.0 * sin(p.x * 0.0004 + r * 3.0);
+  let riv = step(4.5, r);
+  let hgt = mix(3600.0 + 900.0 * sin(p.x * 0.0004 + r * 3.0), 3.0, riv);
   let w = p + vec3f(0.0, hgt, hgt * 0.28) * cy;
   var o: AO;
   o.pos = clip(w);
@@ -326,7 +333,7 @@ fn aurP(u: f32, r: f32) -> vec3f {
   let vd = normalize(w - G.camPos);
   let sn = abs(dot(vd, normalize(cross(tg, vec3f(0.0, 1.0, 0.28)))));
   let up = vd.y;
-  o.q = vec3f(p.x * 0.001 * (1.0 + 0.19 * r), cy, min(1.0 / max(sn, 0.42), 2.4) * 0.42 * smoothstep(0.04, 0.5, sn) * (1.0 - 0.75 * smoothstep(0.8, 0.98, up)) * smoothstep(1.0, 0.7, abs(u)));
+  o.q = vec3f(mix(p.x * 0.001 * (1.0 + 0.19 * r), u * 30.0 - G.time * 0.03, riv), cy, (1.0 - 0.25 * riv) * min(1.0 / max(sn, 0.42), 2.4) * 0.42 * smoothstep(0.04, 0.5, sn) * (1.0 - 0.75 * smoothstep(0.8, 0.98, up)) * smoothstep(1.0, 0.7, abs(u)));
   o.r = r;
   return o;
 }
@@ -344,4 +351,30 @@ fn aurP(u: f32, r: f32) -> vec3f {
   var col = mix(AUR, mix(vec3f(1.0, 0.18, 0.52), vec3f(0.6, 0.2, 1.0), smoothstep(0.0, 0.2, vb)) * 1.3, (1.0 - smoothstep(0.02, 0.24, vb)) * (0.5 + 0.5 * fine));
   col = mix(col, vec3f(0.5, 0.2, 1.0) * 1.3, smoothstep(0.16, 0.7, v));
   return vec4f(col * I, 0.0);
+}
+
+// ---- light as matter: the whale that swims across the sky (instance w = 0) and the fish the chimney smoke turns into ----
+struct HO { @builtin(position) pos: vec4f, @location(0) n: vec3f, @location(1) w: vec3f, @location(2) c: vec4f };
+@vertex fn vsWh(@location(0) p0: vec3f, @location(1) n: vec3f, @location(3) a: vec4f) -> HO {
+  let t = G.time; var p = p0; var c: vec3f; var vel: vec2f; var S = 240.0; var al = 0.75; var sp = 0.5; var tint = 0.0;
+  if (a.w < 0.5) {
+    let ang = t * 0.012 + 0.206;
+    c = vec3f(sin(ang) * 800.0, 430.0 + 40.0 * sin(t * 0.05), -1000.0 - cos(ang) * 500.0); vel = vec2f(cos(ang) * 8.0, sin(ang) * 5.0);
+  } else {
+    let sd = fract(a.w); let age = fract(t / (34.0 + 30.0 * sd) + sd * 5.0); let dir = sd * 40.0 + age * 2.5;
+    c = a.xyz + vec3f(sin(dir) * age * 16.0 + age * 6.0, 0.6 + age * 14.0 + sin(age * 9.0) * 0.8, cos(dir) * age * 16.0 + age * 4.0);
+    vel = vec2f(sin(dir) + 2.5 * age * cos(dir), cos(dir) - 2.5 * age * sin(dir));
+    S = 0.2 + 0.5 * smoothstep(0.0, 0.3, age); al = smoothstep(0.0, 0.1, age) * (1.0 - smoothstep(0.6, 1.0, age)) * 0.9; sp = 3.0; tint = 1.0 - age;
+  }
+  let k = (p.z + 0.7) * (p.z + 0.7);
+  p.y += sin(p.z * 2.5 - t * sp + a.w * 9.0) * 0.07 * k;
+  let R = rotY(atan2(-vel.x, -vel.y));
+  var o: HO;
+  o.w = c + R * (p * S); o.n = R * n; o.pos = clip(o.w);
+  o.c = vec4f(mix(mix(AUR, vec3f(0.55, 0.3, 1.0), 0.5 + 0.5 * n.y), vec3f(1.0, 0.5, 0.25), tint), al);
+  return o;
+}
+@fragment fn fsWh(in: HO) -> @location(0) vec4f {
+  let rim = pow(1.0 - abs(dot(normalize(in.n), normalize(G.camPos - in.w))), 1.5);
+  return vec4f(in.c.rgb * ((0.2 + 0.8 * rim) * in.c.a), 0.0);
 }

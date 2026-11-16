@@ -113,6 +113,9 @@ export function buildLayout(q) {
     for (const [kx, kz, kr] of KEEP) if (Math.hypot(x - kx, z - kz) < kr + m * 0.5) return 0;
     return Math.hypot(x - DOOR[0], z - DOOR[2]) > 6 + m;
   };
+  // cabins on ice floes that hang in the air over the fjord: [x, y, z, yaw]
+  L.floes = [[13, 11, -26, 0.5], [-15, 17, -44, 2.2], [9, 24, -66, 4]];
+  for (const [x, y, z, a] of L.floes) L.houses[4].push(x, y, z, 0.8, a, 5.3, 1, 15);
   // ---- new places and life ----
   const fox = L.fox = loopPath(FOXP);
   for (let i = 0; i < 360; i += 6) KEEP.push([fox[i * 3], fox[i * 3 + 1], 1.3]);

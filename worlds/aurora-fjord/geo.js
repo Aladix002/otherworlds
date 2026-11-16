@@ -327,3 +327,15 @@ export function fisher() {
     el(0.2, 0.3, 0.19, -0.5, 0.95, 0, 0, 9), el(0.1, 0.11, 0.1, -0.46, 1.33, 0, 0, 11, 1), el(0.105, 0.07, 0.105, -0.46, 1.4, 0, 0, 10, 1), el(0.03, 0.03, 0.03, -0.46, 1.48, 0, 0, 1, 1),
     lim([[-0.4, 1.05, 0.15], [-0.1, 1.3, 0.8], [0.1, 1.5, 1.9]], 0.02, 0, 2, 4)]);
 }
+
+// ---- dream things: a whale of light (also the small smoke fish), a floating ice floe ----
+export function whale() {
+  const P = [lim([[0, 0, -1], [0, 0.02, -0.8], [0, 0.03, -0.4], [0, 0.02, 0.1], [0, 0.02, 0.55], [0, 0.03, 0.88]], (t) => 0.015 + 0.21 * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.6)), 0.8) * (1 - 0.3 * t), 0, 0, 12), el(0.012, 0.05, 0.08, 0, 0.2, 0.3)];
+  for (const s of [1, -1]) P.push(el(0.2, 0.012, 0.09, s * 0.16, 0.03, 0.97), el(0.19, 0.012, 0.07, s * 0.27, -0.07, -0.3));
+  return merge(P);
+}
+export function floe() {
+  const g = setMat(boulder(9), 12), p = g.pos;
+  for (let i = 0; i < p.length; i += 3) { const y = p[i + 1]; if (y < 0) { const k = 1 + y * 1.3; p[i] *= k; p[i + 2] *= k; p[i + 1] = y * 2.6; } else p[i + 1] = y * 0.3; }
+  return computeNormals(g);
+}
