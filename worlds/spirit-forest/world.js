@@ -76,7 +76,7 @@ export default {
     sunDir: [-0.35, 0.8, -0.48], sunColor: [0.15, 0.3, 0.42], fogColor: [0.01, 0.026, 0.036], fogDensity: 0,
     ambientSky: [0.015, 0.034, 0.054], ambientGround: [0.009, 0.018, 0.018],
   },
-  post: { exposure: 1.4, bloom: 0.36, bloomThreshold: 0.9, bloomKnee: 0.6, vignette: 0.32, saturation: 1.08, contrast: 1.08 },
+  post: { exposure: 1.55, bloom: 0.36, bloomThreshold: 0.9, bloomKnee: 0.6, vignette: 0.32, saturation: 1.08, contrast: 1.08 },
   clearColor: [0.006, 0.015, 0.018],
   doorLight: [0.14, 0.2, 0.2],
   fov: 64,
@@ -252,7 +252,7 @@ export default {
     for (let i = 0; i < [500, 1000, 1500][q]; i++) {
       const a = R() * TAU, r = Math.sqrt(R()) * 40, x = Math.cos(a) * r + this.spawn.pos[0], z = -6 + Math.sin(a) * r;
       if (!okSpot(x, z, 1.3)) continue;
-      for (let j = 0; j < 3; j++) { const px = x + (R() - 0.5) * 0.9, pz = z + (R() - 0.5) * 0.9; tf.push(...inst(px, pz, 0.45 + R() * 0.7, 2)); }
+      for (let j = 0; j < 2; j++) { const px = x + (R() - 0.5) * 0.9, pz = z + (R() - 0.5) * 0.9; tf.push(...inst(px, pz, 0.45 + R() * 0.7, 2)); }
     }
     this.tuftCat = this.cat(ctx, this.mesh(ctx, tuft(2)), null, tf, 0.5, 22, 99);
     for (let i = 0; i < [110, 190, 260][q]; i++) {

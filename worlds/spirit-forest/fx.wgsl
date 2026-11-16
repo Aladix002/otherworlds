@@ -25,13 +25,13 @@ struct FO { @builtin(position) pos: vec4f };
   // bioluminescence scattered by the mist
   let L = min(dist, 36.0);
   var gs = vec3f(0.0);
-  for (var i = 0; i < 3; i++) {
-    let s = L * (f32(i) + 0.5) / 3.0;
+  for (var i = 0; i < 2; i++) {
+    let s = L * (f32(i) * 0.5 + 0.2);
     let q = ro + rd * s;
     let l = lmAt(q.xz).rgb;
     gs += l * exp(-max(q.y - gy + 0.3, 0.0) * 0.4);
   }
-  gs *= L / 3.0 * (M + U.misc.z * 4.0) * 0.14 * U.misc.w;
+  gs *= L / 2.0 * (M + U.misc.z * 4.0) * 0.14 * U.misc.w;
   let mu = dot(rd, G.sunDir);
   var inscat = G.fogColor * (1.0 - T) * (1.0 + 1.6 * phaseHG(mu, 0.6) * U.misc.x) + gs;
   // moon shafts: soft columns of light along the moon direction

@@ -57,5 +57,5 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
     g += g * vec3f(0.42, 1.0, 0.86) * 5.0 * exp(-dot(wl, wl) / 70.0);
     c = mix(g, vec3f(0.024, 0.064, 0.068), 1.0 - exp(-length(p) * 0.028));
   }
-  return (c + add) * 1.4;
+  return (c + add) * 1.55;
 }

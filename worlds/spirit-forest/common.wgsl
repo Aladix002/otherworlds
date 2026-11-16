@@ -37,9 +37,6 @@ fn pulse(p: vec3f) -> f32 {
 }
 // baked glow (rgb) and trunk occlusion (a)
 fn lmAt(p: vec2f) -> vec4f { return textureSampleLevel(lmap, smp, wuv(p), 0.0); }
-fn glowAt(p: vec3f) -> vec3f {
-  return lmAt(p.xz).rgb * pulse(p) * exp(-max(p.y - terrH(p.xz), 0.0) * 0.2) * U.misc.w;
-}
 // moonlight reaching the ground through the canopy (baked: soft dapples plus the shaft spots)
 fn moonVis(p: vec3f) -> f32 { return textureSampleLevel(hmap, smp, wuv(p.xz - G.sunDir.xz / G.sunDir.y * p.y), 0.0).g; }
 // light from the spirits (evaluated per vertex)
@@ -54,9 +51,9 @@ fn dynL(p: vec3f, n: vec3f) -> vec3f {
   }
   return c;
 }
-fn shade(alb: vec3f, n: vec3f, p: vec3f, ao: f32, gl: vec3f, dl: vec3f) -> vec3f {
+fn shade(alb: vec3f, n: vec3f, mv: f32, ao: f32, gl: vec3f, dl: vec3f) -> vec3f {
   let amb = hemi(n, G.ambientSky, G.ambientGround);
-  let moon = G.sunColor * wrapDiffuse(n, G.sunDir, 0.45) * moonVis(p) * U.misc.x;
+  let moon = G.sunColor * wrapDiffuse(n, G.sunDir, 0.45) * mv;
   return alb * ((amb + moon) * ao + gl * (0.55 + 0.45 * max(n.y, 0.0) + 0.3 * max(-n.y, 0.0)) + dl);
 }
 // push emission into HDR: the brighter the emitter, the hotter and whiter its core (feeds the bloom)

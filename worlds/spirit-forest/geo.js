@@ -188,10 +188,10 @@ export function mushrooms(seed) {
 export function shelf(seed) {
   const R = makeRng(seed * 17 + 3), g = new Geo();
   for (let k = 0; k < 4; k++) {
-    const y = k * 0.2 + R() * 0.08, rad = 0.22 + R() * 0.16, off = (R() - 0.5) * 0.35, lr = R();
+    const y = k * 0.26 + R() * 0.08, rad = 0.22 + R() * 0.16, off = (R() - 0.5) * 0.35, lr = R();
     for (const top of [1, 0]) g.surf(9, 4, (u, w) => {
       const th = (u - 0.5) * Math.PI * (top ? 1 : -1), rr = rad * w * (1 + 0.07 * Math.cos(th * 7));
-      return [off + Math.sin(th) * rr * 1.25, y + (top ? 0.045 * (1 - w * w) : -0.02 * (1 - w)), Math.cos(th) * rr - 0.03, u, w, 6, top, w, lr];
+      return [off + Math.sin(th) * rr * 1.25, y + (top ? 0.4 * rad * (1 - w * w) : -0.08 * rad * (1 - w)), Math.cos(th) * rr - 0.03, u, w, 6, top, w, lr];
     });
   }
   return g.build();

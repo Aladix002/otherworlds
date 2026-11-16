@@ -47,10 +47,10 @@ const MOSS_B = vec3f(0.055, 0.125, 0.022);
   var sheen = 0.0;
   if (pm > 0.0) {
     alb = mix(alb, mix(vec3f(0.022, 0.016, 0.011), vec3f(0.075, 0.055, 0.036), N3.y) * (0.55 + 0.8 * N4.y) * (1.0 + (N5.w - 0.5) * 0.8 * fine), pm * 0.92);
-    let pb = dotGlow(p.xz * 3.1 + 7.0, 0.3, 0.3);
-    alb = mix(alb, mix(vec3f(0.05, 0.055, 0.06), vec3f(0.15, 0.16, 0.16), pb.y) * (0.5 + 0.6 * pb.x), pb.x * pm * near);
+    let pb = dotGlow(p.xz * 3.1 + 7.0, 0.22, 0.3);
+    alb = mix(alb, mix(vec3f(0.03, 0.033, 0.035), vec3f(0.075, 0.08, 0.08), pb.y) * (0.5 + 0.6 * pb.x), pb.x * pm * near);
     bump += (vec2f(pb.y, fract(pb.y * 7.3)) - 0.5) * pb.x * pm * 0.8;
-    sheen = pm * (0.3 + 0.7 * smoothstep(0.45, 0.7, N3.z));
+    sheen = pm * (0.15 + 0.45 * smoothstep(0.45, 0.7, N3.z));
     mossA *= 1.0 - pm;
   }
   let lm = lmAt(p.xz);
@@ -77,10 +77,10 @@ const MOSS_B = vec3f(0.055, 0.125, 0.022);
   let n = normalize(n0 + vec3f(bump.x, 0.0, bump.y) * 0.6);
   let gl = lm.rgb * pl * U.misc.w;
   let ao = 1.0 - 0.6 * min(lm.a, 1.0);
-  var c = shade(alb, n, p, ao, gl, in.dl) + alb * gl * 1.2;
+  let mv = moonVis(p) * U.misc.x;
+  var c = shade(alb, n, mv, ao, gl, in.dl) + alb * gl * 1.2;
   let V = normalize(G.camPos - p);
   let fr = pow(1.0 - max(dot(n, V), 0.0), 3.0);
-  let mv = moonVis(p) * U.misc.x;
   // velvet rim on moss, wet glint on the path
   c += (G.sunColor * mv + G.ambientSky + gl * 0.5 + in.dl * 0.5) * alb * fr * (1.2 * mossA + 0.6) * ao;
   c += (G.sunColor * mv * pow(max(dot(reflect(-V, n), G.sunDir), 0.0), 20.0) * 0.6 + (gl + in.dl) * fr * 0.25) * sheen;
@@ -136,12 +136,12 @@ const MOSS_B = vec3f(0.055, 0.125, 0.022);
     if (outl < 0.0) { discard; }
     let fill = smoothstep(6.0, 16.0, dist);
     var lf = -9.0;
-    for (var i = 0; i < 2; i++) {
+    if (fill > 0.99) { lf = 0.5; if (outl + (nz(vec2f(x, v) * 0.45 + rnd * 5.0).y - 0.6) * 2.2 < 0.0) { discard; } } else { for (var i = 0; i < 2; i++) {
       let q = vec2f(x * 4.6 + rnd * 7.0, v * 9.0 + rnd * 3.0) + f32(i) * vec2f(0.5, 0.37);
       let hh = hash2i(vec2i(floor(q)) + vec2i(i * 57));
       let fr = rot2((u2f(hh) - 0.5) * 2.6) * (fract(q) - 0.5);
       if (u2f(pcg(hh)) < 0.88) { lf = max(lf, 1.0 - (fr.x * fr.x / 0.04 + fr.y * fr.y / 0.21)); }
-    }
+    } }
     if (lf < -fill * 10.0) { discard; }
     let la = mix(vec3f(0.006, 0.02, 0.008), vec3f(0.028, 0.065, 0.018), rnd * 0.5 + 0.5 * clamp(lf, 0.0, 1.0));
     let mvl = moonVis(p) * U.misc.x;
@@ -151,8 +151,11 @@ const MOSS_B = vec3f(0.055, 0.125, 0.022);
   let V = normalize(G.camPos - p);
   let ndv = max(dot(n, V), 0.0);
   let pl = pulse(p);
-  let gl = glowAt(p);
-  let mv = moonVis(p) * U.misc.x;
+  let lm = lmAt(p.xz);
+  let hm = textureSampleLevel(hmap, smp, wuv(p.xz), 0.0);
+  let hg = max(p.y - hm.r, 0.0);
+  let gl = lm.rgb * pl * exp(-hg * 0.2) * U.misc.w;
+  let mv = hm.g * U.misc.x;
   var alb = vec3f(0.0); var e = vec3f(0.0); var ao = 1.0; var extra = vec3f(0.0);
   if (m < 0.5 || (m > 6.5 && m < 7.5)) {
     // bark / stone with thick moss
@@ -227,22 +230,22 @@ const MOSS_B = vec3f(0.055, 0.125, 0.022);
     }
     e *= 0.5 * (0.8 + 0.3 * pl);
     e *= 1.0 + 1.6 * max(e.g - 0.5, 0.0);
-    return vec4f(shade(alb, n, p, 1.0, gl, in.dl) + e, 1.0);
+    return vec4f(shade(alb, n, mv, 1.0, gl, in.dl) + e, 1.0);
   } else if (m < 6.5) {
     // shelf fungus: banded top, glowing pore surface and rim
     let w = in.at.z;
     let band = 0.5 + 0.5 * sin(w * 22.0 + in.at.w * 20.0);
-    alb = mix(vec3f(0.05, 0.03, 0.018), vec3f(0.2, 0.12, 0.05), band) * (0.4 + 0.6 * w);
-    e = MINT * (smoothstep(0.8, 1.0, w) * 0.2 + (1.0 - in.at.y) * (0.1 + 0.3 * w)) * (0.7 + 0.3 * pl);
-    alb = mix(alb, MOSS_B, (1.0 - smoothstep(0.1, 0.5, w)) * in.at.y * 0.7);
+    alb = mix(vec3f(0.03, 0.02, 0.012), vec3f(0.13, 0.08, 0.035), band) * (0.4 + 0.6 * w);
+    alb = mix(alb, MOSS_B, (1.0 - smoothstep(0.1, 0.6, w)) * in.at.y * 0.8);
+    e = MINT * (smoothstep(0.88, 1.0, w) * 0.35 + (1.0 - in.at.y) * 0.22 * w) * (0.7 + 0.3 * pl) * smoothstep(30.0, 12.0, dist);
   } else {
     // grass / moss tuft
-    alb = mix(MOSS_A * 2.0, vec3f(0.1, 0.2, 0.04), in.at.y) * (0.7 + 0.6 * in.at.w);
+    alb = mix(MOSS_A * 3.0, vec3f(0.12, 0.24, 0.05), in.at.y) * (0.7 + 0.6 * in.at.w);
     extra = alb * (G.sunColor * mv + G.ambientSky) * 0.8 * in.at.y;
-    ao = 0.7 + 0.3 * in.at.y;
+    ao = 1.0;
   }
-  ao *= 1.0 - 0.35 * min(lmAt(p.xz).a, 1.0) * exp(-max(p.y - terrH(p.xz), 0.0) * 0.8);
-  return vec4f(shade(alb, n, p, ao, gl, in.dl) + extra + glow(e), 1.0);
+  ao *= 1.0 - 0.35 * min(lm.a, 1.0) * exp(-hg * 0.8);
+  return vec4f(shade(alb, n, mv, ao, gl, in.dl) + extra + glow(e), 1.0);
 }
 
 // ---------------- sky: night haze seen through a closed canopy with a bright gap near the hidden moon ----------------
