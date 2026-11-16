@@ -41,6 +41,18 @@ only on upper surfaces; foliage cards with per-leaf tone, pale translucent edges
 stronger shafts and mist; deer with closed, uniformly lit body (no seams), jittered antlers, hooves, motes and a light pool at its
 feet; thinner tapering willow strands; asymmetric shelf brackets; rounder fireflies with amber-to-green hue; dimmer wisp cores.
 
+## Round 2: variety and landmarks
+- **Mirror pond** `POND` (25, 7): carved bowl on a flattened shelf, `fsWater` (canopy/moon glow, mirrored wisps, firefly glints,
+  trunk streaks, shore glow), stones, ferns and star flowers on the shore, two wisps hovering over it, its own shaft, water drops.
+- **Standing-stone ring** `RING` (-20, -36): 7 menhirs in a moon shaft, a fairy ring of violet fungi and star flowers, a far bell.
+- **Giant elder** `ELDER` (-21, 17, scale 2.3): amber fungi among its roots; the second lantern group and its moths live here.
+- Trees: groves and glades (noise mask), ~10% giants, saplings for the last 20%; spacing scales with size.
+- Fungi hues via instance `b.y` (0 mint, 1 amber, 2 violet; ~10% random elsewhere). Star flowers = tufts with `b.y = 1`.
+- Willow strands are a separate mesh (`laurel(seed, lod, 2)`) drawn additively after the mist (`fsStrand`): soft-edged ribbons whose
+  brightness, not width, fades with distance. Moss beards merge into a fringe far away. Leaves dither out within 3.6 m of the camera.
+- Halo pipeline instances: 0-1 deer, 2-7 lanterns, 8-10 willows, 11-34 deer motes, 35-58 moths, 59-98 shaft motes, 99-100 antler glow.
+- Fly-through yaw follows the route automatically (`FLY`): path, willow, stone ring, deer glade, pond, door, elder.
+
 ## Known issues / next
 Foliage cards are flat; far crowns read as soft blobs. Deer legs only swing (no real gait). Wisps are billboards.
 The door target `meadow` did not exist when this was built (default postcard in the doorway).

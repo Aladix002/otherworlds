@@ -15,8 +15,8 @@ struct FO { @builtin(position) pos: vec4f };
   let e1 = ro.xz + rd.xz * min(dist, 26.0);
   let nA = nz(e1 * 0.009 + vec2f(t * 0.0016, t * 0.0007));
   let nB = nz(e1 * 0.031 - vec2f(t * 0.003, -t * 0.002));
-  let M = U.misc.y * (0.35 + 0.9 * nA.z + 0.5 * nB.x);
-  let k = 0.5;
+  let M = U.misc.y * (0.12 + 2.3 * nA.z * nA.z + 0.5 * nB.x);      // drifting sheets, thick in places, clear in others
+  let k = 0.7;
   let y0 = max(ro.y - gy + 0.4, 0.0);
   let ky = k * rd.y * dist;
   let mistI = M * exp(-k * y0) * dist * select((1.0 - exp(-ky)) / ky, 1.0, abs(ky) < 1e-3);
@@ -66,6 +66,7 @@ struct BV {
   var lp = v.p; var n = v.n;
   // legs swing from the hip, body breathes
   if (v.at.x > 10.5 && v.at.x < 11.5) { lp.z += sin(TAU * (B.y + v.at.w)) * 0.42 * v.at.y * B.z + sin(G.time * 0.5 + v.at.w * 9.0) * 0.03 * v.at.y; lp.y += max(sin(TAU * (B.y + v.at.w) + 1.3), 0.0) * 0.1 * v.at.y * B.z; }
+  if (v.at.x > 11.5) { lp += v.n * distance(D.xyz, G.camPos) * 0.0011; }       // antlers keep a minimum width far away
   lp.y += sin(TAU * B.y * 2.0) * 0.02 * B.z + sin(G.time * 0.7 + f32(ii)) * 0.012;
   // head and neck turn toward the visitor
   let piv = vec3f(0.0, 2.4, -0.8);
@@ -108,13 +109,15 @@ struct BV {
     let mote = exp(-dot(fract(q) - 0.5, fract(q) - 0.5) * 40.0) * step(0.93, u2f(hsh)) * (0.5 + 0.5 * sin(G.time * 0.8 + u2f(pcg(hsh)) * 40.0));
     let hv = (in.at.y - 0.78) / 0.25;
     let heart = exp(-hv * hv) * step(m, 10.5) * step(in.at.z, 0.001);
-    c = SPIRIT * (0.11 + 0.03 * fr + 0.1 * smoothstep(1.2, 3.6, in.w.y - in.gy)) + vec3f(0.8, 1.0, 0.9) * mote * 0.1;
+    // inner gradient by height: bright head and neck, dimmer belly, legs fading into the mist; a faint rim
+    let gr = 0.5 + 0.75 * smoothstep(1.5, 3.5, in.w.y - in.gy);
+    c = SPIRIT * (0.1 * gr + 0.035 * fr * fr) + vec3f(0.8, 1.0, 0.9) * mote * 0.08;
     // a soft warm eye on each side of the head
     if (in.at.z > 0.99 && in.at.y > 1.5 && in.at.w < 0.5) {
       let du = abs(fract(in.uv.x + 0.25) - 0.5) - 0.22;
       c += vec3f(1.0, 0.85, 0.55) * exp(-((in.uv.y - 0.32) * (in.uv.y - 0.32) * 900.0 + du * du * 1400.0)) * 0.9;
     }
-    if (m > 10.5) { c *= smoothstep(1.25, 0.45, in.at.y); }
+    if (m > 10.5) { c *= smoothstep(1.25, 0.4, in.at.y); }
   } else if (m < 12.5) {
     // antlers: pale gold, hot at the tips
     let tip = in.at.w;
@@ -136,6 +139,32 @@ struct BO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let c = quadC(vi);
   var o: BO; o.c = c; o.k = vec4f(0.0);
   var wp: vec3f; var sz: f32; var col: vec3f;
+  let t = G.time;
+  if (ii > 34u) {
+    let k = ii - 35u; let h = hash3u(vec3u(k, 3u, 77u));
+    if (k < 24u) {
+      // moths circling the lantern creatures
+      let Lr = U.lan[k % 6u];
+      let a = t * (0.5 + 0.6 * h.x) * sign(h.y - 0.5) + h.y * TAU; let r = 0.45 + 0.7 * h.z;
+      wp = Lr.xyz + vec3f(cos(a) * r, 0.25 * sin(t * 0.9 + h.x * 9.0), sin(a) * r);
+      sz = 0.07; col = vec3f(1.0, 0.85, 0.55) * 0.45;
+      o.k.x = 0.3 + 0.7 * abs(sin(t * 9.0 + h.y * 20.0));
+    } else if (k < 64u) {
+      // dust motes drifting down the moon shafts
+      let s = U.shaft[k % 6u];
+      let life = fract(h.z + t * 0.015 * (0.5 + h.x));
+      wp = vec3f(s.x, 0.0, s.y) + G.sunDir * ((terrH(s.xy) + 0.3 + (1.0 - life) * 8.0) / G.sunDir.y) + vec3f(h.x - 0.5, 0.0, h.y - 0.5) * s.z * 1.3 + vec3f(sin(t * 0.3 + h.x * 9.0), 0.0, cos(t * 0.23 + h.y * 9.0)) * 0.15;
+      sz = 0.035; col = vec3f(0.6, 0.9, 1.0) * 0.55 * sin(PI * life) * (0.4 + 0.6 * sin(t * 0.8 + h.y * 30.0) * sin(t * 0.8 + h.y * 30.0));
+    } else {
+      // soft glow around the antlers, so they read as light (not thin lines) from far away
+      let D = U.deer[k - 64u];
+      wp = D.xyz + rotY(D.w) * vec3f(0.0, 4.5, -1.0); sz = 1.7;
+      col = vec3f(1.0, 0.95, 0.8) * 0.1 * smoothstep(7.0, 26.0, distance(wp, G.camPos));
+    }
+    o.pos = G.viewProj * vec4f(billboard(wp, c, vec2f(sz + distance(wp, G.camPos) * 0.0015)), 1.0);
+    o.col = col * fxFog(wp);
+    return o;
+  }
   if (ii < 2u) {
     let D = U.deer[ii];
     wp = D.xyz + vec3f(0.0, 2.5, 0.0); sz = 3.4; col = SPIRIT * 0.035 * U.deerB[ii].w;
@@ -161,7 +190,8 @@ struct BO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   return o;
 }
 @fragment fn fsHalo(in: BO) -> @location(0) vec4f {
-  let s = max(1.0 - dot(in.c, in.c), 0.0);
+  var s = max(1.0 - dot(in.c, in.c), 0.0);
+  if (in.k.x > 0.0) { let d = (abs(in.c.x) - 0.5 * in.k.x) / (0.5 * in.k.x); return vec4f(in.col * max(1.0 - d * d - in.c.y * in.c.y * 1.6, 0.0), 0.0); }
   return vec4f(in.col * s * s * s * s, 0.0);
 }
 // wisps: small friendly ghost lights with a wavering tail
@@ -172,7 +202,7 @@ struct BO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let d = o.k.y;
   let sz = 0.8 + d * 0.016;
   o.pos = G.viewProj * vec4f(billboard(W.xyz, c, vec2f(sz)), 1.0);
-  o.col = mix(SPIRIT, vec3f(0.85, 1.0, 0.8), fract(f32(ii) * 0.37)) * W.w * fxFog(W.xyz);
+  o.col = mix(mix(SPIRIT, vec3f(0.7, 1.0, 0.8), fract(f32(ii) * 0.37)), vec3f(1.0, 0.88, 0.7), step(4.5, f32(ii % 6u))) * W.w * fxFog(W.xyz);
   return o;
 }
 @fragment fn fsWisp(in: BO) -> @location(0) vec4f {
@@ -185,12 +215,12 @@ struct BO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let tw = 0.2 * (1.0 - ty) * (1.0 - ty) + 0.012;
   let tail = exp(-tx * tx / (tw * tw)) * (1.0 - ty) * step(q.y, 0.22) * smoothstep(1.0, 0.75, ty);
   let r2 = dot(hd, hd);
-  let head = exp(-r2 * 26.0);
+  let head = exp(-r2 * 17.0);
   // two soft eyes, visible only when close
   let ex = abs(hd.x) - 0.075;
   let eye = exp(-(ex * ex + (hd.y - 0.02) * (hd.y - 0.02) * 0.6) * 700.0) * smoothstep(22.0, 9.0, in.k.y);
   let halo = pow(max(1.0 - dot(q, q), 0.0), 3.0) * 0.2;
-  let body = (head * 0.62 + tail * 0.4) * (1.0 - 0.9 * eye);
+  let body = (head * 0.48 + tail * 0.4) * (1.0 - 0.9 * eye);
   return vec4f(glow(in.col * body) + in.col * halo, 0.0);
 }
 
@@ -211,7 +241,7 @@ struct FV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let TR = 0.28;
   let B = flyPos(h, h2, t); let A = flyPos(h, h2, t - TR);
   let d = distance(B, G.camPos);
-  let size = 0.028 + 0.03 * h2.z * h2.z;
+  let size = 0.02 + 0.022 * h2.z * h2.z;
   let sz = (size + d * 0.0022) * 3.0;
   var ax = B - A;
   if (dot(ax, ax) > 9.0) { ax = vec3f(0.0); }       // wrapped around the tile during the trail
@@ -227,7 +257,7 @@ struct FV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   o.k = vec4f(L / sz, t / per + h.x * 7.0, TR / per, t * 0.22 - dot(B.xz, vec2f(0.6, 0.8)) * 0.035);
   o.s = sync;
   let a = smoothstep(2.0, 6.0, d) * (1.0 - smoothstep(24.0, 30.0, d)) * env * min(1.0, pow(size * 3.2 / sz, 1.5)) * mix(1.0, 1.6, sync);
-  o.col = mix(vec3f(1.0, 0.62, 0.14), vec3f(0.6, 1.0, 0.25), smoothstep(0.1, 0.8, h2.y)) * 2.4 * a * fxFog(B);
+  o.col = mix(vec3f(1.0, 0.76, 0.2), vec3f(0.6, 1.0, 0.25), smoothstep(0.15, 0.7, h2.y)) * 2.4 * a * fxFog(B);
   o.pos = G.viewProj * vec4f(wp, 1.0);
   return o;
 }

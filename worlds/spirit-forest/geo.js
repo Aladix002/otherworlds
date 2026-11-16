@@ -87,7 +87,7 @@ function spray(g, R, b, d, len, wid, droop) {
 
 // Gnarled laurel (kind 0) or weeping willow (kind 1). Local y = 0 at the ground.
 export function laurel(seed, lod, kind = 0) {
-  const R = makeRng(seed * 7919 + 13 + kind * 101), g = new Geo(), L0 = lod === 0, wil = kind === 1;
+  const wil = kind > 0, R = makeRng(seed * 7919 + 13 + (wil ? 101 : 0)), g = new Geo(), gs = new Geo(), L0 = lod === 0;
   const H = wil ? 9 + R() * 2 : 7.5 + R() * 2.5, R0 = wil ? 0.75 + R() * 0.2 : 0.8 + R() * 0.45, p1 = R() * TAU, p2 = R() * TAU;
   const lx = (R() - 0.5) * (wil ? 2 : 6), lz = (R() - 0.5) * (wil ? 2 : 6), gn = wil ? 0.25 : 0.5 + R() * 0.4;
   const C = (t) => [lx * t * t + gn * Math.sin(t * 6 + p1) * t, H * (wil ? t : t - 0.28 * t * t) - 0.4, lz * t * t + gn * Math.cos(t * 5 + p2) * t];
@@ -122,7 +122,7 @@ export function laurel(seed, lod, kind = 0) {
     return path;
   };
   for (let b = 0; b < NB; b++) {
-    const t0 = (wil ? 0.5 : 0.22) + 0.4 * (b / NB) + R() * 0.08, c0 = C(t0), psi = (b / NB) * TAU * 1.31 + R() * 0.7 + p1, L = wil ? 5 + R() * 3 : 5.5 + R() * 4.5;
+    const t0 = (wil ? 0.5 : 0.34) + 0.34 * (b / NB) + R() * 0.08, c0 = C(t0), psi = (b / NB) * TAU * 1.31 + R() * 0.7 + p1, L = wil ? 5 + R() * 3 : 5.5 + R() * 4.5;
     const rise = wil ? 0.75 + R() * 0.3 : 0.28 + R() * 0.5, r0 = rad(t0) * 0.62;
     const path = limb(c0, psi, L, rise, r0, false);
     for (let k = 0; k < (L0 ? 3 : 2); k++) {
@@ -146,14 +146,14 @@ export function laurel(seed, lod, kind = 0) {
       // glowing strands: ribbons collapsed on their centre line, widened toward the camera in the vertex shader
       const len = Math.min(y - 0.6 - R() * 1.3, 3.5 + R() * 6); if (len < 1.5) return;
       const ox = (R() - 0.5) * 0.3, oz = (R() - 0.5) * 0.3, lr = R();
-      g.surf(2, L0 ? 9 : 5, (u, s) => [x + ox * s * s, y - len * s, z + oz * s * s, u * 2 - 1, s * len, 3, s, len, lr]);
+      gs.surf(2, L0 ? 9 : 5, (u, s) => [x + ox * s * s, y - len * s, z + oz * s * s, u * 2 - 1, s * len, 3, s, len, lr]);
     } else {
       // hanging moss beards
       const len = 0.5 + R() * R() * 1.6, w = 0.22 + R() * 0.3, a = R() * TAU, cx = Math.cos(a) * w, cz = Math.sin(a) * w, lr = R();
       g.surf(2, 3, (u, s) => [x + cx * (u * 2 - 1), y - 0.08 - len * s, z + cz * (u * 2 - 1), u * 2 - 1, s, 2, s, len, lr]);
     }
   });
-  return g.build();
+  return (kind > 1 ? gs : g).build();
 }
 
 export function fern(seed) {
@@ -193,7 +193,7 @@ export function shelf(seed) {
     y += 0.1 + R() * 0.3;
     for (const top of [1, 0]) g.surf(9, 4, (u, w) => {
       const th = (u - 0.5) * Math.PI * (top ? 1 : -1), rr = rad * w * (1 + 0.1 * Math.cos(th * 5 + lr * 9)), x = Math.sin(th) * rr * ex;
-      return [off + x, y + x * tilt + (top ? 0.4 * rad * (1 - w * w) : -0.08 * rad * (1 - w)), Math.cos(th) * rr - 0.05 - 0.12 * Math.abs(off), u, w, 6, top, w, lr];
+      return [off + x, y + x * tilt + (top ? 0.7 * rad * (1 - w * w) : -0.12 * rad * (1 - w)), Math.cos(th) * rr - 0.05 - 0.12 * Math.abs(off), u, w, 6, top, w, lr];
     });
   }
   return g.build();
@@ -201,8 +201,8 @@ export function shelf(seed) {
 
 export function log(seed) {
   const R = makeRng(seed * 91 + 1), g = new Geo(), L = 4.2 + R() * 1.6, r = 0.3 + R() * 0.08, p = R() * TAU;
-  g.tube(14, 16, (s) => [(s - 0.5) * L, r * 0.72 + 0.05 * Math.sin(s * 5 + p), 0.15 * Math.sin(s * 3 + p)],
-    (s, th) => r * Math.min(1, Math.min(s, 1 - s) * 40 + 0.05) * (1 - 0.2 * s) * (1 + 0.07 * Math.sin(3 * th + 9 * s + p) + 0.04 * Math.sin(5 * th - 14 * s)), (s, u, c) => [0, 1.4, 0.02, R()], [TAU * r, L]);
+  g.tube(14, 22, (s) => [(s - 0.5) * L, r * 0.72 + 0.05 * Math.sin(s * 5 + p), 0.15 * Math.sin(s * 3 + p)],
+    (s, th) => r * Math.min(1, Math.min(s, 1 - s) * 30 + 0.3 + 0.25 * Math.sin(5 * th + p)) * (1 - 0.2 * s) * (1 + 0.13 * Math.sin(3 * th + 9 * s + p) + 0.08 * Math.sin(5 * th - 14 * s) + 0.1 * Math.sin(23 * s + 2 * th)), (s, u, c) => [0, 1.4, 0.1, R()], [TAU * r, L]);
   // a broken branch stub
   g.tube(6, 5, (s) => [L * 0.18 + 0.25 * s, r * 0.9 + 0.75 * s, 0.1 + 0.3 * s * s], (s) => 0.09 * (1 - 0.6 * s), () => [0, 1.6, 0.3, R()], [0.5, 0.8]);
   return g.build();
@@ -221,25 +221,25 @@ export function tuft(seed) {
 // attr = [part, v, head-turn weight, extra]
 export function deer() {
   const g = new Geo(), gs = (s, c, w) => Math.exp(-(((s - c) / w) ** 2));
-  g.tube(16, 22, (s) => [0, 2.0 + 0.12 * s + 0.05 * Math.sin(Math.PI * s), 0.95 - 1.8 * s],
+  g.tube(22, 22, (s) => [0, 2.0 + 0.12 * s + 0.05 * Math.sin(Math.PI * s), 0.95 - 1.8 * s],
     (s, th) => (0.08 + 0.22 * gs(s, 0.2, 0.28) + 0.27 * gs(s, 0.8, 0.25)) * Math.pow(Math.sin(Math.PI * (0.0005 + 0.999 * s)), 0.45) * (1 - 0.2 * Math.cos(2 * th)), (s) => [10, s, 0, 0]);
   g.tube(12, 12, (s) => [0, 2.12 + 1.32 * s, -0.62 - 0.46 * Math.sin(s * 2.2) + 0.1 * s], (s, th) => (0.13 * Math.pow(1 - s, 1.2) + 0.1) * (1 - 0.12 * Math.cos(2 * th)), (s) => [10, 2, s, 0]);
-  g.tube(12, 14, (s) => [0, 3.46 - 0.27 * s - 0.05 * s * s, -0.9 - 0.74 * s], (s, th) => (0.04 + 0.1 * Math.pow(1 - s, 0.9)) * Math.pow(Math.sin(Math.PI * Math.min(0.9995, 0.0005 + 0.98 * s)), 0.35) * (1 - 0.14 * Math.cos(2 * th)), (s) => [10, 2, 1, 0]);
+  g.tube(14, 14, (s) => [0, 3.5 - 0.32 * s - 0.06 * s * s, -0.84 - 0.9 * s], (s, th) => (0.05 + 0.125 * Math.pow(1 - s, 0.9)) * Math.pow(Math.sin(Math.PI * Math.min(0.9995, 0.0005 + 0.98 * s)), 0.35) * (1 - 0.14 * Math.cos(2 * th)), (s) => [10, 2, 1, 0]);
   for (let k = 0; k < 3; k++) g.surf(2, 9, (u, s) => [(k - 1) * 0.07 * (1 + 2 * s) + (u - 0.5) * 0.07 * (1 - 0.8 * s), 2.12 - 0.25 * s - 0.75 * s * s + 0.06 * Math.sin(s * 5 + k), 0.92 + 0.75 * s + 0.1 * Math.sin(s * 4 + k * 2), u, s, 11, 0.25 + 0.75 * s, 0, 0.3 + 0.1 * k]);
   for (const sd of [-1, 1]) {
     g.surf(3, 5, (u, v) => { const x = (u * 2 - 1) * 0.065 * Math.sin(Math.PI * Math.pow(v, 0.6)); return [sd * (0.09 + 0.27 * v), 3.47 + 0.16 * v + Math.abs(x) * 0.5, -0.88 + 0.16 * v + x, u, v, 10, 2, 1, 1]; });
     const beam = (s) => [sd * (0.06 + 0.25 * s + 0.75 * s * s), 3.52 + 1.6 * s - 0.4 * s * s, -0.93 + 0.6 * s - 0.55 * s * s];
-    g.tube(5, 14, beam, (s) => 0.038 * (1 - 0.8 * s) + 0.007, (s) => [12, s, 1, s * s]);
+    g.tube(5, 14, beam, (s) => 0.05 * (1 - 0.8 * s) + 0.009, (s) => [12, s, 1, s * s]);
     const AR = makeRng(sd > 0 ? 71 : 37);
     [0.14, 0.3, 0.5, 0.64, 0.83].forEach((s1, i) => {
       const s0 = s1 + (AR() - 0.5) * 0.08, b = beam(s0), L = (0.7 - 0.09 * i) * (0.75 + AR() * 0.5), lean = 0.3 + AR() * 0.5, out = (AR() - 0.3) * 0.5, cv = AR() * 0.4;
       const tine = (s) => [b[0] + sd * (out * s - cv * s * s) * L, b[1] + L * ((1 - lean * 0.4) * s + 0.15 * s * s), b[2] - L * (lean * s + cv * 0.5 * s * s)];
-      g.tube(4, 7, tine, (s) => 0.024 * (1 - 0.8 * s) + 0.005, (s) => [12, s0, 1, 0.25 + 0.75 * s]);
+      g.tube(5, 8, tine, (s) => 0.032 * (1 - 0.8 * s) + 0.006, (s) => [12, s0, 1, 0.25 + 0.75 * s]);
       if (AR() < 0.65) { const f = tine(0.35 + AR() * 0.3), fl = 0.18 + AR() * 0.2; g.tube(4, 4, (s) => [f[0] - sd * 0.5 * s * fl, f[1] + s * fl, f[2] + (AR() < 2 ? 0.4 : 0) * s * fl], (s) => 0.014 * (1 - 0.7 * s) + 0.004, (s) => [12, s0, 1, 0.5 + 0.5 * s]); }
     });
     [[-0.58, 0], [0.7, 0.5]].forEach(([hz, ph], i) => {
       g.tube(8, 14, (s) => [sd * (0.12 + 0.015 * s), 2.02 - 2.02 * s, hz + (i ? -0.13 * Math.sin(5.3 * s) * (1 - 0.3 * s) : -0.05 * Math.sin(Math.PI * s))],
-        (s) => 0.085 * Math.exp(-s * 5) + 0.04 * (1 - s) + 0.02 + 0.014 * gs(s, i ? 0.55 : 0.5, 0.06) + 0.022 * gs(s, 0.97, 0.035), (s) => [11, s, 0, sd > 0 ? ph : ph + 0.5]);
+        (s) => 0.1 * Math.exp(-s * 5) + 0.055 * (1 - s) + 0.028 + 0.014 * gs(s, i ? 0.55 : 0.5, 0.06) + 0.022 * gs(s, 0.97, 0.035), (s) => [11, s, 0, sd > 0 ? ph : ph + 0.5]);
     });
   }
   return g.build();

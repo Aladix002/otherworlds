@@ -33,7 +33,7 @@ const MOSS_B = vec3f(0.058, 0.105, 0.036);
   var bump = (N3.xy - 0.5) * 0.55 + (N4.xy - 0.5) * 0.6 * near + (N5.xy - 0.5) * 0.85 * fine + (N6.xy - 0.5) * 0.9 * fine2;
   // moss carpet with lighter cushions
   let cush = smoothstep(0.42, 0.7, N3.x * 0.7 + N4.z * 0.35);
-  var alb = mix(MOSS_A, MOSS_B, N2.y * 0.55 + N3.z * 0.3 + 0.3 * cush) * (0.6 + 0.8 * N4.x) * (1.0 + (N5.z - 0.5) * 1.1 * fine) * (1.0 + (N6.z - 0.5) * 1.2 * fine2);
+  var alb = mix(MOSS_A, MOSS_B, N2.y * 0.55 + N3.z * 0.3 + 0.3 * cush) * (0.6 + 0.8 * N4.x) * (1.0 + (N5.z - 0.5) * 0.6 * fine) * (1.0 + (N6.z - 0.5) * 0.6 * fine2);
   alb = mix(alb, vec3f(0.1, 0.14, 0.045) * (0.5 + N4.w), cush * smoothstep(0.55, 0.8, N1.x) * 0.5);
   // macro variation: blue-teal hollows, olive rises
   alb *= mix(vec3f(0.72, 0.95, 1.3), vec3f(1.25, 1.05, 0.75), smoothstep(0.25, 0.75, N1.x * 0.6 + N2.w * 0.4));
@@ -53,11 +53,11 @@ const MOSS_B = vec3f(0.058, 0.105, 0.036);
   let pm = 1.0 - smoothstep(0.55, 1.35, pd);
   var sheen = 0.0;
   if (pm > 0.0) {
-    alb = mix(alb, mix(vec3f(0.04, 0.037, 0.033), vec3f(0.115, 0.1, 0.082), N3.y * 0.6 + N2.z * 0.4) * (0.5 + 0.9 * N4.y) * (1.0 + (N5.w - 0.5) * 0.8 * fine), pm * 0.92);
+    alb = mix(alb, mix(vec3f(0.026, 0.024, 0.023), vec3f(0.075, 0.066, 0.056), N3.y * 0.6 + N2.z * 0.4) * (0.6 + 0.7 * N4.y) * (1.0 + (N5.w - 0.5) * 0.8 * fine), pm * 0.92);
     let pb = dotGlow(p.xz * 3.1 + 7.0, 0.22, 0.3);
-    alb = mix(alb, mix(vec3f(0.07, 0.075, 0.08), vec3f(0.17, 0.18, 0.18), pb.y) * (0.5 + 0.6 * pb.x), pb.x * pm * near);
+    alb = mix(alb, mix(vec3f(0.04, 0.043, 0.046), vec3f(0.09, 0.095, 0.095), pb.y) * (0.5 + 0.6 * pb.x), pb.x * pm * near * 0.7);
     bump += (vec2f(pb.y, fract(pb.y * 7.3)) - 0.5) * pb.x * pm * 0.8;
-    sheen = pm * (0.15 + 0.45 * smoothstep(0.45, 0.7, N3.z));
+    sheen = pm * (0.35 + 0.65 * smoothstep(0.4, 0.7, N3.z));
     mossA *= 1.0 - pm;
   }
   let lm = lmAt(p.xz);
@@ -94,7 +94,7 @@ const MOSS_B = vec3f(0.058, 0.105, 0.036);
   let fr = pow(1.0 - max(dot(n, V), 0.0), 3.0);
   // velvet rim on moss, wet glint on the path
   c += (G.sunColor * mv + G.ambientSky + gl * 0.5 + in.dl * 0.5) * alb * fr * (1.2 * mossA + 0.6) * ao;
-  c += (G.sunColor * mv * pow(max(dot(reflect(-V, n), G.sunDir), 0.0), 20.0) * 0.6 + (gl + in.dl) * fr * 0.25) * sheen;
+  c += (G.sunColor * mv * pow(max(dot(reflect(-V, n), G.sunDir), 0.0), 28.0) * 0.5 + (gl + in.dl) * fr * 0.25) * sheen;
   return vec4f(c + glow(e), 1.0);
 }
 
@@ -112,6 +112,7 @@ const MOSS_B = vec3f(0.058, 0.105, 0.036);
     lp += vec3f(fract(v.b.z * 5.7) - 0.5, 0.0, fract(v.b.z * 8.9) - 0.5) * lp.y * lp.y * 0.02;
     let k = smoothstep(3.0, 12.0, lp.y);
     lp += vec3f(sin(t * 0.31 + sd + lp.y * 0.07), 0.0, cos(t * 0.23 + sd * 0.7 + lp.x * 0.1)) * 0.07 * k;
+    if (m > 0.5 && m < 1.5) { o.at.z = v.a.w; }
     if (m > 0.5 && m < 2.5) { lp += vec3f(sin(t * 0.7 + lp.x * 0.8 + sd), sin(t * 0.9 + lp.z + sd) * 0.5, cos(t * 0.6 + lp.z * 0.7)) * 0.035 * (0.4 + v.at.y); }
   } else if (v.b.w > 1.5) {
     lp *= nearFade(v.a.xyz);
@@ -145,16 +146,17 @@ const MOSS_B = vec3f(0.058, 0.105, 0.036);
     let x = in.uv.x; let v = in.uv.y; let rnd = in.at.w;
     let ov = max(v * 2.0 - 1.0, -0.7);
     let outl = 1.0 - (x * x + ov * ov * 0.9) + 0.3 * sin(x * 8.0 + rnd * 20.0) * sin(v * 10.0 + rnd * 7.0);
+    if (dist < 3.6 && dth > (dist - 1.3) / 2.3) { discard; }       // never a paddle in the face
     let fill = smoothstep(6.0, 16.0, dist);
     var lf = -9.0; var lc = 1.0; var lh = 0.5; var edge = 0.0;
     if (fill > 0.99) {
-      let cl = outl + (nz(vec2f(x, v) * 0.45 + rnd * 5.0).y - 0.6) * 2.2;
+      let cl = outl + (nz(vec2f(x, v) * 0.45 + rnd * 5.0).y * 0.6 + nz(vec2f(x, v) * 1.9 + rnd * 3.0).x * 0.4 - 0.6) * 2.4;
       if (cl < dth * 0.45) { discard; }
       lf = 0.5; edge = smoothstep(0.8, 0.0, cl);
     } else {
       if (outl < 0.0) { discard; }
       for (var i = 0; i < 2; i++) {
-        let q = vec2f(x * 4.6 + rnd * 7.0, v * 9.0 + rnd * 3.0) + f32(i) * vec2f(0.5, 0.37);
+        let q = vec2f(x * 4.6, v * 9.0) * max(in.at.z, 0.7) + vec2f(rnd * 7.0, rnd * 3.0) + f32(i) * vec2f(0.5, 0.37);
         let hh = hash2i(vec2i(floor(q)) + vec2i(i * 57));
         let fr = rot2((u2f(hh) - 0.5) * 2.6) * (fract(q) - 0.5);
         let l = 1.0 - (fr.x * fr.x / 0.04 + fr.y * fr.y / 0.21);
@@ -164,7 +166,9 @@ const MOSS_B = vec3f(0.058, 0.105, 0.036);
       edge = smoothstep(0.45, 0.0, lf) * (1.0 - fill) + 0.4 * fill;
     }
     // each leaf has its own tone and tilt, a darker midrib and a thin pale edge that lets the moon through
-    var la = mix(vec3f(0.007, 0.02, 0.012), vec3f(0.034, 0.07, 0.03), rnd * 0.55 + 0.45 * lh) * (0.7 + 0.6 * lh);
+    let lt = mix(lh, 0.5, smoothstep(0.15, 0.8, fill));          // the leaf print fades out with distance
+    n = normalize(n + vec3f(lt - 0.5, 0.0, fract(lh * 7.3) - 0.5) * (1.0 - fill));
+    var la = mix(vec3f(0.007, 0.02, 0.012), vec3f(0.034, 0.07, 0.03), rnd * 0.55 + 0.45 * lt) * (0.7 + 0.6 * lt);
     la *= 1.0 - 0.45 * smoothstep(0.035, 0.0, lc) * (1.0 - fill);
     let mvl = moonVis(p) * U.misc.x;
     let lit = hemi(n, G.ambientSky, G.ambientGround) * 0.8 + G.sunColor * mvl * (wrapDiffuse(n, G.sunDir, 0.45) + 2.0 * max(dot(-n, G.sunDir), 0.0)) + in.dl
@@ -204,57 +208,44 @@ const MOSS_B = vec3f(0.058, 0.105, 0.036);
       e = MINT * ls * ls * 0.55;
     }
     let rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);
-    extra = (G.sunColor * mv * (0.6 + max(dot(n, G.sunDir) + 0.3, 0.0)) + G.ambientSky + gl * 0.5 + in.dl * 0.5) * rim * mix(alb, mc * 2.5, mm) * ao;
+    extra = (G.sunColor * mv * (0.6 + max(dot(n, G.sunDir) + 0.3, 0.0)) + G.ambientSky * 2.2 + gl * 0.5 + in.dl * 0.5) * rim * mix(alb * 1.6, mc * 2.5, mm) * ao;
   } else if (m < 2.5) {
     // moss beard: ragged hanging strands
     let x = in.uv.x; let s = in.uv.y;
-    let sx = x * 6.0 + in.at.w * 20.0;
+    let sx = x * 9.0 + in.at.w * 20.0;
     let hs = hash11(floor(sx) + in.at.w * 91.0);
     let lenK = (0.25 + 0.75 * hs) * (1.0 - 0.4 * abs(x));
     let ts = s / lenK;
-    if (ts > 1.0 - 0.3 * dth || abs(fract(sx) - 0.5 + 0.12 * sin(s * 9.0 + hs * 30.0) * ts) > 0.36 * (1.0 - ts) + 0.04) { discard; }
+    // fine fibres up close, merging into a soft ragged fringe far away (no sub-pixel threads)
+    if (ts > 1.0 || abs(fract(sx) - 0.5 + 0.12 * sin(s * 9.0 + hs * 30.0) * ts) > 0.3 * (1.0 - ts) + 0.05 + 0.5 * smoothstep(7.0, 20.0, dist) || dist < 2.2) { discard; }
     alb = mix(vec3f(0.014, 0.024, 0.016), vec3f(0.07, 0.1, 0.055), ts * 0.7 + 0.3 * hs) * (0.55 + 0.6 * ts);
     extra = alb * (G.sunColor * mv * (0.6 + 1.5 * max(dot(-n, G.sunDir), 0.0)) + G.ambientSky) * 1.2;
     ao = 0.8;
-  } else if (m < 3.5) {
-    // glowing willow strand: beads of light travelling down, brighter toward the tips
-    let s = in.at.y; let h = in.uv.y; let x = in.uv.x;
-    let trav = pow(0.5 + 0.5 * sin(h * 0.9 - G.time * 0.5 + in.b.y * 37.0), 8.0);
-    let bq = h * 2.3 + in.b.y * 9.0;
-    let tw = 0.5 + 0.5 * sin(G.time * 0.6 + hash11(floor(bq) + in.b.y * 71.0) * 40.0);
-    let bead = smoothstep(0.45, 0.1, abs(fract(bq) - 0.5)) * smoothstep(60.0, 20.0, dist) + 0.3 * smoothstep(20.0, 60.0, dist);
-    // a chain of narrow leaves up close, a plain soft thread far away
-    let lw = mix(0.16 + 0.84 * pow(abs(sin(bq * PI * (1.0 + 0.9 * in.b.y) + 0.7 * sign(x))), 1.5), 1.0, smoothstep(0.9, 0.4, in.at.w)) * (1.0 - 0.8 * s * s * s);
-    if (abs(x) > lw) { discard; }
-    let prof = 1.0 - x * x * 0.7 / (lw * lw);
-    let wk = pow(in.at.w, 0.7) * mix(0.55, 1.0, smoothstep(0.9, 0.4, in.at.w));
-    alb = vec3f(0.01, 0.03, 0.02);
-    e = mix(vec3f(0.08, 0.8, 0.6), vec3f(0.4, 1.0, 0.85), s * s) * (0.12 + 0.34 * s * s + bead * (0.05 + 0.45 * tw * tw * tw) * (0.3 + 0.7 * s) + 0.6 * trav * (0.3 + 0.7 * s)) * prof * wk * (0.75 + 0.25 * pl);
-    ao = 0.6;
   } else if (m < 4.5) {
     // fern frond: pinnae along the rachis
     let x = in.uv.x; let ax = abs(x); let v = in.uv.y;
     let pin = abs(fract(v * 15.0 - ax * 1.2) - 0.5);
     let fill = smoothstep(9.0, 24.0, dist);
     if (pin > 0.36 * (1.0 - 0.8 * ax * ax) + fill && ax > 0.06) { discard; }
-    alb = mix(vec3f(0.016, 0.05, 0.014), vec3f(0.06, 0.15, 0.03), v * 0.6 + in.at.w * 0.4) * (1.0 - 0.3 * smoothstep(0.05, 0.3, pin) * (1.0 - fill)) * (0.55 + 0.45 * smoothstep(0.0, 0.3, v));
+    alb = mix(vec3f(0.012, 0.03, 0.017), vec3f(0.04, 0.085, 0.036), v * 0.6 + in.at.w * 0.4) * (1.0 - 0.3 * smoothstep(0.05, 0.3, pin) * (1.0 - fill)) * (0.55 + 0.45 * smoothstep(0.0, 0.3, v));
     extra = alb * (G.sunColor * mv * (1.5 * max(dot(-n, G.sunDir), 0.0) + 0.8 * pow(1.0 - ndv, 2.0)) + (gl + in.dl) * 0.6);
     ao = 0.55 + 0.45 * v;
   } else if (m < 5.5) {
     // mycena: translucent stem, bell cap glowing from the gills outward
     let w = in.at.z; let k = 0.6 + 0.8 * in.at.w;
+    var hue = MINT; if (in.b.y > 1.5) { hue = vec3f(0.6, 0.42, 1.0); } else if (in.b.y > 0.5) { hue = vec3f(1.0, 0.6, 0.15); }
     if (in.at.y < 0.5) {
       alb = vec3f(0.06, 0.1, 0.07);
-      e = MINT * (0.03 + 0.3 * w * w * w) * k;
+      e = hue * (0.03 + 0.3 * w * w * w) * k;
     } else {
       let gill = 0.5 + 0.5 * cos(in.uv.x * TAU * 16.0);
       alb = vec3f(0.02, 0.06, 0.04);
       // translucent cap: dim crown, light gathering toward the rim; hot gills underneath
-      e = mix(vec3f(0.0, 0.45, 0.25), vec3f(0.1, 1.0, 0.5), w) * (0.12 + 0.85 * w * w * (0.8 + 0.2 * gill * smoothstep(0.35, 0.9, w)) + 0.8 * smoothstep(0.86, 1.0, w) + 0.3 * pow(1.0 - ndv, 2.0)) * k;
-      if (ff) { e = vec3f(0.2, 1.0, 0.55) * (1.0 + 1.2 * gill) * k; }
+      e = mix(hue * 0.45, hue, w) * (0.12 + 0.85 * w * w * (0.8 + 0.2 * gill * smoothstep(0.35, 0.9, w)) + 0.8 * smoothstep(0.86, 1.0, w) + 0.3 * pow(1.0 - ndv, 2.0)) * k;
+      if (ff) { e = hue * (1.0 + 1.2 * gill) * k; }
     }
     e *= 0.5 * (0.8 + 0.3 * pl);
-    e *= 1.0 + 1.6 * max(e.g - 0.5, 0.0);
+    e *= 1.0 + 1.6 * max(max(e.g, e.r) - 0.5, 0.0);
     return vec4f(shade(alb, n, mv, 1.0, gl, in.dl) + e, 1.0);
   } else if (m < 6.5) {
     // shelf fungus: banded top, glowing pore surface and rim
@@ -262,15 +253,55 @@ const MOSS_B = vec3f(0.058, 0.105, 0.036);
     let band = 0.5 + 0.5 * sin(w * 22.0 + in.at.w * 20.0);
     alb = mix(vec3f(0.03, 0.02, 0.012), vec3f(0.13, 0.08, 0.035), band) * (0.4 + 0.6 * w);
     alb = mix(alb, MOSS_B, (1.0 - smoothstep(0.1, 0.6, w)) * in.at.y * 0.8);
-    e = MINT * (smoothstep(0.9, 1.0, w) * 0.1 + (1.0 - in.at.y) * 0.1 * w) * (0.7 + 0.3 * pl) * smoothstep(30.0, 12.0, dist);
+    e = MINT * (smoothstep(0.9, 1.0, w) * 0.1 + (1.0 - in.at.y) * 0.22 * w) * (0.7 + 0.3 * pl) * smoothstep(30.0, 12.0, dist);
   } else {
     // grass / moss tuft
     alb = mix(MOSS_A * 3.0, vec3f(0.12, 0.24, 0.05), in.at.y) * (0.7 + 0.6 * in.at.w);
     extra = alb * (G.sunColor * mv * 2.0 + G.ambientSky * 3.0 + gl) * (0.4 + 0.6 * in.at.y);
     ao = 1.0;
+    e = SPIRIT * smoothstep(0.78, 1.0, in.at.y) * in.b.y * 0.6 * (0.6 + 0.4 * sin(G.time * 0.7 + in.b.z * 40.0));
   }
   ao *= 1.0 - 0.35 * min(lm.a, 1.0) * exp(-hg * 0.8);
   return vec4f(shade(alb, n, mv, ao, gl, in.dl) + extra + glow(e), 1.0);
+}
+
+// willow strands: additive, camera-facing ribbons with a soft edge; brightness (not width) fades with distance
+@fragment fn fsStrand(in: VO) -> @location(0) vec4f {
+  let s = in.at.y; let h = in.uv.y; let x = in.uv.x;
+  let dist = distance(in.w, G.camPos);
+  let trav = pow(0.5 + 0.5 * sin(h * 0.9 - G.time * 0.5 + in.b.y * 37.0), 8.0);
+  let bq = h * 2.3 + in.b.y * 9.0;
+  let tw = 0.5 + 0.5 * sin(G.time * 0.6 + hash11(floor(bq) + in.b.y * 71.0) * 40.0);
+  let bead = smoothstep(0.5, 0.1, abs(fract(bq) - 0.5)) * smoothstep(45.0, 12.0, dist);
+  let a = 1.0 - x * x;
+  let e = mix(vec3f(0.05, 0.6, 0.5), vec3f(0.4, 1.0, 0.85), s * s) * (0.035 + 0.3 * s * s + bead * (0.05 + 0.5 * tw * tw * tw) * (0.3 + 0.7 * s) + 0.6 * trav * (0.3 + 0.7 * s));
+  return vec4f(glow(e * a * a * in.at.w * (1.0 - 0.7 * s * s * s) * (0.75 + 0.25 * pulse(in.w)) * smoothstep(0.8, 4.0, dist)) * fxFog(in.w), 0.0);
+}
+
+// still mirror pond: canopy and moon glow, the wisps, firefly glints and the fungi glow of the shore
+@fragment fn fsWater(in: VO) -> @location(0) vec4f {
+  let p = in.w; let t = G.time;
+  let depth = WY - terrH(p.xz);
+  if (depth < 0.0) { discard; }
+  let g = (nz(p.xz * 0.07 + vec2f(t * 0.004, t * 0.003)).xy - 0.5) * 0.05 + (nz(p.xz * 0.31 - vec2f(t * 0.007, -t * 0.005)).zw - 0.5) * 0.03;
+  let n = normalize(vec3f(g.x, 1.0, g.y));
+  let Vd = normalize(p - G.camPos);
+  let R = reflect(Vd, n);
+  let F = 0.04 + 0.96 * pow(1.0 - max(dot(n, -Vd), 0.0), 5.0);
+  let m = max(dot(R, G.sunDir), 0.0);
+  var c = mix(G.fogColor * 1.8, vec3f(0.004, 0.012, 0.016), smoothstep(0.0, 0.6, R.y)) + vec3f(0.4, 0.62, 0.75) * (pow(m, 6.0) * 0.25 + pow(m, 80.0) * 1.2);
+  // dark trunks standing in the reflection
+  c *= 1.0 - 0.65 * smoothstep(0.5, 0.68, nz(vec2f(atan2(R.x, R.z) * 1.1, 0.3)).x) * smoothstep(0.55, 0.1, R.y);
+  for (var i = 0; i < 8; i++) {
+    let w = U.wisp[i];
+    let k = max(dot(R, normalize(w.xyz - p)), 0.0);
+    c += SPIRIT * w.w * (pow(k, 1200.0) * 2.5 + pow(k, 90.0) * 0.1);
+  }
+  let fq = dotGlow(p.xz * 1.7 + g * 25.0 + vec2f(t * 0.02, 0.0), 0.22, 0.1);
+  c += vec3f(0.9, 0.9, 0.3) * fq.x * (0.5 + 0.5 * sin(t * 0.9 + fq.y * 40.0)) * 1.4;
+  c += lmAt(p.xz + R.xz * 2.5).rgb * 0.35;
+  let col = vec3f(0.005, 0.013, 0.014) * (1.0 - F) + c * (0.3 + 0.7 * F);
+  return vec4f(mix(MOSS_A * 0.6, col, smoothstep(0.0, 0.1, depth)) + in.dl * 0.03, 1.0);
 }
 
 // ---------------- sky: night haze seen through a closed canopy with a bright gap near the hidden moon ----------------
