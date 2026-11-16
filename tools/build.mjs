@@ -103,9 +103,14 @@ a.w:hover{background:rgba(255,255,255,.06)}
 .w span{font:12px ui-monospace,monospace;opacity:.45}
 .off{opacity:.32}
 footer{margin-top:48px;font-size:13px;opacity:.4}footer a{color:inherit}
+.sup{margin:44px 0 0;padding:22px 24px;border-radius:18px;background:linear-gradient(135deg,rgba(255,176,102,.13),rgba(255,120,140,.10));border:1px solid rgba(255,190,130,.28);display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;justify-content:space-between}
+.sup p{margin:0;opacity:.85;font-size:15px;flex:1 1 240px}
+.sup a{display:inline-block;padding:11px 22px;border-radius:999px;background:linear-gradient(135deg,#ffb36b,#ff7f8e);color:#2a1712;font-weight:600;text-decoration:none;box-shadow:0 4px 22px rgba(255,140,110,.35);transition:transform .3s,box-shadow .3s}
+.sup a:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(255,140,110,.5)}
 </style></head><body><main><h1>OtherWorlds</h1><p>Calm, open, magical worlds to drift through. You travel between them through ordinary wooden doors.</p>
 ${items}
-<footer>${released ? 'Needs a browser with WebGPU: Chrome or Edge on desktop, Safari 26+, or Chrome on a recent Android phone. Best with headphones.' + (support ? ` · <a href="${esc(support)}" target="_blank" rel="noopener">♥ Support OtherWorlds</a>` : '') : have.has('_test') ? '<a href="_test.html">test world</a>' : ''}</footer></main></body></html>`;
+${support ? `<div class="sup"><p>OtherWorlds is free. If it helped you breathe a little slower, a small tip helps me build new worlds.</p><a href="${esc(support)}" target="_blank" rel="noopener">♥ Support on Ko-fi</a></div>` : ''}
+<footer>${released ? 'Needs a browser with WebGPU: Chrome or Edge on desktop, Safari 26+, or Chrome on a recent Android phone. Best with headphones.' : have.has('_test') ? '<a href="_test.html">test world</a>' : ''}</footer></main></body></html>`;
   writeFileSync(join(outDir, 'index.html'), html);
   console.log(`index.html       ${built.length} built, ${have.size} available`);
 }
