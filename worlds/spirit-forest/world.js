@@ -9,11 +9,12 @@ import FX from './fx.wgsl';
 const WSIZE = 240, HN = 257, TAU = Math.PI * 2;
 const DOOR = [8, 22];
 const PATH = [[10, 40], [6.2, 26], [3.5, 12], [0, 0], [-3, -12], [-1, -24], [4, -36], [2, -50], [-6, -62], [-10, -80]];
+const SPUR = [[5.7, 20.4], [8, 20.2], [8, 22.4]];                       // worn track from the path to the door
 const WIL = [[-8, -28, 1.15], [33, -10, 1.0], [-29, 24, 1.05]];        // glowing willows: x, z, scale
 const LOOPS = [[18, -37, 11, 8, 0.6], [-32, -6, 10, 9, 2.0]];            // deer loops: cx, cz, rx, rz, phase
 const HLOG = [4.6, -8.2, 0.5];                                           // hero log: x, z, yaw
 const DSPEED = 0.42;
-const SHAFTS = [[DOOR[0] + 0.3, DOOR[1] - 0.6, 1.2, 0.9], [-1.5, -8, 1.4, 0.7], [LOOPS[0][0] - 3, LOOPS[0][1] + 2, 2.4, 0.7], [-14, 8, 1.3, 0.5], [9, -22, 1.1, 0.5], [-20, -36, 1.7, 0.5]];
+const SHAFTS = [[DOOR[0] + 0.2, DOOR[1] - 1.2, 1.3, 0.9], [1.2, 2.5, 1.5, 0.8], [LOOPS[0][0] - 3, LOOPS[0][1] + 2, 2.4, 0.7], [-23, 0, 1.8, 0.7], [-2, -15, 1.3, 0.6], [-20, -36, 1.7, 0.5]];
 const ss = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
 const wrapA = (a) => a - TAU * Math.round(a / TAU);
@@ -23,7 +24,7 @@ function segD(x, z, a, b) {
   return Math.hypot(x - a[0] - vx * h, z - a[1] - vz * h);
 }
 function pathDist(x, z) {
-  let d = 1e9;
+  let d = Math.min(segD(x, z, SPUR[0], SPUR[1]), segD(x, z, SPUR[1], SPUR[2])) + 0.3;
   for (let i = 0; i < PATH.length - 1; i++) d = Math.min(d, segD(x, z, PATH[i], PATH[i + 1]));
   return d;
 }
@@ -63,7 +64,7 @@ export default {
   poses: [
     { pos: hp(3.2, 10.5, 1.6), yaw: yawTo(3.2, 10.5, -1, -8), pitch: -0.03, t: 14 },
     { pos: hp(1.5, -17.5, 1.7), yaw: yawTo(1.5, -17.5, -8.5, -28), pitch: 0.16, t: 22 },
-    { pos: hp(HLOG[0] - 1.9, HLOG[1] + 2.3, 0.95), yaw: yawTo(HLOG[0] - 1.9, HLOG[1] + 2.3, HLOG[0] + 0.2, HLOG[1] - 0.1), pitch: -0.24, t: 31 },
+    { pos: hp(HLOG[0] - 1.9, HLOG[1] + 2.3, 0.95), yaw: yawTo(HLOG[0] - 1.9, HLOG[1] + 2.3, HLOG[0] + 0.2, HLOG[1] - 0.1), pitch: -0.24, t: 75 },
     { pos: hp(WCAM[0], WCAM[1], 1.7), yaw: yawTo(WCAM[0], WCAM[1], -33, -3), pitch: 0.09, t: 40 },
     { pos: hp(DCAM[0], DCAM[1], 1.7), yaw: yawTo(DCAM[0], DCAM[1], DP[0], DP[1]), pitch: 0.16, t: 30 },
     { pos: hp(5.2, 16.4, 1.6), yaw: yawTo(5.2, 16.4, DOOR[0] + 0.5, DOOR[1]), pitch: -0.03, t: 18 },
@@ -73,12 +74,12 @@ export default {
   doors: [{ pos: [DOOR[0], null, DOOR[1]], yaw: Math.PI, to: 'meadow' }],
   bounds: { center: [0, 0, -10], radius: 78 },
   env: {
-    sunDir: [-0.35, 0.8, -0.48], sunColor: [0.15, 0.3, 0.42], fogColor: [0.01, 0.026, 0.036], fogDensity: 0,
-    ambientSky: [0.015, 0.034, 0.054], ambientGround: [0.009, 0.018, 0.018],
+    sunDir: [-0.35, 0.8, -0.48], sunColor: [0.16, 0.3, 0.44], fogColor: [0.012, 0.028, 0.042], fogDensity: 0,
+    ambientSky: [0.022, 0.046, 0.08], ambientGround: [0.013, 0.025, 0.034],
   },
   post: { exposure: 1.55, bloom: 0.36, bloomThreshold: 0.9, bloomKnee: 0.6, vignette: 0.32, saturation: 1.08, contrast: 1.08 },
   clearColor: [0.006, 0.015, 0.018],
-  doorLight: [0.14, 0.2, 0.2],
+  doorLight: [0.05, 0.085, 0.08],
   fov: 64,
 
   hAt(x, z) {
@@ -123,7 +124,7 @@ export default {
     const TN = 256, hh = new Uint16Array(TN * TN * 2);
     for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) {
       const x = ((i + 0.5) / TN - 0.5) * WSIZE, z = ((j + 0.5) / TN - 0.5) * WSIZE;
-      let m = 0.24 + 0.75 * ss(0.0, 0.55, fbm2(x * 0.04 + 3, z * 0.04, 2));
+      let m = 0.4 + 0.75 * ss(0.0, 0.55, fbm2(x * 0.04 + 3, z * 0.04, 2)) + 0.55 * ss(3, 0.6, pathDist(x, z));
       for (const s of SHAFTS) m += Math.exp(-((x - s[0]) ** 2 + (z - s[1]) ** 2) / (s[2] * s[2] * 2.5)) * s[3] * 1.6;
       hh[(j * TN + i) * 2] = toHalf(this.hAt(x, z)); hh[(j * TN + i) * 2 + 1] = toHalf(m);
     }
@@ -197,7 +198,7 @@ export default {
     }
     const logI = [], mush = [], shf = [], ferns = [], tf = [], rocks = [];
     this.logCol = new Float32Array(logs.length * 4);
-    const addMush = (x, z, s, dy = 0, st = 1) => { mush.push(...inst(x, z, s, 2, dy - 0.01)); emit.push(x, z, MINT[0] * 0.5 * st, MINT[1] * 0.5 * st, MINT[2] * 0.5 * st, 1.1 + 0.5 * s); };
+    const addMush = (x, z, s, dy = 0, st = 1) => { mush.push(...inst(x, z, s, 2, dy - 0.01)); emit.push(x, z, MINT[0] * 0.8 * st, MINT[1] * 0.8 * st, MINT[2] * 0.8 * st, 1.0 + 0.45 * s); };
     logs.forEach(([x, z, yaw], i) => {
       logI.push(...inst(x, z, 1, 0, -0.06, yaw));
       const cx = Math.cos(yaw), sz = -Math.sin(yaw);       // rotY(yaw) maps local +X to (cos, 0, -sin)
@@ -234,19 +235,19 @@ export default {
     }
     // door: fungi and stones at its foot, ferns framing it
     for (const sd of [-1, 1]) {
-      addMush(DOOR[0] + sd * 0.95, DOOR[1] + 0.2, 1.3, 0, 1.3); addMush(DOOR[0] + sd * 1.25, DOOR[1] - 0.5, 1.0);
+      addMush(DOOR[0] + sd * 1.35, DOOR[1] + 0.45, 1.2, 0, 1.3); addMush(DOOR[0] + sd * 1.9, DOOR[1] - 0.9, 0.9);
       ferns.push(...inst(DOOR[0] + sd * 1.7, DOOR[1] + 0.5, 1.5, 2, -0.04), ...inst(DOOR[0] + sd * 2.4, DOOR[1] - 0.6, 1.2, 2, -0.04));
-      rocks.push(...inst(DOOR[0] + sd * 1.05, DOOR[1] + 0.05, 0.3, 0, -0.1), ...inst(DOOR[0] + sd * 1.5, DOOR[1] - 0.25, 0.22, 0, -0.07), ...inst(DOOR[0] + sd * (2.6 + sd * 0.3), DOOR[1] + 0.9, 0.55, 0, -0.2));
+      rocks.push(...inst(DOOR[0] + sd * 0.98, DOOR[1] + 0.05, 0.34, 0, -0.06), ...inst(DOOR[0] + sd * 1.45, DOOR[1] - 0.35, 0.24, 0, -0.04), ...inst(DOOR[0] + sd * (2.6 + sd * 0.3), DOOR[1] + 0.9, 0.55, 0, -0.2));
     }
     // undergrowth: ferns around trunks and stones, tufts, mossy rocks
     const okSpot = (x, z, rp) => pathDist(x, z) > rp && dDoor(x, z) > 1.8 && clearOf(x, z, 0.9) && Math.hypot(x, z + 10) < 76;
-    for (let i = 0; i < [420, 800, 1150][q]; i++) {
+    for (let i = 0; i < [600, 1200, 1700][q]; i++) {
       let x, z;
       if (R() < 0.6) { const t = trees[R() * trees.length | 0], a = R() * TAU, r = (1.2 + R() * 4.5) * t[2]; x = t[0] + Math.cos(a) * r; z = t[1] + Math.sin(a) * r; }
       else { const a = R() * TAU, r = Math.sqrt(R()) * 60; x = Math.cos(a) * r; z = -8 + Math.sin(a) * r; }
       if (!okSpot(x, z, 1.5)) continue;
       const big = R();
-      ferns.push(...inst(x, z, 0.55 + big * big * 1.25, 2, -0.04));
+      ferns.push(...inst(x, z, 0.4 + big * big * big * 1.4, 2, -0.04));
     }
     this.fernCat = this.cat(ctx, this.mesh(ctx, fern(1)), null, ferns, 1.4, 46, 99);
     for (let i = 0; i < [500, 1000, 1500][q]; i++) {
@@ -255,10 +256,10 @@ export default {
       for (let j = 0; j < 2; j++) { const px = x + (R() - 0.5) * 0.9, pz = z + (R() - 0.5) * 0.9; tf.push(...inst(px, pz, 0.45 + R() * 0.7, 2)); }
     }
     this.tuftCat = this.cat(ctx, this.mesh(ctx, tuft(2)), null, tf, 0.5, 22, 99);
-    for (let i = 0; i < [110, 190, 260][q]; i++) {
+    for (let i = 0; i < [220, 420, 600][q]; i++) {
       const a = R() * TAU, r = Math.sqrt(R()) * 70, x = Math.cos(a) * r, z = -8 + Math.sin(a) * r;
       if (!okSpot(x, z, 1.6)) continue;
-      const big = R(), sc = 0.12 + big * big * big * 1.3;
+      const big = R(), sc = 0.07 + big * big * big * big * 1.35;
       if (sc > 0.5 && !clearOf(x, z, 3)) continue;
       rocks.push(x, this.hAt(x, z) - sc * 0.4, z, sc, R() * TAU, 0, R(), 0);
       if (sc > 0.6) { emit.push(x, z, 0, 0, -0.5, sc * 1.5); if (R() < 0.6) addMush(x + sc * 0.9, z + (R() - 0.5), 1 + R()); }
@@ -300,10 +301,10 @@ export default {
     this.U = new Float32Array(232);
     this.ub = ctx.buffer(928, 'uniform');
     const U = this.U;
-    U.set([1, 0.022, 0.006, 1.4], 0);
+    U.set([1, 0.03, 0.0075, 1.15], 0);
     SHAFTS.forEach((s, i) => U.set(s, 4 + i * 4));
     U.set([DOOR[0], this.hAt(DOOR[0], DOOR[1]), DOOR[1], 0], 28);
-    for (let i = 0; i < 16; i++) { U[32 + i * 4 + 3] = i < 2 ? 5.5 : i < 8 ? 2.6 : 3.6; U.set(i < 2 ? [0.3, 0.45, 0.5] : i < 8 ? [1.0, 0.6, 0.2] : [0.3, 0.42, 0.48], 96 + i * 4); }
+    for (let i = 0; i < 16; i++) { U[32 + i * 4 + 3] = i < 2 ? 3.6 : i < 8 ? 2.6 : 3.6; U.set(i < 2 ? [0.55, 0.8, 0.85] : i < 8 ? [1.0, 0.6, 0.2] : [0.3, 0.42, 0.48], 96 + i * 4); }
     const lin = dev.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
     const rep = dev.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'repeat', addressModeV: 'repeat' });
     this.cL = ctx.layout(['uniform', 'texture', 'texture', 'texture', 'sampler', 'sampler']);
@@ -379,7 +380,7 @@ export default {
       const y = this.hAt(x, z);
       U[160 + o] = x; U[161 + o] = y - 0.02; U[162 + o] = z; U[163 + o] = yaw;
       U[168 + o] = S[o + 2]; U[169 + o] = s / 1.7; U[170 + o] = 1 - 0.94 * S[o + 1]; U[171 + o] = 0.85 + 0.15 * Math.sin(t * 0.5 + i) + 0.35 * S[o + 1];
-      U[32 + o] = x; U[33 + o] = y + 1.7; U[34 + o] = z;
+      U[32 + o] = x; U[33 + o] = y + 0.7; U[34 + o] = z;
       if (au && S[o + 1] > 0.5 && S[o + 3] === 0) { S[o + 3] = 1; this.chime(au, x, y + 2.5, z); }
       if (S[o + 1] < 0.15) S[o + 3] = 0;
     }
@@ -454,7 +455,7 @@ export default {
     p = enc.beginRenderPass(this.passB);
     p.setViewport(0, 0, w, h, 0, 1); p.setScissorRect(0, 0, w, h);
     p.setBindGroup(0, ctx.globalsBindGroup); p.setBindGroup(1, this.cBG);
-    p.setPipeline(this.pHalo); p.draw(6, 11);
+    p.setPipeline(this.pHalo); p.draw(6, 35);
     p.setPipeline(this.pWisp); p.draw(6, 8);
     p.setPipeline(this.pFly); p.draw(6, this.nFly);
     p.end();

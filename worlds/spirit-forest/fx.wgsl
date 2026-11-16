@@ -31,7 +31,7 @@ struct FO { @builtin(position) pos: vec4f };
     let l = lmAt(q.xz).rgb;
     gs += l * exp(-max(q.y - gy + 0.3, 0.0) * 0.4);
   }
-  gs *= L / 2.0 * (M + U.misc.z * 4.0) * 0.14 * U.misc.w;
+  gs *= L / 2.0 * (M + U.misc.z * 4.0) * 0.08 * U.misc.w;
   let mu = dot(rd, G.sunDir);
   var inscat = G.fogColor * (1.0 - T) * (1.0 + 1.6 * phaseHG(mu, 0.6) * U.misc.x) + gs;
   // moon shafts: soft columns of light along the moon direction
@@ -51,15 +51,15 @@ struct FO { @builtin(position) pos: vec4f };
     let fall = smoothstep(-2.0, 3.0, hgt) * (1.0 - smoothstep(9.0, 17.0, hgt));
     sh += exp(-off * off / (s.z * s.z)) * s.w * fall * (0.6 + 0.8 * nB.z) / sqrt(den) * smoothstep(1.5, 6.0, tr);
   }
-  inscat += vec3f(0.4, 0.75, 0.8) * sh * 0.05 * U.misc.x;
+  inscat += vec3f(0.4, 0.75, 0.8) * sh * 0.11 * U.misc.x;
   let k2 = 1.0 - G.transition;
   return vec4f(inscat * k2, (1.0 - T) * k2);
 }
 
 // ---------------- spirit beings (additive shells) ----------------
 struct BV {
-  @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f,
-  @location(3) at: vec4f, @location(4) @interpolate(flat) k: f32,
+  @invariant @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f,
+  @location(3) at: vec4f, @location(4) @interpolate(flat) k: f32, @location(5) @interpolate(flat) gy: f32,
 };
 @vertex fn vsDeer(v: VI, @builtin(instance_index) ii: u32) -> BV {
   let D = U.deer[ii]; let B = U.deerB[ii];
@@ -74,7 +74,7 @@ struct BV {
   lp = piv + Rh * (lp - piv); n = Rh * n;
   lp.y -= v.at.z * 0.1 * abs(B.x);
   let R = rotY(D.w);
-  var o: BV; o.w = D.xyz + R * (lp * 1.08); o.n = R * n; o.uv = v.uv; o.at = v.at; o.k = B.w;
+  var o: BV; o.w = D.xyz + R * (lp * 1.08); o.n = R * n; o.uv = v.uv; o.at = v.at; o.k = B.w; o.gy = D.y;
   o.pos = G.viewProj * vec4f(o.w, 1.0);
   return o;
 }
@@ -84,19 +84,20 @@ struct BV {
   if (v.at.x > 13.5) { lp += vec3f(sin(t * 1.1 + v.at.y * 4.0 + v.at.z * 6.0 + ph), 0.0, cos(t * 0.9 + v.at.y * 3.0 + ph)) * 0.07 * v.at.y; }
   let tilt = rotZ(sin(t * 0.6 + ph) * 0.12);
   let R = rotY(Lr.w);
-  var o: BV; o.w = Lr.xyz + R * (tilt * lp) * 1.25; o.n = R * (tilt * v.n); o.uv = v.uv; o.at = v.at; o.k = 1.0;
+  var o: BV; o.w = Lr.xyz + R * (tilt * lp) * 1.25; o.n = R * (tilt * v.n); o.uv = v.uv; o.at = v.at; o.k = 1.0; o.gy = Lr.y;
   o.pos = G.viewProj * vec4f(o.w, 1.0);
   return o;
 }
 // depth-only layer so the additive shell shows just its nearest surface (legs, tails and ribbons stay see-through)
 @fragment fn fsBeingZ(in: BV) -> @location(0) vec4f {
-  if ((in.at.x > 10.5 && in.at.x < 11.5 && in.at.y > 0.3) || in.at.x > 13.5) { discard; }
+  if ((in.at.x > 10.5 && in.at.x < 11.5 && in.at.y > 0.3) || in.at.x > 13.5 || (in.at.x < 10.5 && in.at.w > 0.5)) { discard; }
   return vec4f(0.0);
 }
 @fragment fn fsBeing(in: BV, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
-  let n = normalize(in.n);
   let V = normalize(G.camPos - in.w);
-  let ndv = abs(dot(n, V));
+  let l2 = dot(in.n, in.n);
+  let n = select(V, in.n * inverseSqrt(max(l2, 1e-12)), l2 > 1e-8);
+  let ndv = min(abs(dot(n, V)), 1.0);
   let fr = pow(1.0 - ndv, 1.4);
   let m = in.at.x;
   var c: vec3f;
@@ -107,13 +108,13 @@ struct BV {
     let mote = exp(-dot(fract(q) - 0.5, fract(q) - 0.5) * 40.0) * step(0.93, u2f(hsh)) * (0.5 + 0.5 * sin(G.time * 0.8 + u2f(pcg(hsh)) * 40.0));
     let hv = (in.at.y - 0.78) / 0.25;
     let heart = exp(-hv * hv) * step(m, 10.5) * step(in.at.z, 0.001);
-    c = mix(SPIRIT, vec3f(0.75, 1.0, 0.85), heart) * (0.13 + 0.1 * heart + 0.12 * fr * fr) + vec3f(0.8, 1.0, 0.9) * mote * 0.1;
+    c = SPIRIT * (0.11 + 0.03 * fr + 0.1 * smoothstep(1.2, 3.6, in.w.y - in.gy)) + vec3f(0.8, 1.0, 0.9) * mote * 0.1;
     // a soft warm eye on each side of the head
-    if (in.at.z > 0.99 && in.at.y > 1.5) {
+    if (in.at.z > 0.99 && in.at.y > 1.5 && in.at.w < 0.5) {
       let du = abs(fract(in.uv.x + 0.25) - 0.5) - 0.22;
-      c += vec3f(1.0, 0.85, 0.55) * exp(-((in.uv.y - 0.3) * (in.uv.y - 0.3) * 500.0 + du * du * 700.0)) * 0.6;
+      c += vec3f(1.0, 0.85, 0.55) * exp(-((in.uv.y - 0.32) * (in.uv.y - 0.32) * 900.0 + du * du * 1400.0)) * 0.9;
     }
-    if (m > 10.5) { c *= smoothstep(1.0, 0.3, in.at.y); }
+    if (m > 10.5) { c *= smoothstep(1.25, 0.45, in.at.y); }
   } else if (m < 12.5) {
     // antlers: pale gold, hot at the tips
     let tip = in.at.w;
@@ -126,7 +127,7 @@ struct BV {
   } else {
     c = mix(AMBER, vec3f(1.0, 0.9, 0.6), in.at.y) * (1.0 - in.at.y) * 0.25 * (1.0 - in.uv.x * in.uv.x);
   }
-  return vec4f(glow(c * in.k) * (1.0 - G.transition), 0.0);
+  return vec4f(glow(max(c, vec3f(0.0)) * in.k) * (1.0 - G.transition), 0.0);
 }
 
 // ---------------- soft billboards: halos, wisps ----------------
@@ -140,9 +141,20 @@ struct BO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
     wp = D.xyz + vec3f(0.0, 2.5, 0.0); sz = 3.4; col = SPIRIT * 0.035 * U.deerB[ii].w;
   } else if (ii < 8u) {
     wp = U.lan[ii - 2u].xyz; sz = 1.0; col = AMBER * 0.1;
-  } else {
+  } else if (ii < 11u) {
     let W = WIL[ii - 8u];
     wp = vec3f(W.x, W.y + 4.5 * W.w, W.z); sz = 9.5 * W.w; col = WILLOW * 0.022 * (0.8 + 0.25 * pulse(wp));
+  } else {
+    // motes rising around the deer's feet
+    let k = ii - 11u; let D = U.deer[k & 1u];
+    let h = hash3u(vec3u(k, 7u, 19u));
+    let life = fract(h.z + G.time * (0.06 + 0.05 * h.x));
+    let a = h.x * TAU + G.time * 0.1;
+    wp = D.xyz + vec3f(cos(a) * (0.3 + 1.1 * h.y), 0.05 + life * 1.5, sin(a) * (0.3 + 1.1 * h.y));
+    sz = 0.05 + 0.04 * h.y; col = SPIRIT * 1.5 * sin(PI * life);
+    o.pos = G.viewProj * vec4f(billboard(wp, c, vec2f(sz)), 1.0);
+    o.col = col * fxFog(wp);
+    return o;
   }
   o.pos = G.viewProj * vec4f(billboard(wp, c, vec2f(sz)), 1.0);
   o.col = col * fxFog(wp) * smoothstep(sz * 0.5, sz * 1.5, distance(wp, G.camPos));
@@ -176,9 +188,9 @@ struct BO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let head = exp(-r2 * 26.0);
   // two soft eyes, visible only when close
   let ex = abs(hd.x) - 0.075;
-  let eye = exp(-(ex * ex + (hd.y - 0.02) * (hd.y - 0.02) * 0.6) * 900.0) * smoothstep(22.0, 9.0, in.k.y);
-  let halo = pow(max(1.0 - dot(q, q), 0.0), 3.0) * 0.14;
-  let body = (head * 1.5 + tail * 0.55) * (1.0 - 0.85 * eye);
+  let eye = exp(-(ex * ex + (hd.y - 0.02) * (hd.y - 0.02) * 0.6) * 700.0) * smoothstep(22.0, 9.0, in.k.y);
+  let halo = pow(max(1.0 - dot(q, q), 0.0), 3.0) * 0.2;
+  let body = (head * 0.62 + tail * 0.4) * (1.0 - 0.9 * eye);
   return vec4f(glow(in.col * body) + in.col * halo, 0.0);
 }
 
@@ -196,7 +208,7 @@ struct FV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let c = quadC(vi);
   let h = hash3u(vec3u(ii, 17u, 3u)); let h2 = hash3u(vec3u(ii, 5u, 91u));
   let t = G.time;
-  let TR = 0.6;
+  let TR = 0.28;
   let B = flyPos(h, h2, t); let A = flyPos(h, h2, t - TR);
   let d = distance(B, G.camPos);
   let size = 0.028 + 0.03 * h2.z * h2.z;
@@ -215,7 +227,7 @@ struct FV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   o.k = vec4f(L / sz, t / per + h.x * 7.0, TR / per, t * 0.22 - dot(B.xz, vec2f(0.6, 0.8)) * 0.035);
   o.s = sync;
   let a = smoothstep(2.0, 6.0, d) * (1.0 - smoothstep(24.0, 30.0, d)) * env * min(1.0, pow(size * 3.2 / sz, 1.5)) * mix(1.0, 1.6, sync);
-  o.col = mix(vec3f(1.0, 0.85, 0.2), vec3f(0.55, 1.0, 0.25), h2.y) * 2.4 * a * fxFog(B);
+  o.col = mix(vec3f(1.0, 0.62, 0.14), vec3f(0.6, 1.0, 0.25), smoothstep(0.1, 0.8, h2.y)) * 2.4 * a * fxFog(B);
   o.pos = G.viewProj * vec4f(wp, 1.0);
   return o;
 }
@@ -233,6 +245,6 @@ fn flash(ph: f32) -> f32 { let f = fract(ph); return smoothstep(0.0, 0.1, f) * (
   b0 = mix(b0, max(b0 * 0.4, s3), in.s); bt = mix(bt, max(bt * 0.4, s3), in.s);
   let r2 = dot(hd, hd);
   let core = exp(-r2 * 28.0) + exp(-r2 * 5.0) * 0.12 * max(1.0 - r2, 0.0);
-  let trail = exp(-d2 * 30.0) * u * u * 0.22 * step(1e-3, L);
+  let trail = exp(-d2 * 30.0) * u * u * 0.1 * step(1e-3, L);
   return vec4f(in.col * (core * b0 + trail * bt), 0.0);
 }

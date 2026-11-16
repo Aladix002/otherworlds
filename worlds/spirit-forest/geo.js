@@ -173,7 +173,7 @@ export function mushrooms(seed) {
   const R = makeRng(seed * 53 + 7), g = new Geo(), n = 6 + (R() * 4 | 0);
   for (let k = 0; k < n; k++) {
     const a = R() * TAU, r = Math.sqrt(R()) * 0.22, bx = Math.cos(a) * r, bz = Math.sin(a) * r, big = R(), h = 0.06 + big * 0.2, cr = 0.022 + big * 0.04, lr = R();
-    const lx = (R() - 0.5) * 0.12, lz = (R() - 0.5) * 0.12;
+    const lx = (R() - 0.5) * 0.22, lz = (R() - 0.5) * 0.22;
     const P = (s) => [bx + lx * s * s, h * s - 0.02, bz + lz * s * s];
     g.tube(5, 4, P, () => 0.009 + cr * 0.12, (s) => [5, 0, s, lr]);
     const t = P(1), ch = cr * (0.7 + R() * 0.5);
@@ -187,11 +187,13 @@ export function mushrooms(seed) {
 
 export function shelf(seed) {
   const R = makeRng(seed * 17 + 3), g = new Geo();
-  for (let k = 0; k < 4; k++) {
-    const y = k * 0.26 + R() * 0.08, rad = 0.22 + R() * 0.16, off = (R() - 0.5) * 0.35, lr = R();
+  let y = 0;
+  for (let k = 0; k < 3 + (seed & 1); k++) {
+    const rad = 0.14 + R() * R() * 0.34, off = (R() - 0.5) * 0.9, lr = R(), tilt = (R() - 0.5) * 0.5, ex = 0.9 + R() * 0.6;
+    y += 0.1 + R() * 0.3;
     for (const top of [1, 0]) g.surf(9, 4, (u, w) => {
-      const th = (u - 0.5) * Math.PI * (top ? 1 : -1), rr = rad * w * (1 + 0.07 * Math.cos(th * 7));
-      return [off + Math.sin(th) * rr * 1.25, y + (top ? 0.4 * rad * (1 - w * w) : -0.08 * rad * (1 - w)), Math.cos(th) * rr - 0.03, u, w, 6, top, w, lr];
+      const th = (u - 0.5) * Math.PI * (top ? 1 : -1), rr = rad * w * (1 + 0.1 * Math.cos(th * 5 + lr * 9)), x = Math.sin(th) * rr * ex;
+      return [off + x, y + x * tilt + (top ? 0.4 * rad * (1 - w * w) : -0.08 * rad * (1 - w)), Math.cos(th) * rr - 0.05 - 0.12 * Math.abs(off), u, w, 6, top, w, lr];
     });
   }
   return g.build();
@@ -219,24 +221,25 @@ export function tuft(seed) {
 // attr = [part, v, head-turn weight, extra]
 export function deer() {
   const g = new Geo(), gs = (s, c, w) => Math.exp(-(((s - c) / w) ** 2));
-  g.tube(16, 18, (s) => [0, 2.0 + 0.12 * s + 0.05 * Math.sin(Math.PI * s), 0.95 - 1.8 * s],
-    (s, th) => (0.08 + 0.22 * gs(s, 0.2, 0.28) + 0.27 * gs(s, 0.8, 0.25)) * Math.pow(Math.sin(Math.PI * (0.02 + 0.96 * s)), 0.45) * (1 - 0.2 * Math.cos(2 * th)), (s) => [10, s, 0, 0]);
-  g.tube(12, 12, (s) => [0, 2.2 + 1.24 * s, -0.7 - 0.38 * Math.sin(s * 2.2) + 0.1 * s], (s, th) => (0.15 * Math.pow(1 - s, 1.5) + 0.1) * (1 - 0.12 * Math.cos(2 * th)), (s) => [10, 2, s, 0]);
-  g.tube(12, 10, (s) => [0, 3.46 - 0.27 * s - 0.05 * s * s, -0.9 - 0.74 * s], (s, th) => (0.045 + 0.095 * Math.pow(1 - s, 0.8)) * Math.min(1, 0.35 + s * 6) * (s > 0.96 ? 0.6 : 1) * (1 - 0.14 * Math.cos(2 * th)), (s) => [10, 2, 1, 0]);
+  g.tube(16, 22, (s) => [0, 2.0 + 0.12 * s + 0.05 * Math.sin(Math.PI * s), 0.95 - 1.8 * s],
+    (s, th) => (0.08 + 0.22 * gs(s, 0.2, 0.28) + 0.27 * gs(s, 0.8, 0.25)) * Math.pow(Math.sin(Math.PI * (0.0005 + 0.999 * s)), 0.45) * (1 - 0.2 * Math.cos(2 * th)), (s) => [10, s, 0, 0]);
+  g.tube(12, 12, (s) => [0, 2.12 + 1.32 * s, -0.62 - 0.46 * Math.sin(s * 2.2) + 0.1 * s], (s, th) => (0.13 * Math.pow(1 - s, 1.2) + 0.1) * (1 - 0.12 * Math.cos(2 * th)), (s) => [10, 2, s, 0]);
+  g.tube(12, 14, (s) => [0, 3.46 - 0.27 * s - 0.05 * s * s, -0.9 - 0.74 * s], (s, th) => (0.04 + 0.1 * Math.pow(1 - s, 0.9)) * Math.pow(Math.sin(Math.PI * Math.min(0.9995, 0.0005 + 0.98 * s)), 0.35) * (1 - 0.14 * Math.cos(2 * th)), (s) => [10, 2, 1, 0]);
   for (let k = 0; k < 3; k++) g.surf(2, 9, (u, s) => [(k - 1) * 0.07 * (1 + 2 * s) + (u - 0.5) * 0.07 * (1 - 0.8 * s), 2.12 - 0.25 * s - 0.75 * s * s + 0.06 * Math.sin(s * 5 + k), 0.92 + 0.75 * s + 0.1 * Math.sin(s * 4 + k * 2), u, s, 11, 0.25 + 0.75 * s, 0, 0.3 + 0.1 * k]);
   for (const sd of [-1, 1]) {
-    g.surf(3, 5, (u, v) => { const x = (u * 2 - 1) * 0.065 * Math.sin(Math.PI * Math.pow(v, 0.6)); return [sd * (0.09 + 0.27 * v), 3.47 + 0.16 * v + Math.abs(x) * 0.5, -0.88 + 0.16 * v + x, u, v, 10, 2, 1, 0]; });
+    g.surf(3, 5, (u, v) => { const x = (u * 2 - 1) * 0.065 * Math.sin(Math.PI * Math.pow(v, 0.6)); return [sd * (0.09 + 0.27 * v), 3.47 + 0.16 * v + Math.abs(x) * 0.5, -0.88 + 0.16 * v + x, u, v, 10, 2, 1, 1]; });
     const beam = (s) => [sd * (0.06 + 0.25 * s + 0.75 * s * s), 3.52 + 1.6 * s - 0.4 * s * s, -0.93 + 0.6 * s - 0.55 * s * s];
     g.tube(5, 14, beam, (s) => 0.038 * (1 - 0.8 * s) + 0.007, (s) => [12, s, 1, s * s]);
-    [0.16, 0.34, 0.52, 0.7, 0.86].forEach((s0, i) => {
-      const b = beam(s0), L = 0.62 - 0.07 * i;
-      const tine = (s) => [b[0] + sd * (0.22 * s - 0.3 * s * s) * L, b[1] + L * (0.85 * s + 0.2 * s * s), b[2] - L * (0.55 * s + 0.1 * s * s)];
+    const AR = makeRng(sd > 0 ? 71 : 37);
+    [0.14, 0.3, 0.5, 0.64, 0.83].forEach((s1, i) => {
+      const s0 = s1 + (AR() - 0.5) * 0.08, b = beam(s0), L = (0.7 - 0.09 * i) * (0.75 + AR() * 0.5), lean = 0.3 + AR() * 0.5, out = (AR() - 0.3) * 0.5, cv = AR() * 0.4;
+      const tine = (s) => [b[0] + sd * (out * s - cv * s * s) * L, b[1] + L * ((1 - lean * 0.4) * s + 0.15 * s * s), b[2] - L * (lean * s + cv * 0.5 * s * s)];
       g.tube(4, 7, tine, (s) => 0.024 * (1 - 0.8 * s) + 0.005, (s) => [12, s0, 1, 0.25 + 0.75 * s]);
-      if (i < 3) { const f = tine(0.5); g.tube(4, 4, (s) => [f[0] - sd * 0.16 * s * L, f[1] + 0.3 * s * L, f[2] + 0.12 * s * L], (s) => 0.014 * (1 - 0.7 * s) + 0.004, (s) => [12, s0, 1, 0.5 + 0.5 * s]); }
+      if (AR() < 0.65) { const f = tine(0.35 + AR() * 0.3), fl = 0.18 + AR() * 0.2; g.tube(4, 4, (s) => [f[0] - sd * 0.5 * s * fl, f[1] + s * fl, f[2] + (AR() < 2 ? 0.4 : 0) * s * fl], (s) => 0.014 * (1 - 0.7 * s) + 0.004, (s) => [12, s0, 1, 0.5 + 0.5 * s]); }
     });
     [[-0.58, 0], [0.7, 0.5]].forEach(([hz, ph], i) => {
       g.tube(8, 14, (s) => [sd * (0.12 + 0.015 * s), 2.02 - 2.02 * s, hz + (i ? -0.13 * Math.sin(5.3 * s) * (1 - 0.3 * s) : -0.05 * Math.sin(Math.PI * s))],
-        (s) => 0.085 * Math.exp(-s * 5) + 0.04 * (1 - s) + 0.02 + 0.014 * gs(s, i ? 0.55 : 0.5, 0.06), (s) => [11, s, 0, sd > 0 ? ph : ph + 0.5]);
+        (s) => 0.085 * Math.exp(-s * 5) + 0.04 * (1 - s) + 0.02 + 0.014 * gs(s, i ? 0.55 : 0.5, 0.06) + 0.022 * gs(s, 0.97, 0.035), (s) => [11, s, 0, sd > 0 ? ph : ph + 0.5]);
     });
   }
   return g.build();

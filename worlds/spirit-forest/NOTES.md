@@ -24,7 +24,7 @@ around `lanHome`; wisps hover at `wispHome` and back away when approached; wisp 
 `env.fogDensity` is 0: all fog comes from the mist pass. Moonlight is modulated by the baked moon map (hmap.g: noise dapples +
 `SHAFTS` spots); the same `SHAFTS` drive the volumetric columns. Emitters (fungi, willows) are splatted into the lightmap
 (rgb, tone-compressed) and trunk/log/rock occlusion into its alpha. `U.misc` = (moon, mist density, haze density, glow gain).
-Post: exposure 1.55, bloom 0.36 / threshold 0.9.
+Post: exposure 1.55, bloom 0.36 / threshold 0.9. A worn track (`SPUR`) leads from the path to the door; the open doorway lights the threshold (`spill` in `fsTerrain`).
 
 ## Spirits
 Deer: position is a pure function of time along its loop minus a `lag` that grows while it is watching the visitor (within
@@ -34,6 +34,12 @@ Beings are additive shells; a depth-only layer (`fsBeingZ`) hides inner surfaces
 ## Perf (Medium, 1080p)
 ~6.5–7 ms GPU at scale 1 along the fly-through when the iGPU is free (probe). Counts per quality in `init` (trees, ferns, tufts,
 rocks, logs, fireflies). Foliage cards run the leaf pattern only within 16 m; beyond that they are solid with a ragged noise edge.
+
+## Critic round 1 changes
+Cooler blue-teal palette with desaturated moss, dark-earth patches and macro colour variation; paler moonlit path; bark with moss
+only on upper surfaces; foliage cards with per-leaf tone, pale translucent edges and a dithered far edge; fibre-like moss beards;
+stronger shafts and mist; deer with closed, uniformly lit body (no seams), jittered antlers, hooves, motes and a light pool at its
+feet; thinner tapering willow strands; asymmetric shelf brackets; rounder fireflies with amber-to-green hue; dimmer wisp cores.
 
 ## Known issues / next
 Foliage cards are flat; far crowns read as soft blobs. Deer legs only swing (no real gait). Wisps are billboards.
