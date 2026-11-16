@@ -463,23 +463,23 @@ return a;
     a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 1500, q: 0.45, gain: 0.014, mod: 0.5, modRate: 0.05, bus: Z[0] });
     a.noiseBed({ color: 'brown', freq: 420, gain: 0.03, gainMod: 0.8, modRate: 0.07, bus: Z[0] });
     a.every(1.2, 4.5, (when) => a.chirp({ f0: 420 + r() * 380, f1: 1100 + r() * 700, dur: 0.05 + r() * 0.04, repeat: 1 + Math.floor(r() * 3), gap: 0.05 + r() * 0.08, vib: 0, gain: 0.007, when, bus: pick(0) }));
-    a.pad({ chords: [[62, 66, 69, 73], [59, 64, 66, 71], [57, 61, 64, 69], [64, 68, 71, 76], [61, 64, 68, 73]], gain: 0.014, cutoff: 1700, change: [16, 30], bus: Z[0] });
+    a.pad({ chords: [[54, 57, 61, 64], [59, 63, 66, 68], [52, 56, 59, 61], [56, 59, 61, 64]], gain: 0.012, cutoff: 1500, change: [16, 30], bus: Z[0] });
     // kelp: deeper current, wood-like creaks of stipes, a far whale call
     a.noiseBed({ color: 'brown', freq: 150, q: 0.6, gain: 0.05, mod: 0.5, modRate: 0.04, bus: Z[1] });
     a.every(5, 14, (when) => a.chirp({ f0: 150 + r() * 60, f1: 110 + r() * 30, dur: 0.25 + r() * 0.3, vib: 6, vibRate: 18, gain: 0.006, when, bus: pick(1) }));
     a.every(28, 60, (when) => {
-      const f = 230 + r() * 80;
-      a.chirp({ f0: f, f1: f * (1.3 + r() * 0.4), dur: 2.4 + r() * 1.5, vib: 5, vibRate: 0.9, gain: 0.011, when, bus: pick(1) });
+      const f = a.hz(r.pick([54, 57, 59]));
+      a.chirp({ f0: f, f1: f * (r() < 0.5 ? 1.335 : 1.5), dur: 2.4 + r() * 1.5, vib: 5, vibRate: 0.9, gain: 0.011, when, bus: pick(1) });
       a.chirp({ f0: f * 1.6, f1: f * 1.2, dur: 2.2, vib: 4, vibRate: 0.7, gain: 0.007, when: when + 2.8 + r(), bus: pick(1) });
     }, { startDelay: 12 });
-    a.pad({ chords: [[50, 57, 62, 64], [48, 55, 60, 62], [45, 52, 57, 60], [53, 57, 60, 64]], gain: 0.016, cutoff: 900, change: [18, 34], bus: Z[1] });
+    a.pad({ chords: [[42, 49, 54, 56], [40, 47, 52, 54], [45, 49, 52, 57], [47, 51, 54, 59]], gain: 0.014, cutoff: 900, change: [18, 34], bus: Z[1] });
     // deep: low pressure drone, sparse glassy bioluminescent pings
-    a.drone({ freq: a.hz(29), partials: [1, 2, 3.01, 4.53], gain: 0.05, cutoff: 280, bus: Z[2] });
-    const notes = a.scale(81, 'minorPentatonic', 2);
+    a.drone({ freq: a.hz(30), partials: [1, 2, 3.01, 4.53], gain: 0.05, cutoff: 280, bus: Z[2] });
+    const notes = a.scale(78, 'dorian', 2);
     a.every(3, 9, (when) => a.bell({ freq: a.hz(notes[Math.floor(r() * notes.length)]), gain: 0.012, decay: 6 + r() * 3, ratio: 2.76, index: 0.9, when, bus: pick(2) }));
     // positional voices for the new places and creatures
     const sp = (x, y, z, ref) => a.spatial({ pos: [x, y, z], ref, reverb: 0.5 });
-    const lyre = a.scale(62, 'dorian', 2), tho = sp(THO[0], this.T.thoY + 2, THO[1], 7), lan = sp(LAN[0], LAN[1], LAN[2], 5), med = sp(MED[0], MED[1], MED[2], 12);
+    const lyre = a.scale(54, 'dorian', 2), tho = sp(THO[0], this.T.thoY + 2, THO[1], 7), lan = sp(LAN[0], LAN[1], LAN[2], 5), med = sp(MED[0], MED[1], MED[2], 12);
     const eel = sp(this.T.eel[0], this.T.eel[1], this.T.eel[2], 3), dol = this.dol = sp(0, -3, 60, 10);
     // the tholos: a few lyre-like notes, as if the shrine remembered music
     a.every(3, 9, (when) => a.pluck({ freq: a.hz(lyre[Math.floor(r() * lyre.length)]), decay: 2.5, gain: 0.02, when, bus: tho }));
@@ -490,8 +490,43 @@ return a;
     });
     // lantern fish: tiny high chimes. giant medusa: a low soft bell with each slow pulse. moray: a bubble now and then
     a.every(4, 10, (when) => a.bell({ freq: a.hz(notes[Math.floor(r() * notes.length)] + 12), gain: 0.01, decay: 2.5, ratio: 2, index: 0.5, when, bus: lan }));
-    a.every(6, 13, (when) => a.bell({ freq: a.hz(45 + 7 * Math.floor(r() * 2)), gain: 0.02, decay: 8, ratio: 1.5, index: 0.5, when, bus: med }));
+    a.every(6, 13, (when) => a.bell({ freq: a.hz(42 + 7 * Math.floor(r() * 2)), gain: 0.02, decay: 8, ratio: 1.5, index: 0.5, when, bus: med }));
     a.every(5, 12, (when) => a.chirp({ f0: 300 + r() * 200, f1: 900 + r() * 400, dur: 0.07, repeat: 2, gap: 0.09, vib: 0, gain: 0.008, when, bus: eel }));
+    // the signature: a warm FM electric piano (F# dorian) through a wobbling lowpass, one gentle pulse of 56 bpm
+    const M = this.musicBus = a.bus({ gain: 1, reverb: 0.55 }), D = a.scale(54, 'dorian', 3); // F#3 G#3 A3 B3 C#4 D#4 E4 F#4 ...
+    const TEMPO = 56, BEAT = 60 / TEMPO, ep = (m, when, vel = 1, o = {}) => a.epiano({ midi: m, when, vel, gain: 0.05, wobble: 0.6, bus: M, ...o });
+    const MOTIF = [7, 9, 8, 5, 6]; // F#4 A4 G#4 D#... as degrees; a rising-falling figure (5 notes, with long last)
+    const MDUR = [1, 1, 1.5, 1, 3.5];
+    const motif = (when) => {
+      const x = r(), sh = r() < 0.5 ? 0 : r.pick([-3, -2, 2]);
+      let ns = MOTIF.map((d, i) => ({ deg: d + sh, dur: MDUR[i], vel: 0.9 - 0.08 * i }));
+      if (x < 0.25) ns = ns.slice(0, 3).concat([{ rest: 1, dur: 2 }]);
+      else if (x < 0.45) ns[3] = { deg: MOTIF[3] + sh + 2, dur: 1, vel: 0.7 };
+      else if (x < 0.6) ns = [{ rest: 1, dur: 1 }, ...ns];
+      const end = a.phrase({ notes: ns, inst: a.epiano, opts: { gain: 0.05, wobble: 0.6, bus: M }, when, tempo: TEMPO, scale: D });
+      if (r() < 0.4) a.epiano({ midi: D[0] - 12 + (r() < 0.5 ? 0 : 5), when: end - BEAT * 2.5, gain: 0.05, vel: 0.6, bus: M, decay: 3 }); // low answer on the tonic
+    };
+    // a slow comping: a chord rolled on beat 1 and an offbeat-ish echo, mostly rests
+    const CH = [[0, 2, 4, 6], [3, 5, 7, 9], [-2, 0, 2, 4], [1, 3, 5, 7]];
+    const comp = (when) => {
+      const c = r.pick(CH), n = 2 + r.int(2);
+      for (let b = 0; b < n; b++) {
+        const t0 = when + b * BEAT * 4;
+        c.forEach((d, i) => { if (!(b > 0 && r() < 0.3)) ep(D[Math.max(0, d + 3)] , t0 + i * 0.05 + (r() < 0.5 ? 0 : 0.01), 0.55 + r() * 0.2); });
+        if (r() < 0.55) ep(D[c[2] + 4] || D[8], t0 + BEAT * 2.5, 0.5);
+      }
+    };
+    // bubbly little up-arpeggio blips
+    const blips = (when) => {
+      const k = r.int(5), n = 3 + r.int(3), g = 0.07 + r() * 0.05;
+      for (let i = 0; i < n; i++) a.drip({ freq: a.hz(D[k + i * 2 > D.length - 1 ? 0 : k + i * 2] + 12), dir: 1, gain: 0.011, pan: -0.3 + r() * 0.6, reverb: 0.5, when: when + i * g });
+    };
+    let last = 0;
+    a.every(18, 40, (when) => {
+      const x = r();
+      if (x < 0.35 && last !== 1) { motif(when); last = 1; } else if (x < 0.7) { comp(when); last = 2; } else { blips(when); last = 3; }
+    }, { startDelay: 6 });
+    a.every(7, 19, (when) => { if (r() < 0.6) blips(when); }, { startDelay: 12 });
     this.zoneG = [1, 0, 0];
   },
 
