@@ -118,7 +118,7 @@ function pad(R, c, ang, sx, sy, sz, sub, nNeedle) {
         const Q = [[bx - px, by - py, bz - pz], [bx + px, by + py, bz + pz], [bx + ex, by + ey, bz + ez]];
         for (let q = 0; q < 3; q++) {
           n.pos.set(Q[q], k * 3); n.nrm[k * 3] = nx * 0.6; n.nrm[k * 3 + 1] = ny * 0.6 + 0.4; n.nrm[k * 3 + 2] = nz * 0.6;
-          n.uv[k * 2] = (q === 2 ? 0.9 : 0.5) * (0.3 + 0.7 * ss(-0.3, 0.6, dy)); n.uv[k * 2 + 1] = q === 2 ? 3.6 : 3.3; n.idx[k] = k; k++;
+          n.uv[k * 2] = (q === 2 ? 1 : 0.8) * (0.3 + 0.7 * ss(-0.3, 0.6, dy)); n.uv[k * 2 + 1] = q === 2 ? 3.6 : 3.3; n.idx[k] = k; k++;
         }
       }
     }

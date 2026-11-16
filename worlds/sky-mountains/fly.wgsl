@@ -24,9 +24,8 @@ fn flyP(a: vec4f, c: vec4f, ph: f32) -> vec3f {
   var p = v.p; var n = v.n;
   let mat = floor(v.uv.y); let wg = fract(v.uv.y);
   if (mat == 8.0) {                                     // trailing ribbons
-    let k = mix(1.0, 0.3, mt);
-    p.y += k * 0.22 * wg * sin(t * mix(1.0, 3.0, mt) - wg * 5.0 + h * 9.0);
-    p.x += k * 0.15 * wg * sin(t * mix(0.63, 2.1, mt) - wg * 4.0 + h * 5.0);
+    p.y += 0.22 * wg * sin(t - wg * 5.0 + h * 9.0);
+    p.x += 0.15 * wg * sin(t * 0.63 - wg * 4.0 + h * 5.0);
   }
   // wings bend around the body axis, the wave runs out to the tips
   let sx = sign(p.x); let r = abs(p.x);
@@ -63,9 +62,8 @@ fn flyP(a: vec4f, c: vec4f, ph: f32) -> vec3f {
   } else {
     let k = in.k.x;
     let base = select(select(select(vec3f(0.1, 0.28, 0.85), vec3f(0.95, 0.6, 0.08), k < 0.75), vec3f(0.03, 0.5, 0.48), k < 0.5), vec3f(0.9, 0.22, 0.14), k < 0.25);
-    alb = mix(vec3f(0.03, 0.03, 0.05), base, smoothstep(0.2, 0.7, in.m.x));
+    alb = mix(vec3f(0.03, 0.03, 0.05), mix(vec3f(luminance(base)), base, 0.65), smoothstep(0.2, 0.7, in.m.x));
     alb = mix(alb, vec3f(0.9, 0.84, 0.7), (1.0 - smoothstep(-0.03, 0.0, in.l.y)) * (1.0 - step(0.06, abs(in.l.x))));
-    if (in.m.y == 8.0) { alb = mix(base, vec3f(1.0, 0.9, 0.7), in.m.z); tr = 0.7; }
   }
   return vec4f(shade(alb, n, in.w, 1.0, 1.0, tr) + em * atmoT(in.w - G.camPos), 1.0);
 }

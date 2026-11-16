@@ -23,7 +23,7 @@ struct VO {
   return o;
 }
 
-fn shadowAt(p: vec2f) -> f32 { return textureSampleLevel(SM, NS, p / (2.0 * SMR) + 0.5, 0.0).r; }
+fn shadowAt(p: vec2f) -> f32 { return select(1.0, textureSampleLevel(SM, NS, p / (2.0 * SMR) + 0.5, 0.0).r, max(abs(p.x), abs(p.y)) < SMR); }
 // soft sunrise lighting shared by rock and vegetation
 fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f {
   let v = normalize(G.camPos - wp);
@@ -61,6 +61,8 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
   // warm sandstone, gentle contrast; vertical cracks and stains only on the walls
   var alb = mix(vec3f(0.34, 0.285, 0.26), vec3f(0.55, 0.43, 0.33), smoothstep(0.25, 0.75, mix(strata.a, fine.a, wy)));
   alb *= 0.86 + 0.28 * mix(st.a, top.a, wy);
+  let bd = fract(sy * 0.3 + strata.a * 2.0 + fine.a * 0.4);                      // thin bedding lines, close range only
+  alb *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, 0.12, bd)) * smoothstep(0.3, 0.5, bd + strata.r) * (1.0 - wy) * (1.0 - smoothstep(90.0, 260.0, d));
   alb *= 1.0 - 0.2 * (1.0 - smoothstep(0.0, 0.09, abs(st.a - 0.52))) * (1.0 - wy);
   alb = mix(alb, vec3f(0.19, 0.165, 0.17), smoothstep(0.55, 0.9, st.r) * 0.3 * (1.0 - wy));
   // shrubs clinging to ledges, moss and meadow on anything that faces up
@@ -88,7 +90,7 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
   let nz = nl(wp.xz + wp.y * 0.7, 0.33, d);
   var ao = in.m.x;
   let bk = nl(vec2f(wp.x + wp.z, wp.y * 0.35), 1.4, d);
-  var alb = mix(vec3f(0.06, 0.05, 0.048), vec3f(0.27, 0.21, 0.175), bk.a * 0.7 + nz.a * 0.3);   // grey-brown bark (2), roots and vines (1)
+  var alb = mix(vec3f(0.1, 0.08, 0.075), vec3f(0.3, 0.23, 0.19), bk.a * 0.7 + nz.a * 0.3);   // grey-brown bark (2), roots and vines (1)
   if (mat < 3.0) { n = normalize(n + vec3f(bk.g - 0.5, 0.0, bk.b - 0.5) * 1.6); }
   var tr = 0.0; var sh = 1.0;
   if (mat == 1.0) { alb = mix(alb, vec3f(0.1, 0.17, 0.05), smoothstep(0.3, 0.6, nz.r + wgt * 0.4)); }
@@ -110,19 +112,23 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
   }
   var em = vec3f(0.0);
   if (mat == 7.0) {                                   // paint: index in the weight
-    var pal = array<vec3f, 8>(vec3f(0.5, 0.06, 0.04), vec3f(0.06, 0.14, 0.2), vec3f(0.85, 0.55, 0.12), vec3f(0.6, 0.54, 0.48), vec3f(0.13, 0.08, 0.06), vec3f(0.5, 0.7, 0.8), vec3f(1.0, 0.5, 0.15), vec3f(0.36, 0.26, 0.17));
+    var pal = array<vec3f, 8>(vec3f(0.36, 0.09, 0.06), vec3f(0.1, 0.1, 0.12), vec3f(0.7, 0.45, 0.12), vec3f(0.34, 0.3, 0.28), vec3f(0.13, 0.08, 0.06), vec3f(0.5, 0.7, 0.8), vec3f(1.0, 0.5, 0.15), vec3f(0.36, 0.26, 0.17));
     let k = i32(wgt * 8.0);
-    alb = pal[k] * (0.75 + 0.5 * nz.a);
+    alb = pal[k] * (0.6 + 0.8 * nz.a);
+    if (k == 1) { alb *= 0.7 + 0.5 * smoothstep(0.2, 0.5, fract(wp.y * 4.5)); }     // tile courses
     if (k == 6) { em = vec3f(3.4, 1.5, 0.45) * (0.8 + 0.2 * sin(G.time * 2.3 + wp.x * 5.0 + wp.z * 3.0)); }
     if (k == 5) {                                     // eggs: speckled, glow softly when someone comes close
-      alb *= 0.75 + 0.5 * smoothstep(0.4, 0.6, nl(wp.xz + wp.y, 2.3, d).a);
-      em = vec3f(0.35, 0.9, 1.0) * (G.params.y * (0.5 + 0.35 * sin(G.time * 1.1 + wp.x * 2.0)));
+      let s = smoothstep(0.45, 0.6, nl(wp.xz + wp.y, 2.3, d).a);
+      alb *= 1.0 - 0.5 * s;
+      em = mix(vec3f(0.25, 0.8, 1.0), vec3f(0.9, 0.9, 0.6), n.y * 0.5 + 0.5) * (G.params.y * (1.0 - 0.6 * s) * (0.6 + 0.3 * sin(G.time * 1.1 + wp.x * 2.0)));
     }
   }
   if (mat == 8.0) {                                   // prayer flags: colour index in the ao slot
     var fp = array<vec3f, 5>(vec3f(0.1, 0.25, 0.75), vec3f(0.85, 0.82, 0.76), vec3f(0.75, 0.1, 0.08), vec3f(0.12, 0.5, 0.2), vec3f(0.9, 0.65, 0.1));
-    alb = fp[i32(ao * 5.0)] * 0.75; ao = 1.0; tr = 0.35;
+    alb = mix(vec3f(0.3), fp[i32(ao * 5.0)], 0.6) * 0.7; ao = 1.0; tr = 0.35;
   }
+  let nd = wp - G.params2.xyz;                         // the eggs light the nest around them
+  em += alb * vec3f(0.3, 0.8, 1.0) * (G.params.y * 1.6 * exp(-dot(nd, nd) * 0.12));
   return vec4f(shade(alb, n, wp, 0.35 + 0.65 * ao, sh, tr) + em * atmoT(wp - G.camPos), 1.0);
 }
 

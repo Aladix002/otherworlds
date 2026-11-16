@@ -15,8 +15,8 @@ import { manta, songbird, buildLife, flyPos, fitLoop } from './life.js';
 const TAU = Math.PI * 2, SMR = 44, SMN = 256, RW = 480, RH = 270;
 const I1 = ISL[1], I3 = ISL[3], I6 = ISL[6];
 // wanted manta loops [cx, cy, cz, radius, half-span]; the last one is the far elder. Songbird flocks [cx, cy, cz, radius, count]
-const MANTAS = [[-8, 88, -62, 46, 5.5], [62, 104, -78, 72, 8], [-70, 122, -190, 92, 10], [104, 84, 44, 62, 6.5], [-112, 80, 16, 56, 6], [24, 142, -262, 120, 13], [-30, 250, -430, 300, 34]];
-const FLOCKS = [[I1.x, I1.y + 24, I1.z, 54, 14], [2, 86, -6, 42, 12], [I3.x, I3.y + 20, I3.z, 40, 10], [I6.x - 14, I6.y + 22, I6.z + 20, 44, 9]];
+const MANTAS = [[-8, 88, -62, 46, 5.5], [62, 104, -78, 72, 8], [-70, 122, -190, 92, 10], [104, 84, 44, 62, 6.5], [-112, 80, 16, 56, 6], [24, 142, -262, 120, 13], [-40, 235, -520, 330, 90]];
+const FLOCKS = [[I1.x, I1.y + 24, I1.z, 54, 30], [2, 86, -6, 42, 24], [I3.x, I3.y + 20, I3.z, 40, 20], [I6.x - 14, I6.y + 22, I6.z + 20, 44, 18]];
 const TMP = [0, 0, 0];
 const pose = (x, y, z, tx, ty, tz, t) => ({ pos: [x, y, z], yaw: yawTo(x, z, tx, tz), pitch: Math.atan2(ty - y, Math.hypot(tx - x, tz - z)), t });
 
@@ -68,10 +68,10 @@ export default {
   movement: 'fly',
   spawn: { pos: SPAWN, yaw: 0, pitch: -0.02 },
   poses: [
-    pose(-70, 176, 150, -30, 96, -160, 20),                                // wide establishing shot
+    pose(-70, 176, 150, -30, 96, -160, 76),                                // wide establishing shot
     pose(-16, 82, -138, 59, 74, -112, 33),                       // floating island with waterfalls
     pose(-0.5, SPAWN[1] + 3.0, -9.5, -8.6, SPAWN[1] + 2.7, -19.6, 12),    // close pine on the island's ledge
-    pose(-40, 112, -62, -76, 100, -90, 41),                              // shrine island, rope bridge and the nest
+    pose(-40, 112, -62, -76, 100, -90, 47),                              // shrine island, rope bridge and the nest
     pose(46, 56, -8, 46 + SUN[0] * 100, 56 + SUN[1] * 100 + 6, -8 + SUN[2] * 100, 33),   // sunrise backlight through pillars
     pose(2.4, DOOR[1] + 1.45, 10.2, -0.4, DOOR[1] + 1.15, DOOR[2], 16),        // the door on its ledge
   ],
@@ -206,8 +206,10 @@ export default {
     this.rockB.push(add([up(stone(8, 3)), up(stone(8, 2))], frags.slice(half), { d: [60, 700], ck: 0, rk: 2.2 }));
     await progress(0.62);
     for (let v = 0; v < 3; v++) { this.vegB.push(add(lods((l) => pine(v + 1, l), 4), trees[v], { d: [[16, 18, 24][q], [60, 66, 80][q], 200, 540], ck: 3, rk: 5.5 })); await progress(0.65 + v * 0.04); }
-    this.vegB.push(add([up(tuft(11, 11)), up(tuft(12, 5))], cover.tufts, { d: [14, 48], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 100] }));
-    this.vegB.push(add([up(flower(4))], cover.flowers, { d: [48], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 100] }));
+    const TM = [up(tuft(11, 11)), up(tuft(12, 5))], FL = [up(flower(4))];
+    for (const c of [{ ...cover, bs: [0, 70, 0, 100] }, ...LF.cover]) {
+      this.vegB.push(add(TM, c.tufts, { d: [14, 48], ck: 0.2, rk: 0.8, bs: c.bs }), add(FL, c.flowers, { d: [48], ck: 0.2, rk: 0.8, bs: c.bs }));
+    }
     this.vegB.push(add([up(LF.geo)], [0, 0, 0, 1, 0, 0.5, 1, 0], { d: [1e9], ck: 0, rk: 1e6 }));
     // cloud grid: polar, rings grow geometrically
     const NA = 128, NR = 84, cv = new Float32Array((NA * NR + 1) * 2), ci = new Uint32Array(NA * 3 + (NR - 1) * NA * 6);
@@ -240,8 +242,8 @@ export default {
     this.nMote = [160, 320, 520][q];
     // flyers: mantas (the last two are the elder and the calf that keeps the player company), songbird flocks
     const R2 = makeRng(1717), F = new Float32Array(12), fm = [], fb = [];
-    for (const d of MANTAS) if (fitLoop(R2, this.sdfFn, d, d[4] * 1.15 + 5, F)) {
-      F[4] = R2() * TAU; F[5] = F[6] = 0; F[7] = d[4]; F[8] = -1; F[11] = (3.6 + d[4] * 0.25) / F[3] * (R2() < 0.5 ? -1 : 1);
+    for (const d of MANTAS) if (fitLoop(R2, this.sdfFn, d, Math.min(d[4] * 1.15 + 5, 45), F)) {
+      F[4] = R2() * TAU; F[5] = F[6] = 0; F[7] = d[4]; F[8] = -1; F[11] = Math.min(3.6 + d[4] * 0.25, 13) / F[3] * (R2() < 0.5 ? -1 : 1);
       fm.push(...F);
     }
     this.calfK = fm.length;
@@ -251,7 +253,7 @@ export default {
       const hue = R2();
       for (let i = 0; i < d[4]; i++) {
         const row = (i + 1) >> 1;
-        F[5] = (i & 1 ? 1 : -1) * row * 1.1 + (R2() - 0.5) * 1.2; F[6] = row * 1.0 + (R2() - 0.5) * 1.6; F[7] = 1.1 + 0.5 * R2(); F[8] = R2() < 0.7 ? hue : R2();
+        F[5] = (i & 1 ? 1 : -1) * row * 0.6 + (R2() - 0.5) * 2.4; F[6] = row * 0.6 + (R2() - 0.5) * 3; F[7] = 0.6 + 0.3 * R2(); F[8] = R2() < 0.7 ? hue : R2();
         fb.push(...F);
       }
     }
@@ -260,10 +262,11 @@ export default {
     this.mantaI = ctx.buffer(this.FM, 'vertex'); this.songI = ctx.buffer(Float32Array.from(fb), 'vertex');
     this.bflyI = ctx.buffer(Float32Array.from(LF.bfly), 'vertex'); this.nBfly = LF.bfly.length / 4;
     const bow = [];
-    for (const f of this.fallList) bow.push(f[0] + Math.cos(f[6]) * 4, f[1] - 13, f[2] + Math.sin(f[6]) * 4, -30);
+    for (const f of this.fallList) bow.push(f[0] + Math.cos(f[6]) * 7, f[1] - 30, f[2] + Math.sin(f[6]) * 7, -36);
     this.globeI = ctx.buffer(Float32Array.from(LF.globes), 'vertex'); this.nGlobe = LF.globes.length / 4;
     this.bowI = ctx.buffer(Float32Array.from(bow), 'vertex'); this.nBow = bow.length / 4;
-    this.nSeed = [140, 260, 420][q];
+    this.nSeed = [200, 380, 600][q];
+    ctx.env.params2.set(LF.nest);
     this.nest = LF.nest; this.shrine = LF.shrine; this.eggK = 0;
     await progress(0.8);
 
@@ -320,7 +323,7 @@ export default {
     // the eggs in the nest light up when someone comes near
     const nd = Math.hypot(e[0] - this.nest[0], e[1] - this.nest[1], e[2] - this.nest[2]), near = 1 - ss(9, 30, nd);
     this.eggK += (near - this.eggK) * (1 - Math.exp(-dt / 1.5));
-    ctx.env.params[1] = 0.25 + 1.6 * this.eggK;
+    ctx.env.params[1] = 0.9 + 1.5 * this.eggK;
     const A = this.aud;
     if (A && (ctx.frame & 15) === 0) {
       const h = ss(40, 190, cam.eye[1]);
