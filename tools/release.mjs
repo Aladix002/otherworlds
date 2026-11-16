@@ -24,6 +24,11 @@ if (!inner) {
     // release.json is read from the working copy so you can publish without committing it first
     execFileSync(process.execPath, [join(tree, 'tools/release.mjs'), '--inner', '--out', join(ROOT, 'site'), '--list', join(ROOT, 'release.json')], { stdio: 'inherit' });
     console.log(`built from commit ${git('rev-parse', '--short', 'HEAD')}`);
+    // itch.io package: the same site as a zip with index.html at the root (upload as an HTML game)
+    const zip = join(ROOT, 'otherworlds-itch.zip');
+    rmSync(zip, { force: true });
+    execFileSync('zip', ['-qr9', zip, '.'], { cwd: join(ROOT, 'site') });
+    console.log(`itch.io package: ${zip}`);
   } finally {
     try { git('worktree', 'remove', '--force', tree); } catch (_) { rmSync(tree, { recursive: true, force: true }); }
   }
@@ -31,14 +36,14 @@ if (!inner) {
   const out = resolve(args[args.indexOf('--out') + 1]);
   const list = resolve(args[args.indexOf('--list') + 1]);
   const { buildWorld, buildIndex } = await import('./build.mjs');
-  const { released } = JSON.parse(readFileSync(list, 'utf8'));
+  const { released, support = '' } = JSON.parse(readFileSync(list, 'utf8'));
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   const built = [];
   for (const id of released) {
     if (!existsSync(join(ROOT, 'worlds', id, 'world.js'))) { console.warn(`skip ${id}: not committed yet`); continue; }
-    built.push(await buildWorld(id, { released, outDir: out }));
+    built.push(await buildWorld(id, { released, outDir: out, support }));
   }
-  await buildIndex(built, { outDir: out, released });
+  await buildIndex(built, { outDir: out, released, support });
   console.log(`site/: ${built.length} worlds`);
 }

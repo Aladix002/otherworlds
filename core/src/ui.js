@@ -37,6 +37,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 export function createUI(world, { shot, via }) {
   const TITLE = titleOf(world.id, world.title);
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+  const SUPPORT = typeof __OW_SUPPORT__ !== 'undefined' ? __OW_SUPPORT__ : '';
   document.title = TITLE + ' · OtherWorlds';
   const el = (id, cls, html) => { const e = document.createElement('div'); e.id = id; e.className = 'ow ' + (cls || ''); if (html) e.innerHTML = html; document.body.appendChild(e); return e; };
   const load = el('ow-load', via ? 'ow-hide' : '', `<div class="ow-title ow-serif">${TITLE}</div><div class="ow-bar"><i></i></div>`);
@@ -54,7 +55,7 @@ export function createUI(world, { shot, via }) {
     <label>Volume <input type="range" min="0" max="1" step="0.01" data-k="volume"></label>
     <label>Look sensitivity <input type="range" min="0.2" max="3" step="0.05" data-k="sens"></label>
     <label>Invert Y <input type="checkbox" data-k="invertY"></label>
-    <p style="margin-top:26px"><button class="ow-btn ow-serif" data-k="resume">Resume</button></p></div></div>`);
+    <p style="margin-top:26px"><button class="ow-btn ow-serif" data-k="resume">Resume</button></p>${SUPPORT ? `<p class="ow-small" style="margin-top:18px"><a href="${SUPPORT}" target="_blank" rel="noopener" style="color:inherit">♥ Enjoying the calm? Support OtherWorlds</a></p>` : ''}</div></div>`);
   if (shot) for (const e of [load, start, hint, msg, dot, perf, menu]) e.style.display = 'none';
 
   const ui = {

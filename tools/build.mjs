@@ -64,14 +64,14 @@ function owPlugin(id, minify, only = null) {
 
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-export async function buildWorld(id, { readable = false, quiet = false, released = null, outDir = DIST } = {}) {
+export async function buildWorld(id, { readable = false, quiet = false, released = null, outDir = DIST, support = '' } = {}) {
   const worldFile = join(WORLDS_DIR, id, 'world.js');
   if (!existsSync(worldFile)) throw new Error(`no world at worlds/${id}/world.js`);
   const minify = !readable;
   const r = await esbuild.build({
     entryPoints: ['ow:entry'], bundle: true, write: false, format: 'iife', target: 'es2022',
     minify, legalComments: 'none', charset: 'utf8', plugins: [owPlugin(id, minify, released)], logLevel: 'silent',
-    define: released ? { __OW_RELEASED__: JSON.stringify(released) } : {},
+    define: { ...(released ? { __OW_RELEASED__: JSON.stringify(released) } : {}), __OW_SUPPORT__: JSON.stringify(support) },
   });
   const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
   const src = readFileSync(worldFile, 'utf8');
@@ -86,7 +86,7 @@ export async function buildWorld(id, { readable = false, quiet = false, released
   return { id, out, size, gzip: gz, title };
 }
 
-export async function buildIndex(built, { outDir = DIST, released = null } = {}) {
+export async function buildIndex(built, { outDir = DIST, released = null, support = '' } = {}) {
   const { WORLDS } = await import(pathToFileURL(join(ROOT, 'core/src/worlds.js')).href);
   const have = new Set(released || listWorlds().filter((id) => existsSync(join(outDir, id + '.html'))));
   const items = WORLDS.map((w, i) => have.has(w.id)
@@ -105,7 +105,7 @@ a.w:hover{background:rgba(255,255,255,.06)}
 footer{margin-top:48px;font-size:13px;opacity:.4}footer a{color:inherit}
 </style></head><body><main><h1>OtherWorlds</h1><p>Calm, open, magical worlds to drift through. You travel between them through ordinary wooden doors.</p>
 ${items}
-<footer>${released ? 'Needs a browser with WebGPU: Chrome or Edge on desktop, Safari 26+, or Chrome on a recent Android phone. Best with headphones.' : have.has('_test') ? '<a href="_test.html">test world</a>' : ''}</footer></main></body></html>`;
+<footer>${released ? 'Needs a browser with WebGPU: Chrome or Edge on desktop, Safari 26+, or Chrome on a recent Android phone. Best with headphones.' + (support ? ` · <a href="${esc(support)}" target="_blank" rel="noopener">♥ Support OtherWorlds</a>` : '') : have.has('_test') ? '<a href="_test.html">test world</a>' : ''}</footer></main></body></html>`;
   writeFileSync(join(outDir, 'index.html'), html);
   console.log(`index.html       ${built.length} built, ${have.size} available`);
 }
