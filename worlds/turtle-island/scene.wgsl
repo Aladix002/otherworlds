@@ -31,10 +31,12 @@ fn lavaCol(ld: f32, al: f32, w: vec2f) -> vec3f {            // emissive of the 
   let fl = mix(vec2f(al * 0.07 - G.time * 0.035, ld * 0.16) + w * 0.02, w * 0.045 + vec2f(G.time * 0.004, 0.0), lake);
   let cr = textureSampleLevel(detT, sR, fl, 0.0);
   let cr2 = textureSampleLevel(detT, sR, fl * 2.7 + vec2f(G.time * 0.01, 0.3), 0.0);
-  let heat = smoothstep(0.1, -0.45, ld) * (1.0 - 0.45 * lake);
-  let plate = smoothstep(0.5, 0.68, cr.b * 0.7 + mix(cr2.a, cr.b, lake) * 0.5 + (1.0 - heat) * 0.35);
-  let hot = mix(vec3f(7.0, 1.5, 0.16), vec3f(13.0, 5.5, 1.3), heat * cr2.b) * (0.75 + 0.25 * sin(G.time * 0.7 + al * 0.4));
-  return mix(hot, vec3f(0.5, 0.05, 0.01) * (0.4 + cr.a), plate) * smoothstep(0.12, -0.05, ld);
+  let heat = smoothstep(0.15, -0.55, ld) * (1.0 - 0.55 * lake);
+  let plate = smoothstep(0.42, 0.66, cr.b * 0.8 + cr2.a * 0.35 + (1.0 - heat) * 0.5);
+  let crack = smoothstep(0.72, 0.97, 1.0 - abs(cr.b - cr2.b) * 4.0);          // glowing seams between crust plates
+  let T = clamp(heat * (1.0 - plate) + crack * mix(0.45, 0.8, lake), 0.0, 1.0) * (0.85 + 0.15 * sin(G.time * 0.7 + al * 0.4 + cr.a * 6.0));
+  let c = mix(vec3f(0.09, 0.012, 0.004) * (0.5 + cr2.b), vec3f(5.5, 0.9, 0.07), smoothstep(0.05, 0.5, T));
+  return mix(c, vec3f(15.0, 7.5, 2.0), smoothstep(0.5, 1.0, T)) * smoothstep(0.12, -0.05, ld);
 }
 @fragment fn fsTerr(in: TV) -> @location(0) vec4f {
   let w = in.w; var n = normalize(in.n);
@@ -42,6 +44,7 @@ fn lavaCol(ld: f32, al: f32, w: vec2f) -> vec3f {            // emissive of the 
   let t1 = textureSample(detT, sR, w.xz * 0.31);
   let t2 = textureSample(detT, sR, w.xz * 0.043 + vec2f(0.37, 0.11));
   let tf = textureSample(detT, sR, w.xz * 1.9 + vec2f(0.21, 0.63));
+  let t3 = textureSample(detT, sR, w.xz * 0.13 + vec2f(0.7, 0.2));
   let zx = step(abs(n.x), abs(n.z));
   let ts = mix(textureSample(detT, sR, w.zy * 0.23), textureSample(detT, sR, w.xy * 0.23), zx);
   let steep = smoothstep(0.22, 0.55, 1.0 - n.y);
@@ -51,8 +54,8 @@ fn lavaCol(ld: f32, al: f32, w: vec2f) -> vec3f {            // emissive of the 
   let V = normalize(G.camPos - w);
 
   // albedo
-  var alb = mix(vec3f(0.028, 0.025, 0.026), vec3f(0.085, 0.07, 0.062), ts.b * 0.7 + t2.b * 0.3);
-  alb = mix(alb, mix(vec3f(0.035, 0.026, 0.026), vec3f(0.1, 0.05, 0.036), t2.b) * (0.4 + 0.7 * t1.b + 0.6 * tf.b), smoothstep(22.0, 34.0, w.y + t2.b * 6.0));
+  var alb = mix(vec3f(0.02, 0.018, 0.02), vec3f(0.09, 0.075, 0.066), ts.b * 0.5 + t3.b * 0.5) * (0.6 + 0.8 * t3.a);
+  alb = mix(alb, mix(vec3f(0.022, 0.018, 0.02), vec3f(0.095, 0.05, 0.038), t3.b) * (0.35 + 0.6 * t1.b + 0.9 * t3.a), smoothstep(22.0, 34.0, w.y + t2.b * 6.0));
   let ra = dot(w.xz, vec2f(0.6, 2.9)) * 2.4 + t2.b * 16.0 + t1.b * 3.0; let rip = sin(ra);
   alb = mix(alb, vec3f(0.036, 0.035, 0.04) * (0.62 + 0.2 * t1.b + 0.55 * tf.b * tf.a + 0.07 * rip), sand);
   // hatchling tracks from the nest to the water
@@ -64,7 +67,6 @@ fn lavaCol(ld: f32, al: f32, w: vec2f) -> vec3f {            // emissive of the 
   alb = mix(alb, mix(vec3f(0.012, 0.04, 0.01), vec3f(0.06, 0.1, 0.02), t2.b) * (0.4 + 0.6 * t1.b + 0.7 * tf.a), veg);
   // shell scutes: horn-brown plates with growth rings and a paler areola, dark wet seams, barnacle crust
   let hx = hexd(w.xz / HEX);
-  let t3 = textureSample(detT, sR, w.xz * 0.13 + vec2f(0.7, 0.2));
   let rp0 = hx.z * 120.0 + (t3.b - 0.5) * 9.0;
   let ring = 0.5 + 0.5 * sin(rp0);
   var sc = mix(vec3f(0.032, 0.02, 0.012), vec3f(0.17, 0.095, 0.035), ring * 0.3 + t3.b * 0.45 + hx.w * 0.25) * (0.55 + 0.9 * smoothstep(0.1, 0.45, hx.z)) * (0.6 + 0.8 * t1.b);
@@ -76,7 +78,7 @@ fn lavaCol(ld: f32, al: f32, w: vec2f) -> vec3f {            // emissive of the 
   // detail normal
   let dT = (t1.rg - 0.5) * 1.1 + (t2.rg - 0.5) * 0.9 + (tf.rg - 0.5) * 0.7;
   let dS = (ts.rg - 0.5) * 2.2;
-  var dn = (vec3f(dT.x, 0.0, dT.y) + vec3f(0.04, 0.0, 0.2) * cos(ra) * sand * smoothstep(0.3, 0.7, t2.a + 0.2)) * (1.0 - steep) + mix(vec3f(0.0, dS.y, dS.x), vec3f(dS.x, dS.y, 0.0), zx) * steep + vec3f(dT.x, 0.0, dT.y) * smoothstep(20.0, 30.0, w.y);
+  var dn = (vec3f(dT.x, 0.0, dT.y) + vec3f(0.04, 0.0, 0.2) * cos(ra) * sand * smoothstep(0.3, 0.7, t2.a + 0.2)) * (1.0 - steep) + mix(vec3f(0.0, dS.y, dS.x), vec3f(dS.x, dS.y, 0.0), zx) * steep + vec3f(t3.r - 0.5, 0.0, t3.g - 0.5) * 2.2 * (1.0 - sand) * (1.0 - shell);
   let hd = normalize(hx.xy + 1e-4);
   dn += vec3f(hd.x, 0.0, hd.y) * (1.6 * smoothstep(0.08, 0.0, hx.z) + 0.3 * cos(rp0)) * shell;
   n = normalize(n + dn * mix(1.0, 0.45, veg));
@@ -103,7 +105,7 @@ fn lavaCol(ld: f32, al: f32, w: vec2f) -> vec3f {            // emissive of the 
   col = mix(col, sky(normalize(R)), fr * max(max(pool, wet * 0.85), shell * 0.35));
 
   // lava: hot core, drifting crust plates, light pooled on the ground around it
-  let glow = exp(-max(m.r, 0.0) * 0.8) + 0.3 * pow(max(1.0 - m.r / 10.0, 0.0), 2.0);
+  let glow = exp(-max(m.r, 0.0) * 0.9) + 0.12 * pow(max(1.0 - m.r / 10.0, 0.0), 2.0);
   col += vec3f(1.8, 0.42, 0.06) * glow * (alb * 5.0 + 0.01) * (0.85 + 0.15 * sin(G.time * 0.9 + m.g * 0.3)) * max(dot(n, vec3f(0.0, 1.0, 0.0)), 0.3);
   col = mix(col, lavaCol(m.r, m.g, w.xz), smoothstep(0.12, -0.05, m.r));
   // underwater: the sea swallows light with depth
@@ -127,7 +129,7 @@ struct WV { @builtin(position) pos: vec4f, @location(0) w: vec3f };
   let t = G.time;
   let V0 = G.camPos - w; let dist = length(V0); let V = V0 / dist;
   let d3 = textureSample(detT, sR, mat2x2f(0.47, -0.88, 0.88, 0.47) * q * 0.0113 + vec2f(0.4, t * 0.002));
-  let wq = q + (d3.rg - 0.5) * 9.0;                        // warp the finer layers so their tiling never lines up
+  let wq = q + (d3.rg - 0.5) * 2.5;                        // warp the finer layers so their tiling never lines up
   let d1 = textureSample(detT, sR, wq * 0.19 + vec2f(t * 0.012, t * 0.02));
   let d2 = textureSample(detT, sR, mat2x2f(0.8, 0.6, -0.6, 0.8) * wq * 0.053 + vec2f(-t * 0.006, t * 0.009));
   let sw = swell(p);
@@ -181,7 +183,7 @@ struct UV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let side = 1.0 - 2.0 * f32(ii & 1u); let rear = f32(ii >> 1u);
   var o: UV; o.w = flipW(p, side, rear);
   let nn = flipM(rear) * n; o.n = vec3f(nn.x * side, nn.y, nn.z);
-  o.uv = uv * vec2f(26.0, 20.0) * mix(1.0, 0.6, rear); o.l = p; o.k = 0.0;
+  o.uv = uv * vec2f(38.0, 30.0) * mix(1.0, 0.6, rear); o.l = p; o.k = 0.0;
   o.pos = G.viewProj * vec4f(o.w, 1.0); return o;
 }
 @vertex fn vsHead(@location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f) -> UV {
@@ -196,7 +198,7 @@ struct UV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let seam = smoothstep(0.2, 0.03, vo.y - vo.x);
   let under = smoothstep(0.1, -0.5, normalize(in.n).y) * (1.0 - in.k * 0.5);
   var alb = mix(vec3f(0.014, 0.024, 0.018), vec3f(0.05, 0.06, 0.03), vo.z) * (0.6 + 0.6 * smoothstep(0.0, 0.5, vo.x));
-  alb = mix(alb, vec3f(0.13, 0.125, 0.075), seam * 0.6);
+  alb = mix(alb, vec3f(0.11, 0.105, 0.065), seam * 0.45);
   alb = mix(alb, alb * 1.6 + vec3f(0.03, 0.028, 0.018), under);
   n = normalize(n + (textureSample(detT, sR, in.uv * 0.6).rgg - 0.5) * 0.5);
   // the eye: a calm dark globe with a slow blink
@@ -274,6 +276,7 @@ struct OV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
     if (mat == 3) { n = fc; }
     let top = smoothstep(0.5, 0.8, n.y);
     alb = mix(vec3f(0.03, 0.028, 0.03), vec3f(0.095, 0.085, 0.08), mix(side.b, tp.b, top)) * (0.7 + 0.5 * tint);
+    if (mat == 3) { alb = mix(vec3f(0.014, 0.015, 0.019), vec3f(0.05, 0.05, 0.056), side.b) * (0.6 + 0.6 * tint) * (1.0 + top); }
     if (mat == 4 && u > 0.5) { alb = vec3f(0.024, 0.024, 0.028) * (0.6 + 0.8 * tp.b); }
     if (mat == 15) { alb = mix(vec3f(0.13, 0.125, 0.115), vec3f(0.05, 0.085, 0.035), smoothstep(0.45, 0.75, tp.b + n.y * 0.2)); }
     n = normalize(n + vec3f(side.r - 0.5, (tp.g - 0.5) * 0.5, side.g - 0.5) * 1.1);

@@ -14,7 +14,7 @@ struct PV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
     size = b.y * (0.5 + 2.2 * age);
     col = vec4f(mix(vec3f(3.0, 0.9, 0.25), pink, smoothstep(0.0, mix(0.02, 0.4, b.w), age)), smoothstep(0.0, 0.12, age) * pow(1.0 - age, 1.4) * 0.42);
   } else if (ty == 1) {                                   // crater plume, trailing behind the moving island
-    p += vec3f(h3.x, 0.0, h3.z) * (3.0 + 8.0 * age) + vec3f(0.0, 1.0, 0.0) * (age * b.z * 1.1 + 8.0 * sqrt(age)) + wind * pow(age, 1.6) * b.z * 2.6;
+    p += vec3f(h3.x, 0.0, h3.z) * (3.0 + 30.0 * age) + vec3f(0.0, 1.0, 0.0) * (age * b.z * (0.7 + 0.9 * fract(sd * 9.7)) + 8.0 * sqrt(age)) + wind * pow(age, 1.6) * b.z * 2.6;
     size = b.y * (0.35 + 4.5 * age);
     let lit = 0.5 + 0.5 * dot(normalize(vec3f(c.x * G.camRight.x - 0.0, c.y, c.x * G.camRight.z)), normalize(vec3f(SUNH.x, 0.5, SUNH.y)));
     col = vec4f(mix(vec3f(1.3, 0.34, 0.1), mix(vec3f(0.1, 0.085, 0.14), vec3f(0.5, 0.27, 0.27), lit), smoothstep(0.0, 0.2, age)), smoothstep(0.0, 0.25, age) * pow(1.0 - age, 1.2) * 0.2);

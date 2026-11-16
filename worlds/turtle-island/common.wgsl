@@ -10,7 +10,7 @@ const SUNV = vec3f(-0.4225, 0.0453, -0.9053);
 const SUNH = vec2f(-0.4229, -0.9062);
 const MS = 400.0;
 const HEX = 15.0;
-const FP = vec3f(88.0, -3.0, -110.0);   // front flipper shoulder (x mirrored)
+const FP = vec3f(88.0, -8.0, -110.0);   // front flipper shoulder (x mirrored)
 const FL = 96.0;
 const HB = vec3f(0.0, -18.0, -180.0);   // neck base
 const HL = 112.0;
@@ -57,10 +57,10 @@ fn flipW(p: vec3f, side: f32, rear: f32) -> vec3f {
   return vec3f(side * (mix(FP.x, 76.0, rear) + q.x), FP.y + q.y, mix(FP.z, 122.0, rear) + q.z);
 }
 // head + neck: unit mesh, neck rising from the origin toward -z, s = position along it. The head turns on the neck.
-fn headR(s: f32) -> mat3x3f { return rotX(0.12 * (G.params.z - 1.0)) * rotY(G.params.w * (0.3 + 2.2 * smoothstep(0.3, 0.75, s))); }
+fn headR(s: f32) -> mat3x3f { return rotX(0.12 * (G.params.z - 1.0)) * rotY(G.params.w * (0.3 + 1.9 * smoothstep(0.2, 0.85, s))); }
 fn headW(p: vec3f, s: f32) -> vec3f {
-  let k = smoothstep(0.3, 0.75, s);
-  let q = rotY(G.params.w * 0.3) * (HPV + rotY(G.params.w * 2.2 * k) * (p - HPV));
+  let k = smoothstep(0.2, 0.85, s);
+  let q = rotY(G.params.w * 0.3) * (HPV + rotY(G.params.w * 1.9 * k) * (p - HPV));
   return HB + vec3f(0.0, -48.0 * (1.0 - G.params.z), 0.0) + rotX(0.12 * (G.params.z - 1.0)) * q * HL;
 }
 

@@ -36,7 +36,7 @@ export function loft(ns, nc, f) {
 
 // giant flipper: unit length along +x, chord along z (trailing edge +z), thin in y
 export const flipper = () => loft(30, 18, (s, a) => {
-  const w = 0.115 * Math.pow(Math.sin(Math.PI * Math.pow(0.06 + 0.93 * s, 0.62)), 0.75), th = 0.04 * (1 - 0.75 * s) * Math.sqrt(Math.sin(Math.PI * Math.min(1, 0.04 + s * 1.02)) + 0.02);
+  const w = 0.115 * Math.pow(Math.sin(Math.PI * Math.pow(0.06 + 0.93 * s, 0.62)), 0.75) * (0.35 + 0.65 * ss(0, 0.14, s)), th = 0.04 * (1 - 0.75 * s) * Math.sqrt(Math.sin(Math.PI * Math.min(1, 0.04 + s * 1.02)) + 0.02);
   const c = Math.cos(a), sn = Math.sin(a);
   return [s, sn * th, 0.34 * s * s + c * w * (c > 0 ? 1.15 : 0.85) - 0.02];
 });

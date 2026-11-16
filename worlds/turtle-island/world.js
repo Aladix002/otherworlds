@@ -60,8 +60,8 @@ export default {
   poses: [
     P(4, 1.65, -124, 0, 0.035, 12),                      // the head rising ahead, hatchlings crawling to the sea
     P(96, 1.35, -54.5, -0.55, 0.1, 10.5),                 // tide pools on the shell, a flipper lifting beyond
-    P(0, 2, 0, 0, 0, 18),                                   // lava meeting the sea (placed in init)
-    P(-50, 1.6, -113, 2.42, 0.16, 12),                      // black sand and basalt columns
+    P(0, 2, 0, 0, 0, 16.8),                                   // lava meeting the sea (placed in init)
+    P(-54, 1.6, -108.5, 2.3, 0.17, 12),                      // black sand and basalt columns
     P(0, 2, 0, 0.52, -0.17, 10),                        // the summit: crater, sea and the head
     P(-3.2, 1.55, -103.5, Math.PI - 0.42, 0.06, 30),        // the door on the beach, the volcano behind it
   ],
@@ -79,7 +79,7 @@ export default {
     sunDir: [-0.4225, 0.14, -0.9053], sunColor: [1.75, 0.82, 0.42], fogColor: [0.5, 0.3, 0.3], fogDensity: 0.00042,
     ambientSky: [0.2, 0.2, 0.36], ambientGround: [0.1, 0.065, 0.06],
   },
-  post: { exposure: 1.05, bloom: 0.1, bloomThreshold: 1.2, vignette: 0.28, saturation: 1.14, contrast: 1.04 },
+  post: { exposure: 1.05, bloom: 0.1, bloomThreshold: 1.2, vignette: 0.28, saturation: 1.14, contrast: 1.08 },
   fov: 62, doorLight: [0.05, 0.035, 0.03],
 
   heightAt(x, z) { return Math.max(this.T.at(x, z), -0.55); },
@@ -96,7 +96,7 @@ export default {
     // lava entries into the sea (paths 0 and 1) and the tube's end pond
     const entry = T.paths.slice(0, 2).map((p) => p.find((q) => q[1] < 0.25) || p[p.length - 1]);
     { const e = entry[0], l = Math.hypot(e[0], e[2]), tx = -e[2] / l, tz = e[0] / l, x = e[0] * 0.93 + tx * 13, z = e[2] * 0.93 + tz * 13;
-      this.poses[2].pos = [e[0] + 8, 2, e[2] + 11]; this.poses[2].yaw = 0.66; this.poses[2].pitch = -0.07; }
+      this.poses[2].pos = [e[0] + 5.5, 2.5, e[2] + 15]; this.poses[2].yaw = 0.08; this.poses[2].pitch = -0.15; }
     { let b = 0, bd = 12; for (let d = 9; d < 20; d += 0.5) { const h = at(VOL[0] + 0.5 * d, VOL[1] + 0.87 * d); if (h > b) { b = h; bd = d; } } this.poses[4].pos = [VOL[0] + 0.5 * bd, 2, VOL[1] + 0.87 * bd]; }
     for (const p of [...this.poses, ...this.flythrough]) p.pos[1] += gy(p.pos[0], p.pos[2]);
     if (ctx.movement !== 'walk') ctx.camera.pos[1] = at(SPAWN[0], SPAWN[1]) + 1.7;
@@ -148,13 +148,13 @@ export default {
       (x, z) => { const s = 0.03 + 0.1 * R() * R(); push(x, at(x, z) - s * 0.15, z, s, R.range(0, TAU), R(), R.range(0.5, 0.9)); }));
     stamps.push([DOOR[0], DOOR[1], 1.5, 0.5], [HUT[0], HUT[1], 3.2, 0.5], [COLS[0], COLS[1], 13, 0.4], [NEST[0], NEST[1], 1.3, 0.35]);
     batch(GEO.column(), () => {                              // Reynisfjara-like organ of hex columns: a stepped foot rising to a cliff
-      for (let j = -11; j <= 11; j++) for (let i = -24; i <= 24; i++) {
-        const lx = (i + (j & 1) * 0.5) * 0.7, lz = j * 0.606, e = Math.hypot(lx / 15, lz / 6.4);
-        if (e > 1 + 0.1 * Math.sin(i * 0.9 + j)) continue;
+      for (let j = -14; j <= 14; j++) for (let i = -30; i <= 30; i++) {
+        const lx = (i + (j & 1) * 0.5) * 0.54, lz = j * 0.468, e = Math.hypot(lx / 15, lz / 6.4);
+        if (e > 1 + 0.1 * Math.sin(i * 0.7 + j)) continue;
         const x = COLS[0] + lx * 0.81 - lz * 0.585, z = COLS[1] - lx * 0.585 - lz * 0.81 + 0, g = at(x, z);
         const u = ss(-6.5, 3.5, -lz) * ss(1.08, 0.75, e);
-        const top = 0.3 + Math.min(11 * Math.pow(u, 1.6), 7 + 1.6 * Math.sin(lx * 0.31 + 1) + 0.9 * Math.sin(lx * 1.3 + lz)) + 0.4 * Math.floor(R() * 4) * (0.3 + u);
-        push(x, g - 1, z, 0.404, 0.624, R(), (top + 1) / 0.404, top + 1);
+        const top = 0.3 + Math.min(11 * Math.pow(u, 1.6), 7 + 1.6 * Math.sin(lx * 0.31 + 1) + 0.9 * Math.sin(lx * 1.3 + lz)) + 0.35 * Math.floor(R() * 5) * (0.3 + u);
+        push(x, g - 1, z, 0.312, 0.624, R(), (top + 1) / 0.312, top + 1);
       }
     });
     batch(GEO.starfish(), () => TIDE.forEach((p, i) => { for (let k = 0; k < 2; k++) { const a = i * 2.1 + k * 2.6, r = p[2] * (0.35 + 0.3 * k); push(p[0] + Math.cos(a) * r, at(p[0], p[1]) + 0.005, p[1] + Math.sin(a) * r, R.range(0.9, 1.5), a, k); } }));
@@ -287,7 +287,7 @@ export default {
   renderTransparent(ctx, pass) {
     pass.setBindGroup(1, this.bg);
     pass.setPipeline(this.pWater); pass.setVertexBuffer(0, this.wv); pass.setIndexBuffer(this.wi, 'uint32'); pass.drawIndexed(this.wn);
-    if (!/nofx/.test(location.search)) { pass.setPipeline(this.pFx); pass.setVertexBuffer(0, this.fx); pass.draw(6, this.nfx); }
+    pass.setPipeline(this.pFx); pass.setVertexBuffer(0, this.fx); pass.draw(6, this.nfx);
   },
 
   audio(ctx, a) {
