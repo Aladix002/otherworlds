@@ -10,7 +10,7 @@ struct PO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) 
   var w = ctr + r;
   let big = step(0.7, g.z);
   let m = mapA(w.xz);
-  w.y = m.r + 0.7 + h.y * h.y * 6.0 + sin(G.time * 0.17 + g.z * 30.0) * 0.4;
+  w.y = m.r + 0.5 + h.y * h.y * 2.4 + sin(G.time * 0.17 + g.z * 30.0) * 0.3;
   let pd = w.xz - G.params.xy;                        // seeds scatter up and away as you walk through them
   let push = (1.0 - smoothstep(0.4, 3.2, length(pd))) * G.params.w;
   w += vec3f(normalize(pd).x, 0.6, normalize(pd).y) * push * 1.6;
@@ -18,7 +18,7 @@ struct PO { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) 
   var o: PO;
   o.uv = QC[vi];
   o.w = billboard(w, o.uv, vec2f(mix(0.016, 0.06, big)));
-  o.c = vec4f(big, g.x, smoothstep(0.7, 2.5, d) * (1.0 - smoothstep(0.36, 0.5, max(abs(r.x), abs(r.z)) / 40.0)), m.a);
+  o.c = vec4f(big, g.x, (1.0 - smoothstep(9.0, 17.0, d)) * smoothstep(0.7, 2.5, d) * (1.0 - smoothstep(0.36, 0.5, max(abs(r.x), abs(r.z)) / 40.0)), m.a);
   o.pos = G.viewProj * vec4f(o.w, 1.0);
   return o;
 }
@@ -42,7 +42,7 @@ struct LO {
   let h = vec3f(fract(sd * 17.3), fract(sd * 43.7), fract(sd * 7.9));
   var o: LO;
   o.uv = QC[vi];
-  var ctr = a.xyz; var e1 = G.camRight; var e2 = G.camUp; var sz = 0.024;
+  var ctr = a.xyz; var e1 = G.camRight; var e2 = G.camUp; var sz = 0.045;
   if (kind < 1.5) {                                  // fall, flutter, drift with the wind, rest a moment on the ground
     let ph = fract(G.time / (mix(9.0, 16.0, h.x) * mix(1.0, 0.75, kind)) + h.y);
     ctr += vec3f(WD.x, 0.0, WD.y) * (ph * mix(3.0, 0.5, kind)) + vec3f(sin(ph * 9.0 + sd * 50.0) * 0.5, -ph * mix(7.0, 3.6, kind), cos(ph * 7.0 + sd * 70.0) * 0.5);
@@ -75,16 +75,17 @@ struct LO {
   var f2 = normalize(vec2f(cos(t) * 5.0 + cos(t * 2.3 + sd * 9.0) * 3.45, -sin(t * 0.8) * 3.2 - sin(t * 1.9) * 3.04));
   var up = 1.0 + 0.35 * sin(t * 3.1) + 0.12 * sin(t * 7.3);
   var fl = 0.15 + 1.0 * (0.5 + 0.5 * sin(G.time * (6.0 + sd * 3.0) + sd * 30.0));
-  var sz = 0.075 + 0.04 * fract(sd * 7.7);
+  var sz = 0.11 + 0.06 * fract(sd * 7.7);
+  if (kind == 0.0) { p2 = G.camPos.xz + (fract((p2 - G.camPos.xz) / 26.0 + 0.5) - 0.5) * 26.0; sz *= 1.0 - smoothstep(10.0, 12.8, distance(p2, G.camPos.xz)); }   // always a few near you
   let k = fract(sd * 5.0);
   var col = select(select(select(vec3f(1.0, 0.5, 0.05), vec3f(0.2, 0.5, 1.0), k < 0.75), vec3f(1.0, 0.95, 0.75), k < 0.5), vec3f(1.0, 0.4, 0.7), k < 0.25);
-  if (kind == 1.0) { up = 0.55 + 0.2 * sin(t * 5.0); fl = 0.1 + 0.12 * sin(G.time * 11.0 + sd * 30.0); sz = 0.11; col = mix(vec3f(0.1, 0.8, 0.9), vec3f(0.5, 0.3, 1.0), k); }
-  if (kind == 2.0) {
-    let f = G.params.z; let e = f * f * (3.0 - 2.0 * f); let an = sd * 6.283 + G.time * (0.5 + 0.3 * sd) * 0.6;
-    p2 = a.xz + vec2f(cos(an), sin(an)) * (4.0 + 5.0 * sd) * e;
+  if (kind == 1.0) { up = 0.55 + 0.2 * sin(t * 5.0); fl = 0.1 + 0.12 * sin(G.time * 11.0 + sd * 30.0); sz = 0.2; col = mix(vec3f(0.1, 0.8, 0.9), vec3f(0.5, 0.3, 1.0), k); }
+  if (kind >= 2.0) {                                 // kind 3: a flock that stays up, circling wide
+    let hi = kind - 2.0; let f = max(G.params.z, hi); let e = f * f * (3.0 - 2.0 * f); let an = sd * 6.283 + G.time * (0.5 + 0.3 * sd) * 0.6;
+    p2 = a.xz + vec2f(cos(an), sin(an)) * (4.0 + 5.0 * sd) * e * (1.0 + 4.0 * hi);
     f2 = mix(vec2f(cos(sd * 40.0), sin(sd * 40.0)), vec2f(-sin(an), cos(an)), smoothstep(0.0, 0.2, f));
-    up = 0.07 + e * (4.5 + 4.0 * sd + sin(an * 1.7) * 0.8);
-    fl = mix(-1.25, 0.5 * sin(G.time * 9.0 + sd * 30.0), smoothstep(0.02, 0.15, f)); sz = 0.16; col = mix(vec3f(0.12, 0.2, 0.5), vec3f(0.9, 0.5, 0.2), step(0.6, k));
+    up = 0.07 + e * (4.5 + 4.0 * sd + sin(an * 1.7) * 0.8 + 9.0 * hi);
+    fl = mix(-1.25, 0.5 * sin(G.time * 9.0 + sd * 30.0), smoothstep(0.02, 0.15, f)); sz = 0.3 + 0.3 * hi; col = mix(vec3f(0.12, 0.2, 0.5), vec3f(0.9, 0.5, 0.2), step(0.6, k));
   }
   let m = mapA(p2);
   let ctr = vec3f(p2.x, max(m.r, 0.0) + up, p2.y);
@@ -96,7 +97,7 @@ struct LO {
   o.uv = vec2f(uv.x * 0.5 + 0.5, uv.y);
   o.w = ctr + fw * (uv.y * mix(0.75, 0.5, min(kind, 1.0)) * sz) + wing * (o.uv.x * sz * mix(1.0, 1.5, min(kind, 1.0)));
   o.n = cross(fw, wing) * sgn;
-  o.c = vec4f(col, 3.0 + kind);
+  o.c = vec4f(col, 3.0 + min(kind, 2.0));
   o.sh = m.a;
   o.pos = G.viewProj * vec4f(o.w, 1.0);
   return o;

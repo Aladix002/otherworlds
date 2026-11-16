@@ -29,6 +29,7 @@ Lavender fields are planted in rows (cell index modulo) and the terrain draws ma
 - Bloom radius / growth: `near` in `vsFlora`. Wind: `gust()` and `WD`.
 - Mist: `0.02` density and `0.5` falloff in `atmo()`, sheets in `vsMist`.
 - Post: ACES, exposure 0.92 (AgX washed the colours out).
+- Critic round 1: sun lowered to ~10 degrees with warm key / lavender fill, coral poppies with gold and blue drifts at the spawn, wisteria rebuilt from rounded petals (no cones), leaf-only tunnel roof, leafy far tree LOD, far fields speckled and desaturated, reeds on the banks (grass layer), lily pads, shore fade, sky flock, camera-wrapped butterflies.
 
 ## Known issues / next
 - Tree crowns are a core + leaf shell; very close the smooth core can show between leaves.

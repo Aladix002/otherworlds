@@ -4,8 +4,8 @@ import { makeRng } from '../../core/src/math.js';
 
 export const ss = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
 export const MS = 140, MN = 512, ZS = 560, HW = 3.6;       // map half extent (m), map resolution, colour-field half extent, river half width
-const sl = Math.hypot(0.38, 0.24, 0.9);
-export const SUN = [-0.38 / sl, 0.24 / sl, -0.9 / sl];
+const sl = Math.hypot(0.38, 0.17, 0.9);
+export const SUN = [-0.38 / sl, 0.17 / sl, -0.9 / sl];
 export const yawTo = (x, z, tx, tz) => Math.atan2(-(tx - x), -(tz - z));
 export const DOOR = [-7, 46], RING = [-30, -10], BIGTREE = [-15, 35], WARREN = [[2.2, -30.6], [-19, 30.5]], FLOCK = [4, -17];
 
@@ -66,16 +66,16 @@ const PATHS = [
 // species: 0 poppy, 1 lavender, 2 star, 3 bells, 4 spiral, 5 puffball, 6 lantern, 7 daisy
 export const FIELDS = [
   [0x6a45d8, 1, 0, 1, 0, 0, 1],
-  [0xe8361c, 0, 0, 7, 0.1, 1, 1],
+  [0xee6a50, 0, 0, 7, 0.12, 1, 1],
   [0xf7b417, 5, 0, 6, 0.3, 5, 0.9],
   [0x4698f2, 2, 0, 3, 0.25, 1, 0.95],
-  [0xdc2f9a, 4, 0, 3, 0.3, 3, 0.95],
+  [0xd4589c, 4, 0, 3, 0.3, 3, 0.95],
   [0xff7a55, 7, 0, 6, 0.14, 5, 0.9],
   [0xf5a3d2, 3, 0, 2, 0.3, 1, 0.9],
   [0x5f9a30, 7, 1, 0, 0.3, 6, 0.2],
 ];
-const FT = [0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 7, 3, 4, 0, 1];
-const SITES = [[-30, -6, 0], [16, 24, 1], [-36, 44, 4], [44, 12, 3], [26, -30, 6], [-8, -72, 2], [50, -70, 0], [-70, -40, 5], [80, -20, 1], [-75, 20, 2], [-20, -120, 1], [100, -100, 4]];
+const FT = [0, 0, 1, 2, 2, 3, 5, 5, 6, 7, 7, 3, 4, 0, 6];
+const SITES = [[-30, -6, 0], [5, 21, 1], [26, 12, 2], [-17, 31, 3], [-30, 52, 6], [20, 44, 5], [48, 8, 3], [26, -30, 6], [-8, -72, 2], [50, -70, 0], [-70, -40, 5], [80, -20, 1], [-75, 20, 2], [-20, -120, 1], [100, -100, 4]];
 const DBG = typeof location !== 'undefined' && new URLSearchParams(location.search).get('z');
 function zone(x, z) {
   if (DBG) return +DBG;
@@ -88,7 +88,7 @@ function zone(x, z) {
     const d = (sx - wx) ** 2 + (sz - wz) ** 2;
     if (d < best) { best = d; id = FT[(h >>> 16) % FT.length]; }
   }
-  for (const s of SITES) { const d = ((s[0] - wx) ** 2 + (s[1] - wz) ** 2) * 0.6; if (d < best) { best = d; id = s[2]; } }
+  for (const s of SITES) { const d = ((s[0] - wx) ** 2 + (s[1] - wz) ** 2) * 1.1; if (d < best) { best = d; id = s[2]; } }
   return id;
 }
 const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
@@ -118,7 +118,7 @@ export async function buildMap(progress) {
   for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
     const x = wc(i), z = wc(j), k = j * N + i, t = riverT(x, z);
     H[k] = A[k * 4] = hAt(x, z);
-    A[k * 4 + 1] = ss(0.5, 2.2, t);                       // flowers allowed
+    A[k * 4 + 1] = ss(0.2, 1.4, t);                       // flowers allowed
     A[k * 4 + 2] = ss(0.6, -1.2, t);                      // water / wet
     A[k * 4 + 3] = 1;
   }
@@ -130,11 +130,11 @@ export async function buildMap(progress) {
   const path = (x, z, r0, r1) => stamp(x, z, r0, r1, (k, f) => { A[k + 2] = Math.min(A[k + 2], -f); A[k + 1] = Math.min(A[k + 1], 1 - f); });
   for (const P of PATHS) for (const p of P) path(p[0], p[1], 0.45, 1.25);
   for (const p of TUN) path(p[0], p[1], 0.95, 1.6);
-  path(DOOR[0], DOOR[1] - 1.6, 1.3, 2.3);
+  path(DOOR[0], DOOR[1] - 1.6, 1.3, 2.3); path(DOOR[0], DOOR[1], 0.75, 0.95);
   const FM = new Float32Array(N * N).fill(1);                // no tall flowers right around the door (grass stays), except beside the posts
   stamp(DOOR[0], DOOR[1], 2.4, 3.6, (k, f) => { FM[k / 4] = 1 - f; });
   stamp(RING[0], RING[1], 3.2, 4.2, (k, f) => { FM[k / 4] = 1 - f; });
-  for (const p of WARREN) stamp(p[0], p[1], 2.2, 3.2, (k, f) => { FM[k / 4] = 1 - f; });
+  for (const p of WARREN) stamp(p[0], p[1], 3.0, 3.8, (k, f) => { FM[k / 4] = 1 - f; });
   stamp(DOOR[0] - 1.2, DOOR[1], 0.3, 0.6, (k, f) => { FM[k / 4] = Math.max(FM[k / 4], f); });
   // ---- trees: [x, z, scale, variant] ----
   const trees = [], clear = (x, z, r) => {
@@ -193,7 +193,7 @@ export async function buildMap(progress) {
   for (let k = 0; k < N * N; k++) {
     const x = wc(k % N), z = wc(Math.floor(k / N)), u = Math.floor((x + ZS) / (2 * ZS) * N), v = Math.floor((z + ZS) / (2 * ZS) * N);
     const fd = FIELDS[ZID[v * N + u]][6];
-    GR[k] = A[k * 4 + 1] * 255;
+    GR[k] = Math.max(A[k * 4 + 1], A[k * 4 + 2] < 0 ? 0 : ss(-0.7, 0.1, riverT(x, z))) * 255;       // grass also grows down the banks, into the shallows (reeds)
     DEN[k] = A[k * 4 + 1] * FM[k] * fd * 255;
     A[k * 4 + 1] *= (0.25 + 0.75 * fd) * FM[k];
   }

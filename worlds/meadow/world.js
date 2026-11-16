@@ -58,7 +58,7 @@ export default {
     pose(6, 13, 1.45, 2, hAt(2, 8) + 0.5, 8, 22),                         // flowers blooming around the camera
     pose(T2[0], T2[1], 1.6, T3[0], hAt(T3[0], T3[1]) + 1.7, T3[1], 31),     // inside the wisteria tunnel
     pose(-3.5, -27, 1.45, 12, 0.6, -39, 18),                                // misty river, bridge, golden trees
-    pose(-24.6, 2.6, 0.85, -24.6 + SUN[0] * 100, hAt(-24.6, 2.6) + 0.85 + SUN[1] * 100 - 4, 2.6 + SUN[2] * 100, 26),   // low across the lavender into the sun
+    pose(-22.6, 7.5, 0.9, -22.6 + SUN[0] * 100, hAt(-22.6, 7.5) + 0.9 + SUN[1] * 100 - 2, 7.5 + SUN[2] * 100, 26),   // low across the lavender into the sun
     pose(-5.4, 40.2, 1.6, DOOR[0], hAt(DOOR[0], DOOR[1]) + 1.15, DOOR[1], 12),   // the door
   ],
   flythrough: [
@@ -71,11 +71,12 @@ export default {
   doors: [{ pos: [DOOR[0], null, DOOR[1]], yaw: Math.PI, to: 'dream-desert' }],
   bounds: { center: [8, 3, -8], radius: 74 },
   env: {
-    sunDir: SUN, sunColor: [2.5, 1.8, 1.05], fogColor: [0.75, 0.72, 0.8], fogDensity: 0.004,
-    ambientSky: [0.3, 0.4, 0.68], ambientGround: [0.22, 0.21, 0.12],
+    sunDir: SUN, sunColor: [3.0, 1.75, 0.8], fogColor: [0.8, 0.68, 0.7], fogDensity: 0.004,
+    ambientSky: [0.36, 0.36, 0.66], ambientGround: [0.25, 0.2, 0.14],
   },
   post: { exposure: 0.92, bloom: 0.12, bloomThreshold: 1.0, bloomKnee: 0.7, vignette: 0.24, saturation: 1.08, contrast: 1.04, tonemap: 'aces' },
   clearColor: [0.6, 0.65, 0.9],
+  doorLight: [0.14, 0.11, 0.12],
   fov: 62,
 
   heightAt(x, z) {
@@ -174,7 +175,7 @@ export default {
     const rin = [[], []], bin = [];
     for (let i = 0; i < TUN.length; i++) {
       const p = TUN[i], a0 = TUN[Math.max(i - 1, 0)], a1 = TUN[Math.min(i + 1, TUN.length - 1)], l = Math.hypot(a1[0] - a0[0], a1[1] - a0[1]), nx = -(a1[1] - a0[1]) / l, nz = (a1[0] - a0[0]) / l, y = hAt(p[0], p[1]);
-      for (let k = 0; k < [9, 12, 14][q]; k++) {
+      for (let k = 0; k < [6, 8, 10][q]; k++) {
         const a = R.range(-1.42, 1.42), lat = 1.66 * Math.sin(a), ay = 3.28 * Math.cos(a), len = Math.min(R.range(0.5, 1.3), ay - (Math.abs(lat) < 1.15 ? 2.02 : 0.3)), o = R.range(-0.12, 0.12);
         if (len > 0.3) rin[R.int(2)].push(p[0] + nx * lat - nz * o, y + ay, p[1] + nz * lat + nx * o, len, R() * 6.283, R(), 1, sat(i / TUN.length * 2.6 - 0.6 + R.range(-0.25, 0.25)) + sat(i / TUN.length * 2.6 - 1.5 + R.range(-0.25, 0.25)));
         if (k < 3) li.push(p[0] + nx * lat * 0.8, y + ay - 0.3, p[1] + nz * lat * 0.8, 1 + R() * 0.999);
@@ -186,17 +187,18 @@ export default {
     this.wood = up(woodwork(TUN, BRIDGES, hAt, deckY));
     // ---------- discoveries: rabbits, a swing and a beehive on the big tree ----------
     const rb = [], bx = BIGTREE[0], bz = BIGTREE[1], by = hAt(bx, bz);
-    WARREN.forEach((p, j) => { for (let i = 0; i < 4 - j; i++) { const a = i * 1.7 + j, r = 0.5 + 0.5 * i, x = p[0] + Math.cos(a) * r, z = p[1] + Math.sin(a) * r; rb.push(x, hAt(x, z) - 0.02, z, i ? 0.7 + 0.1 * i : 1.15, R() * 6.283, R(), 1, 1); } });
+    WARREN.forEach((p, j) => { for (let i = 0; i < 4 - j; i++) { const a = i * 1.7 + j, r = 0.4 + 0.4 * i, x = p[0] + Math.cos(a) * r, z = p[1] + Math.sin(a) * r; rb.push(x, hAt(x, z) - 0.02, z, i ? 0.7 + 0.1 * i : 1.15, R() * 6.283, R(), 1, 1); } });
     this.batches.push(makeBatch(ctx, [up(rabbit())], rb, [90], 0.2, 0.5));
     this.batches.push(makeBatch(ctx, [up(swing(5.4))], [bx + 2.6, by + 6.2, bz - 1.6, 1, 0.9, 0, 1, 0], [300], -3, 3.5));
-    this.batches.push(makeBatch(ctx, [up(hive())], [bx - 2.4, by + 4.6, bz + 1.2, 1, 0, 0, 1, 0], [200], 0, 1));
+    this.batches.push(makeBatch(ctx, [up(hive())], [bx - 2.4, by + 3.7, bz + 1.2, 1, 0, 0, 1, 0], [200], 0, 1));
     this.one = ctx.buffer(Float32Array.from([0, 0, 0, 1, 0, 0.5, 1, 0]), 'vertex');
     // ---------- small life ----------
-    for (let i = 0; i < 12; i++) { const a = R() * 6.283, r = 2.5 + R() * 9; li.push(BIGTREE[0] - 2.4 + Math.cos(a) * r, 0, BIGTREE[1] + 1.2 + Math.sin(a) * r, 2 + R() * 0.999); }
+    for (let i = 0; i < 16; i++) { const a = R() * 6.283, r = 1 + R() * 5, c = i < 9 ? [BIGTREE[0] - 2.4, BIGTREE[1] + 1.2] : RING; li.push(c[0] + Math.cos(a) * r, 0, c[1] + Math.sin(a) * r, 2 + R() * 0.999); }
     this.leafI = ctx.buffer(Float32Array.from(li), 'vertex'); this.nLeaf = li.length / 4;
     const bf = []; for (let i = 0; i < 26; i++) { const a = R() * 6.283, r = 6 + R() * 50; bf.push(4 + Math.cos(a) * r, 0, 2 + Math.sin(a) * r, R() * 0.999); }
     for (let i = 0; i < 14; i++) { const x = R.range(-50, 90); bf.push(x, 0, riverZ(x) + R.range(-2, 2), 1 + R() * 0.999); }      // dragonflies
     for (let i = 0; i < 14; i++) { const a = R() * 6.283, r = Math.sqrt(R()) * 3.2; bf.push(FLOCK[0] + Math.cos(a) * r, 0, FLOCK[1] + Math.sin(a) * r, 2 + R() * 0.999); }   // birds
+    for (let i = 0; i < 9; i++) bf.push(-6, 0, -8, 3 + R() * 0.999);
     this.flyI = ctx.buffer(Float32Array.from(bf), 'vertex'); this.nFly = bf.length / 4;
     this.nSeed = [140, 260, 420][q];
     await progress(0.82);
@@ -261,7 +263,7 @@ export default {
         if (ly === 2) {
           if ((h2 & 255) >= GR[mi]) continue;
           const dv = Rr * (0.55 + 0.45 * rank); if (d > dv) continue;
-          s = sat((dv - d) / (dv * 0.3)) * (0.7 + 0.6 * rank); bin = d > 4.5 ? 25 : 24;
+          s = sat((dv - d) / (dv * 0.3)) * (0.7 + 0.6 * rank) * (DEN[mi] < 30 && riverT(x, z) < 1.2 ? 2.2 : 1); bin = d > 4.5 ? 25 : 24;
         } else {
           if ((h2 & 255) >= DEN[mi]) continue;
           const zx = x + ((h2 >>> 8) & 15) * 0.4 - 3, zz = z + ((h2 >>> 12) & 15) * 0.4 - 3;
@@ -284,9 +286,9 @@ export default {
         st[o] = x; st[o + 1] = z; st[o + 2] = acc + ((h2 >>> 4) & 0xffff) / 65537; st[o + 3] = s;
       }
     }
-    for (let i = 0; i < 11; i++) {                       // the ring of giant flowers: same meshes, six times the size; they wake when you step inside
+    for (let i = 0; i < 9; i++) {                       // the ring of giant flowers: same meshes, six times the size; they wake when you step inside
       const b = (i % 3 === 0 ? 4 : i % 3 === 1 ? 2 : 6) * 2, o = (b * CAP + cnt[b]++) * 4;
-      st[o] = RING[0] + Math.cos(i * 0.5712) * 4.6; st[o + 1] = RING[1] + Math.sin(i * 0.5712) * 4.6; st[o + 2] = (i % 3 ? i % 3 + 2 : 0) + i * 0.0873 % 1; st[o + 3] = 6.5;
+      st[o] = RING[0] + Math.cos(i * 0.698) * 5; st[o + 1] = RING[1] + Math.sin(i * 0.698) * 5; st[o + 2] = (i % 3 ? i % 3 + 2 : 0) + i * 0.0873 % 1; st[o + 3] = 8;
     }
     for (let b = 0; b < NB; b++) if (cnt[b]) ctx.queue.writeBuffer(F.buf, b * CAP * 16, st, b * CAP * 4, cnt[b] * 4);
   },

@@ -7,9 +7,9 @@ struct SO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
   let y = max(rd.y, 0.0); let s = max(dot(rd, G.sunDir), 0.0);
   let q = rd.xz / (y + 0.2);
   let cl = textureSampleLevel(NT, NS, q * vec2f(0.045, 0.1) + vec2f(G.time * 0.0005, 0.0), 0.0).r * 0.62 + textureSampleLevel(NT, NS, q * vec2f(0.17, 0.3) + vec2f(0.3, G.time * 0.0004), 1.0).g * 0.38;
-  let cm = smoothstep(0.5, 0.85, cl) * smoothstep(0.03, 0.22, y);
-  c = mix(c, mix(vec3f(0.95, 0.78, 0.86), vec3f(2.0, 1.35, 0.85), pow(s, 3.0)), cm * 0.62);
-  c += G.sunColor * (smoothstep(0.9999, 0.99996, s) * 14.0 + pow(s, 3000.0) * 2.0) + vec3f(1.0, 0.72, 0.38) * pow(s, 400.0) * 0.7;
+  let cm = smoothstep(0.44, 0.82, cl) * smoothstep(0.03, 0.22, y);
+  c = mix(c, mix(vec3f(1.05, 0.72, 0.7), vec3f(2.1, 1.3, 0.75), pow(s, 3.0)), cm * 0.7);
+  c += vec3f(1.0, 0.62, 0.25) * (smoothstep(0.99975, 0.99995, s) * 9.0 + pow(s, 1500.0) * 4.0 + pow(s, 250.0) * 1.3);
   return vec4f(c, 1.0);
 }
 
@@ -23,30 +23,32 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let f2 = textureSample(NT, NS, p * 0.047);
   let f3 = textureSample(NT, NS, p * 0.0063);
   let f0 = textureSample(NT, NS, p * 2.3);
-  let far = smoothstep(10.0, 60.0, d);
-  var grass = mix(vec3f(0.022, 0.065, 0.014), vec3f(0.11, 0.2, 0.035), f2.r * 0.55 + f3.g * 0.45) * (0.6 + 0.8 * f1.a) * (0.75 + 0.5 * f0.a);
+  let far = smoothstep(4.0, 45.0, d);
+  var grass = mix(vec3f(0.035, 0.09, 0.02), vec3f(0.13, 0.24, 0.045), f2.r * 0.55 + f3.g * 0.45) * (0.6 + 0.8 * f1.a) * (0.75 + 0.5 * f0.a);
   grass = mix(grass, vec3f(0.2, 0.19, 0.05), smoothstep(0.55, 0.9, f3.r) * 0.35);
-  let field = zb.rgb * (0.72 + 0.56 * f2.g);
-  var cov = m.g * mix(0.03 + 0.3 * smoothstep(0.5, 0.7, f1.b), 0.88, far);
+  let fd = smoothstep(80.0, 600.0, d);              // far fields: speckled, paler and warmer, never neon
+  var field = zb.rgb * (0.62 + 0.5 * f2.g + 0.5 * smoothstep(0.35, 0.7, f1.b) * (1.0 - fd));
+  field = mix(field, vec3f(dot(field, vec3f(0.4)) + 0.12) * vec3f(1.1, 0.95, 0.9), fd * 0.5);
+  var cov = m.g * mix(0.2 + 0.3 * smoothstep(0.5, 0.7, f1.b), 0.84, far);
   // lavender rows: stripes that melt into the field colour with distance
   let st = smoothstep(-0.35, 0.5, cos((p.x - 0.51) * 3.08));
   let rk = zb.a * (1.0 - smoothstep(0.5, 2.4, fwidth(p.x) * 3.08));
-  cov *= mix(1.0, mix(0.1, 1.2, st), rk);
-  grass = mix(grass, vec3f(0.1, 0.075, 0.045) * (0.6 + 0.8 * f1.r), rk * (1.0 - st) * 0.65);
+  cov *= mix(1.0, mix(0.3, 1.2, st), rk);
+  grass = mix(grass, vec3f(0.12, 0.11, 0.05) * (0.7 + 0.6 * f1.r), rk * (1.0 - st) * 0.4);
   cov = min(cov, 1.0);
   var alb = mix(grass, field, cov);
   let path = smoothstep(0.2, 0.75, -m.b + (f1.g - 0.5) * 0.35 + (f2.a - 0.5) * 0.25);
   let peb = smoothstep(0.45, 0.62, f0.b) * (1.0 - smoothstep(4.0, 16.0, d));
-  let soil = mix(mix(vec3f(0.17, 0.105, 0.06), vec3f(0.42, 0.31, 0.19), f1.r * 0.6 + f2.g * 0.4) * (0.55 + 0.9 * f0.a), vec3f(0.5, 0.45, 0.38) * (0.6 + 0.6 * f0.b), peb * step(0.5, f1.b + f0.g * 0.5));
-  alb = mix(alb, soil, path);
-  alb = mix(alb, vec3f(0.06, 0.06, 0.04) * (0.5 + f1.r), smoothstep(0.1, 0.8, m.b));
+  let soil = mix(mix(vec3f(0.17, 0.105, 0.06), vec3f(0.42, 0.31, 0.19), f1.r * 0.6 + f2.g * 0.4) * (0.75 + 0.5 * f0.a), vec3f(0.4, 0.34, 0.27), peb * 0.6 * step(0.5, f1.b + f0.g * 0.5));
+  alb = mix(alb, mix(soil, zb.rgb, smoothstep(0.62, 0.7, f0.b * f1.b + 0.3) * 0.7), path);      // fallen petals on the path
+  alb = mix(alb, mix(vec3f(0.2, 0.17, 0.12), vec3f(0.42, 0.4, 0.36), smoothstep(0.5, 0.65, f0.b)) * (0.5 + f1.r), smoothstep(0.1, 0.8, m.b));
   alb *= 0.84 + 0.4 * gust(p) * (0.25 + 0.75 * far) * (1.0 - path);
   let n = normalize(in.n + vec3f(f2.r - 0.5, 0.0, f2.a - 0.5) * 0.3 + vec3f(f1.r - 0.5, 0.0, f1.g - 0.5) * 0.45 * (1.0 - far));
   let v = normalize(G.camPos - in.w);
   let back = pow(max(dot(-v, G.sunDir), 0.0), 2.0);
   // petals stand up into the low sun: a field glows more than the flat ground under it
-  let fuzz = cov * (1.0 - path) * (0.25 + 0.55 * back) * far;
-  let ao = mix(0.65 + 0.35 * path, 1.0, far);
+  let fuzz = cov * (1.0 - path) * (0.3 + 0.55 * back) * (0.3 + 0.7 * far);
+  let ao = mix(0.8 + 0.2 * path, 1.0, far);
   let c = alb * (G.sunColor * (m.a * (max(dot(n, G.sunDir), 0.0) * 1.15 + fuzz)) + hemi(n, G.ambientSky, G.ambientGround) * ao * (0.6 + 0.4 * m.a));
   return vec4f(atmo(c, in.w), 1.0);
 }
@@ -63,11 +65,13 @@ const ACC = array<vec3f, 6>(vec3f(0.95, 0.92, 0.85), vec3f(1.0, 0.85, 0.25), vec
   let h3 = vec3f(fract(sd * 13.7), fract(sd * 5.3), fract(sd * 91.1));
   let m = mapA(xz);
   let near = 1.0 - smoothstep(1.6, 5.5 + 2.5 * h3.x, distance(xz, G.params.xy));
-  let o = mix(0.45 + 0.3 * h3.x, 1.0, near);
+  let giant = step(3.0, v.i.w);
+  let o = mix(mix(0.2 + 0.2 * h3.x, 0.5 + 0.3 * h3.x, smoothstep(7.0, 18.0, distance(xz, G.camPos.xz))), 1.0, max(near, giant * 0.75));   // buds near you, until you arrive
   var p = mix(v.a, v.b, o * o * (3.0 - 2.0 * o));
   let mat = floor(v.uv.x);
   if (mat == 6.0) { p = vec3f(rot2(near * (G.time * 0.3 + sd * 6.0)) * p.xz, p.y).xzy; }      // spiral blooms turn slowly while awake
-  let s = v.i.w * (0.8 + 0.45 * h3.y) * (1.0 + 0.3 * near);
+  let s = v.i.w * (0.8 + 0.45 * h3.y) * (1.0 + 0.4 * near);
+  if (mat < 0.5 && giant > 0.5) { p = vec3f(p.x * 2.6, p.y, p.z * 2.6); }
   let cy = cos(sd * 61.0); let sy = sin(sd * 61.0);
   var q = vec3f(cy * p.x + sy * p.z, p.y, cy * p.z - sy * p.x) * s;
   let n = vec3f(cy * v.n.x + sy * v.n.z, v.n.y, cy * v.n.z - sy * v.n.x);
@@ -83,8 +87,8 @@ const ACC = array<vec3f, 6>(vec3f(0.95, 0.92, 0.85), vec3f(1.0, 0.85, 0.25), vec
   out.n = n; out.uv = v.uv;
   var col = mapB(xz + (h3.xz - 0.5) * 6.0).rgb;
   if (acc > 0.5) { col = ACC[u32(acc) - 1u]; }
-  out.col = clamp(col * (0.78 + 0.45 * h3.z) + (vec3f(h3.y, h3.x, h3.z) - 0.5) * 0.1, vec3f(0.0), vec3f(1.2));
-  out.l = vec3f(mix(0.3, 1.0, smoothstep(0.0, 0.28 * s, q.y)), m.a, near);
+  out.col = clamp(col * (0.7 + 0.5 * h3.z) + (vec3f(h3.y, h3.x, h3.z) - 0.5) * 0.24, vec3f(0.0), vec3f(1.2));
+  out.l = vec3f(mix(0.3, 1.0, smoothstep(0.0, 0.28 * s, q.y)), m.a, max(near, giant));
   out.pos = G.viewProj * vec4f(out.w, 1.0);
   return out;
 }
@@ -92,7 +96,9 @@ const ACC = array<vec3f, 6>(vec3f(0.95, 0.92, 0.85), vec3f(1.0, 0.85, 0.25), vec
   var n = normalize(in.n); if (!ff) { n = -n; }
   let mat = floor(in.uv.x); let t = fract(in.uv.x) / 0.98; let u = in.uv.y;
   let c = in.col;
-  var alb = mix(c * c * 0.4, c, smoothstep(0.0, 0.6, t)) * (0.62 + 0.5 * smoothstep(0.0, 0.8, t)) * (0.92 + 0.08 * cos(u * 9.0));   // petals with a deep throat
+  if (mat > 0.5) { n = normalize(n + vec3f(0.0, 0.9, 0.0)); }      // soft, unfaceted petals
+  var alb = mix(c * c * 0.35, c, smoothstep(0.1, 0.65, t)) * (0.6 + 0.55 * smoothstep(0.0, 0.9, t)) * (0.9 + 0.1 * cos(u * 9.0));   // radial gradient, deep throat
+  if (mat == 1.0) { alb = mix(vec3f(0.05, 0.01, 0.06), alb, smoothstep(0.1, 0.3, t + 0.05 * cos(u * 5.0))); }   // dark blotch at the heart
   var tr = 0.7; var glow = 0.0;
   if (mat < 0.5) { alb = mix(vec3f(0.02, 0.06, 0.012), vec3f(0.17, 0.34, 0.05), t) * (1.0 - 0.25 * u * u); tr = 0.55; }
   else if (mat == 2.0) { alb = mix(vec3f(1.0, 0.62, 0.05), vec3f(0.2, 0.08, 0.02), t); tr = 0.1; }
@@ -133,27 +139,25 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   o.pos = G.viewProj * vec4f(o.w, 1.0);
   return o;
 }
-fn wist(k: f32) -> vec3f { return mix(mix(vec3f(0.4, 0.22, 0.95), vec3f(0.93, 0.88, 1.0), saturate(k)), vec3f(1.0, 0.42, 0.7), saturate(k - 1.0)); }
+fn wist(k: f32) -> vec3f { return mix(mix(vec3f(0.4, 0.22, 0.95), vec3f(0.93, 0.88, 1.0), saturate(k)), vec3f(1.0, 0.7, 0.82), saturate(k - 1.0)); }
 @fragment fn fsObj(in: VO, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
   var n = normalize(in.n); if (!ff) { n = -n; }
   let mat = floor(in.uv.x); let t = fract(in.uv.x) / 0.98;
   let wp = in.w; let v = normalize(G.camPos - wp);
   // triplanar noise: b = round speckles (leaves, florets), a = fine grain, r/g = slow variation
-  let ls = select(1.1, 2.4, mat == 2.0);
+  let ls = 1.1;
   let bw = n * n;
   let tp = textureSample(NT, NS, wp.zy * ls) * bw.x + textureSample(NT, NS, wp.xz * ls + 0.37) * bw.y + textureSample(NT, NS, wp.xy * ls + 0.71) * bw.z;
   var alb: vec3f; var tr = 0.0; var ao = 1.0; var glow = 0.0;
-  if (mat == 4.0) { alb = mix(vec3f(0.14, 0.085, 0.05), vec3f(0.9, 0.78, 0.6), t) * (0.75 + 0.5 * tp.a); }
+  if (mat == 4.0) { alb = mix(vec3f(0.14, 0.085, 0.05), vec3f(0.9, 0.78, 0.6), t) * (0.75 + 0.5 * tp.a) * mix(vec3f(1.3, 0.85, 0.3), vec3f(1.0), step(0.5, in.sd.y)); }
   else if (mat == 0.0 || mat == 5.0) {
     alb = mix(vec3f(0.045, 0.032, 0.028), vec3f(0.3, 0.22, 0.16), tp.a * 0.6 + tp.r * 0.4);
     ao = 0.35 + 0.65 * t;
     n = normalize(n + vec3f(tp.r - 0.5, 0.0, tp.g - 0.5) * 0.8);
   } else if (mat == 2.0) {
     let base = wist(in.sd.y);
-    let body = step(in.uv.y, 0.3);
-    if (body * (0.5 - tp.b) > abs(dot(n, v)) * 0.9 - 0.1) { discard; }
-    alb = mix(base, base * base * vec3f(0.6, 0.4, 0.85), saturate(smoothstep(0.3, 1.0, t) + body * (0.6 - tp.b * 0.8))) * (0.7 + 0.4 * in.uv.y);
-    tr = 0.9; glow = 0.22;
+    alb = mix(base * vec3f(0.45, 0.3, 0.8), mix(base, vec3f(1.0), 0.45), smoothstep(0.0, 0.9, t)) * (0.8 + 0.3 * in.uv.y);    // deep violet shoulders, pale tips
+    tr = 1.3; glow = 0.18;
   } else {
     let hv = in.uv.y;                                 // per-leaf hue
     ao = 0.18 + 0.82 * t;
@@ -181,9 +185,9 @@ struct WO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) u
   let v = normalize(in.w - G.camPos);
   var r = reflect(v, n); r.y = abs(r.y);
   let m = mapA(p);
-  var refl = mix(mix(vec3f(0.05, 0.07, 0.04), vec3f(0.6, 0.36, 0.05), smoothstep(0.4, 0.75, a.r)), skyCol(r), smoothstep(0.02, 0.2, r.y + (b.a - 0.5) * 0.1));
+  var refl = mix(mix(vec3f(0.05, 0.07, 0.04), vec3f(0.6, 0.36, 0.05), smoothstep(0.55, 0.8, a.r) * 0.5), skyCol(r), smoothstep(0.02, 0.2, r.y + (b.a - 0.5) * 0.1));
   let bank = smoothstep(0.3, 1.0, abs(in.u) + (a.a - 0.5) * 0.35);
-  refl = mix(refl, vec3f(0.1, 0.09, 0.03) + vec3f(0.5, 0.3, 0.04) * b.a * b.a, bank * 0.8);
+  refl = mix(refl, vec3f(0.1, 0.09, 0.03) + vec3f(0.5, 0.3, 0.04) * b.a * b.a, bank * 0.7);
   let fr = 0.05 + 0.95 * pow(1.0 - max(dot(-v, n), 0.0), 5.0);
   var deep = mix(vec3f(0.015, 0.05, 0.045), vec3f(0.05, 0.09, 0.05), a.a);
   var koi = 0.0;
@@ -191,11 +195,14 @@ struct WO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) u
     let fi = f32(i); let t = G.time * 0.16 + fi * 2.1;
     let c = select(vec2f(9.0, -37.3), vec2f(60.0, -39.6), i > 2) + vec2f(sin(t) * 4.5, sin(t * 1.7 + fi) * 1.7);
     var e = p - c; e.y += sin(e.x * 5.0 * sign(cos(t)) + G.time * 2.0) * 0.035;
-    let k = 1.0 - smoothstep(0.6, 1.0, length(e * vec2f(2.4, 10.0)) + 0.35 * e.x * sign(cos(t)));
+    let k = 1.0 - smoothstep(0.6, 1.0, length(e * vec2f(1.5, 6.5)) + 0.35 * e.x * sign(cos(t)));
     koi = max(koi, k);
-    deep = mix(deep, select(vec3f(0.9, 0.28, 0.03), vec3f(0.8, 0.72, 0.6), i == 1 || i == 4), k * 0.7);
+    deep = mix(deep, select(vec3f(0.9, 0.28, 0.03), vec3f(0.8, 0.72, 0.6), i == 1 || i == 4), k * 0.92);
   }
-  var c = mix(deep, refl, saturate(fr + 0.2 - koi * 0.25));
-  c += G.sunColor * pow(max(dot(r, G.sunDir), 0.0), 500.0) * 2.5 * m.a;
+  var c = mix(deep, refl, saturate(fr + 0.2 - koi * 0.3));
+  c += G.sunColor * (pow(max(dot(r, G.sunDir), 0.0), 90.0) * smoothstep(0.55, 0.8, b.b) * 2.5 + pow(max(dot(r, G.sunDir), 0.0), 500.0) * 2.0) * m.a;      // sun glitter
+  let pad = smoothstep(0.66, 0.7, textureSample(NT, NS, p * 0.085).b) * smoothstep(0.35, 0.6, abs(in.u)) * step(koi, 0.01);      // lily pads near the banks
+  c = mix(c, vec3f(0.07, 0.2, 0.04) * (0.6 + G.sunColor * 0.25 * m.a) * (0.7 + 0.6 * a.a), pad);
+  c = mix(vec3f(0.3, 0.27, 0.2) * (0.25 + 0.2 * m.a), c, smoothstep(0.0, 0.45, -m.r + (b.a - 0.5) * 0.1));      // shallows fade into the bank
   return vec4f(atmo(c, in.w), 1.0);
 }

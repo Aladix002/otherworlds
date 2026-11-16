@@ -62,7 +62,7 @@ function add(g, h, dx, dz, s, yaw) {
 
 // species: 0 poppy, 1 lavender, 2 star, 3 bells, 4 spiral, 5 puffball, 6 lantern, 7 daisy. lod 0 near, 1 mid, 2 far
 export function flower(sp, lod, sd) {
-  const g = mk(), R = makeRng(sd * 31 + sp * 7 + 1), hi = lod < 1, far = lod > 1, nl = [5, 2, 1][lod], nw = far ? 1 : hi ? 4 : 2, sr = 0.0075 * (1 + lod * 0.7);
+  const g = mk(), R = makeRng(sd * 31 + sp * 7 + 1), hi = lod < 1, far = lod > 1, nl = [5, 2, 1][lod], nw = far ? 1 : hi ? 4 : 2, sr = 0.0075 * (1 + lod * 1.2);
   const lean = 0.03 + 0.08 * R(), tilt = [0.05, 0.25 + 0.3 * R()];
   const up = (H) => stem(g, (s, o) => [lean * s * s * (0.4 + 0.6 * o), L(H, o) * s], sr, hi ? 4 : far ? 1 : 2)(1);
   const arch = (H) => stem(g, (s, o) => { const h = L(H, o); return [h * (0.25 + 0.3 * o) * Math.pow(s, 2.5), h * (1.6 * s - 0.65 * s * s)]; }, sr, hi ? 6 : far ? 2 : 3);
@@ -145,18 +145,17 @@ const mat = (g, m, f) => { for (let i = 0; i < g.uv.length / 2; i++) g.uv[i * 2]
 // leaf mass: a dark lumpy core wrapped in a shell of real leaves (lod 0: many small, lod 1: few large, lod 2: core only).
 // uv.x = material + shade, uv.y = per-leaf hue. ctr / sh give the crown centre and a shade function for soft crown lighting.
 function leafMass(parts, R, sd, c, s, lod, m, ctr, sh) {
-  const b = rock(sd, lod === 0 ? 2 : 1, 0.42), k = lod < 2 ? 0.72 : 1;
+  const b = rock(sd, lod === 0 ? 2 : 1, 0.42), k = lod < 2 ? 0.72 : 0.85;
   const soft = (px, py, pz, n, i, w) => { const nx = px - ctr[0], ny = (py - ctr[1]) * 1.3, nz = pz - ctr[2], l = Math.hypot(nx, ny, nz) || 1; n[i] = n[i] * (1 - w) + nx / l * w; n[i + 1] = n[i + 1] * (1 - w) + ny / l * w; n[i + 2] = n[i + 2] * (1 - w) + nz / l * w; };
   for (let i = 0; i < b.pos.length; i += 3) {
     const px = b.pos[i] * s * k + c[0], py = b.pos[i + 1] * s * k * 0.8 + c[1], pz = b.pos[i + 2] * s * k + c[2];
     soft(px, py, pz, b.nrm, i, 0.55); b.pos[i] = px; b.pos[i + 1] = py; b.pos[i + 2] = pz;
-    b.uv[i / 3 * 2] = m + 0.98 * Math.min(Math.max(sh(px, py, pz) * (lod < 2 ? 0.3 : 0.55), 0), 1); b.uv[i / 3 * 2 + 1] = 0.4;
+    b.uv[i / 3 * 2] = m + 0.98 * Math.min(Math.max(sh(px, py, pz) * 0.3, 0), 1); b.uv[i / 3 * 2 + 1] = 0.4;
   }
-  parts.push(b);
-  if (lod > 1) return;
-  const n = lod ? 40 : 120, nv = lod ? 4 : 6, g = { pos: new Float32Array(n * nv * 3), nrm: new Float32Array(n * nv * 3), uv: new Float32Array(n * nv * 2), idx: new Uint32Array(n * (nv - 2) * 3) };
+  if (m !== 3) parts.push(b);
+  const n = [170, 40, 14][lod], nv = lod ? 4 : 6, g = { pos: new Float32Array(n * nv * 3), nrm: new Float32Array(n * nv * 3), uv: new Float32Array(n * nv * 2), idx: new Uint32Array(n * (nv - 2) * 3) };
   for (let i = 0; i < n; i++) {
-    const y = 1 - (i + 0.5) / n * 1.7, r = Math.sqrt(1 - y * y), ph = i * 2.39996 + R(), rr = s * (0.74 + 0.36 * R()), a = (lod ? 0.52 : 0.3) * (0.75 + 0.5 * R()) * Math.min(s, 1.2);
+    const y = 1 - (i + 0.5) / n * 1.7, r = Math.sqrt(1 - y * y), ph = i * 2.39996 + R(), rr = s * (0.74 + 0.36 * R()), a = [0.23, 0.52, 0.95][lod] * (0.75 + 0.5 * R()) * Math.min(s, 1.2);
     const d = [r * Math.cos(ph), y, r * Math.sin(ph)], p = [c[0] + d[0] * rr, c[1] + d[1] * rr * 0.8, c[2] + d[2] * rr];
     let nx = d[0] + R() - 0.5, ny = d[1] + 0.3 + R() - 0.5, nz = d[2] + R() - 0.5, l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
     let tx = R() - 0.5, ty = -0.4 - R() * 0.5, tz = R() - 0.5; const dt = tx * nx + ty * ny + tz * nz; tx -= nx * dt; ty -= ny * dt; tz -= nz * dt; l = Math.hypot(tx, ty, tz) || 1; tx /= l; ty /= l; tz /= l;
@@ -185,34 +184,22 @@ export function tree(sd, lod) {
   }
   return merge(parts);
 }
-// hanging wisteria cluster, unit length downward from the origin (mat 2). uv.y = 0 edge .. 1 heart of a floret
+// hanging wisteria cluster, unit length downward from the origin (mat 2): many small rounded petals around a tapering
+// spindle, big at the top, buds at the tip. uv.x = material + position down the cluster, uv.y = per-petal tone
 export function raceme(lod, sd) {
-  const R = makeRng(sd + 3);
-  if (lod) {
-    const P = []; for (let i = 0; i <= 4; i++) { const s = i / 4; P.push([0.012 + 0.16 * Math.sin(Math.PI * Math.pow(s, 0.55)) * (1 - 0.35 * s), -s]); }
-    const g = mat({ ...tubeLathe(P, 5) }, 2);
-    for (let i = 0; i < g.uv.length / 2; i++) { g.uv[i * 2] = 2 + 0.98 * -g.pos[i * 3 + 1]; g.uv[i * 2 + 1] = 0.6; }
-    return g;
-  }
-  const n = 48, g = { pos: new Float32Array(n * 12), nrm: new Float32Array(n * 12), uv: new Float32Array(n * 8), idx: new Uint32Array(n * 6) };
-  const rad = (s) => 0.02 + 0.13 * Math.sin(Math.PI * Math.pow(s, 0.55)) * (1 - 0.35 * s);
+  const R = makeRng(sd + 3), n = lod ? 18 : 66, g = { pos: new Float32Array(n * 18), nrm: new Float32Array(n * 18), uv: new Float32Array(n * 12), idx: new Uint32Array(n * 12) };
   for (let i = 0; i < n; i++) {
-    const s = 0.06 + 0.94 * Math.pow(i / (n - 1), 0.85), ph = i * 2.39996 + R() * 0.4, r = rad(s) * (0.85 + 0.3 * R()), a = 0.052 * (1 - 0.5 * s) * (0.8 + 0.4 * R());
-    const ox = Math.cos(ph), oz = Math.sin(ph), c = [ox * r, -s, oz * r];
-    const V = [[-oz * a, 0.3 * a, ox * a], [ox * a * 0.9, 0.5 * a, oz * a * 0.9], [oz * a, 0.3 * a, -ox * a], [ox * a * 0.5, -0.9 * a, oz * a * 0.5]];
-    for (let k = 0; k < 4; k++) {
-      const v = i * 4 + k;
-      g.pos.set([c[0] + V[k][0], c[1] + V[k][1], c[2] + V[k][2]], v * 3); g.nrm.set([ox * 0.8, k === 1 ? 0.6 : k === 3 ? -0.5 : 0.1, oz * 0.8], v * 3);
-      g.uv[v * 2] = 2 + 0.98 * s; g.uv[v * 2 + 1] = k & 1 ? 1 : 0.35;
+    const s = 0.03 + 0.97 * Math.pow(i / (n - 1), 0.8), ph = i * 2.39996 + R(), r = (0.02 + 0.13 * Math.sin(Math.PI * Math.pow(s, 0.55)) * (1 - 0.35 * s)) * (0.3 + 0.7 * Math.sqrt(R())), a = (lod ? 0.1 : 0.052) * (1 - 0.62 * s) * (0.8 + 0.4 * R());
+    const ox = Math.cos(ph), oz = Math.sin(ph), tone = R();
+    for (let k = 0; k < 6; k++) {
+      const v = i * 6 + k, c = Math.cos(k * 1.0472) * a * 0.8, d = Math.sin(k * 1.0472) * a;
+      g.pos.set([ox * (r + d * 0.55) - oz * c, -s - d * 0.8, oz * (r + d * 0.55) + ox * c], v * 3); g.nrm.set([ox * 0.9, 0.35, oz * 0.9], v * 3);
+      g.uv[v * 2] = 2 + 0.98 * s; g.uv[v * 2 + 1] = tone;
+      if (k > 1) g.idx.set([i * 6, v - 1, v], (i * 4 + k - 2) * 3);
     }
-    g.idx.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
   }
-  const P = []; for (let i = 0; i <= 6; i++) P.push([rad(i / 6) * 0.82, -i / 6]);
-  const body = tubeLathe(P, 6);
-  for (let i = 0; i < body.uv.length / 2; i++) { body.uv[i * 2] = 2 + 0.98 * -body.pos[i * 3 + 1]; body.uv[i * 2 + 1] = 0.15; }
-  return merge([g, body]);
+  return g;
 }
-function tubeLathe(P, segs) { return tube(P.map(([r, y]) => [0, y, 0]), (t) => P[Math.round(t * (P.length - 1))][0], segs); }
 // leafy / blossom mass for the tunnel roof (mat 3)
 export function leafBlob(sd, lod) { const parts = []; leafMass(parts, makeRng(sd), sd, [0, 0, 0], 1, lod, 3, [0, -0.6, 0], (x, y) => 0.5 + 0.45 * y); return merge(parts); }
 
@@ -223,7 +210,7 @@ export function woodwork(TUN, BRIDGES, hAt, deckY) {
   for (let i = 0; i < TUN.length; i += 2) {
     const [x, z, nx, nz] = frame(i), y = hAt(x, z);
     if (i % 8 === 0) { const P = []; for (let k = 0; k <= 14; k++) { const a = (k / 14 - 0.5) * Math.PI; P.push([x + nx * 1.75 * Math.sin(a), y + 3.35 * Math.cos(a) - (k % 14 ? 0 : 0.5), z + nz * 1.75 * Math.sin(a)]); } parts.push(tube(P, 0.05, 6)); }
-    rails.forEach((r, k) => { const a = (k - 2) * 0.62; r.push([x + nx * 1.75 * Math.sin(a), y + 3.35 * Math.cos(a), z + nz * 1.75 * Math.sin(a)]); });
+    rails.forEach((r, k) => { const a = (k - 2) * 0.62 + 0.16 * Math.sin(i * 0.11 + k * 2); r.push([x + nx * 1.75 * Math.sin(a), y + 3.35 * Math.cos(a), z + nz * 1.75 * Math.sin(a)]); });
   }
   for (const r of rails) parts.push(tube(r, 0.03, 4));
   for (const b of BRIDGES) {
@@ -240,7 +227,7 @@ export function woodwork(TUN, BRIDGES, hAt, deckY) {
     for (const sd of [-1, 1]) {
       const beam = [], rail = [];
       for (let k = 0; k <= 16; k++) { const s = (k / 16 - 0.5) * b.L; beam.push(W(s, sd * 0.9, deckY(b, s) - 0.14)); rail.push(W(s, sd * 0.97, deckY(b, s) + 0.95)); }
-      parts.push(tube(beam, 0.09, 5), tube(rail, 0.045, 6));
+      parts.push(tube(beam, 0.09, 5), tube(rail, 0.06, 6));
       for (let k = 0; k <= 6; k++) { const s = (k / 6 - 0.5) * (b.L - 0.3); parts.push(tube([W(s, sd * 0.97, deckY(b, s) - (k % 6 ? 0.2 : 1.2)), W(s, sd * 0.97, deckY(b, s) + (k % 6 ? 0.95 : 1.08))], k % 6 ? 0.035 : 0.065, 5)); }
     }
   }
@@ -250,5 +237,5 @@ export function woodwork(TUN, BRIDGES, hAt, deckY) {
 // small discoveries: rabbit (mat 4 fur), swing hung from the origin (mat 5, swings in the shader), straw beehive (mat 4)
 const ball = (rx, ry, rz, x, y, z, sh) => mat(translate(scale(sphere(1, 1), rx, ry, rz), x, y, z), 4, () => sh);
 export const rabbit = () => merge([ball(0.15, 0.13, 0.21, 0, 0.13, 0, 0.45), ball(0.085, 0.085, 0.095, 0, 0.27, 0.17, 0.55), ball(0.025, 0.09, 0.04, 0.045, 0.4, 0.13, 0.6), ball(0.025, 0.09, 0.04, -0.045, 0.4, 0.13, 0.6), ball(0.05, 0.05, 0.05, 0, 0.13, -0.21, 1)]);
-export const swing = (L) => mat(merge([tube([[-0.28, 0, 0], [-0.28, -L, 0]], 0.014, 4), tube([[0.28, 0, 0], [0.28, -L, 0]], 0.014, 4), translate(box(0.7, 0.045, 0.24), 0, -L, 0)]), 5, () => 0.7);
-export const hive = () => merge([mat(tube([[0, 0.9, 0], [0, 0.3, 0]], 0.012, 4), 0, () => 0.5), mat(scale(rock(3, 2, 0.12), 0.27, 0.36, 0.27), 4, (x, y) => 0.55 + 0.35 * Math.sin(y * 40))]);
+export const swing = (L) => mat(merge([tube([[-0.28, 0, 0], [-0.28, -L, 0]], 0.028, 4), tube([[0.28, 0, 0], [0.28, -L, 0]], 0.028, 4), translate(box(0.7, 0.045, 0.24), 0, -L, 0)]), 5, () => 0.7);
+export const hive = () => merge([mat(tube([[0, 0.9, 0], [0, 0.3, 0]], 0.012, 4), 0, () => 0.5), mat(scale(rock(3, 2, 0.1), 0.42, 0.55, 0.42), 4, (x, y) => 0.6 + 0.3 * Math.sin(y * 34))]);
