@@ -226,19 +226,20 @@ export function createAudio() {
   }
 
   // core sounds
-  function creak(dur = 1.5) {
-    const t = now() + 0.02, os = ac.createOscillator(); os.type = 'sawtooth';
+  function creak(o = 1.5) {     // creak(dur) for the door, or creak({ dur, when, gain, pan, reverb }) for quiet ambient wood
+    const op = typeof o === 'number' ? { dur: o } : o, dur = op.dur ?? 1.5, gm = (op.gain ?? 0.09) / 0.09;
+    const t = Math.max(op.when ?? 0, now() + 0.02), os = ac.createOscillator(); os.type = 'sawtooth';
     const N = 48, fc = new Float32Array(N), gc = new Float32Array(N); let f = 38;
     for (let i = 0; i < N; i++) { f = Math.min(85, Math.max(22, f + (rng() - 0.45) * 14)); fc[i] = f; const x = i / (N - 1); gc[i] = Math.sin(Math.PI * Math.min(1, x * 1.15)) * (0.55 + 0.45 * rng()) * (x < 0.92 ? 1 : 0.2); }
     os.frequency.setValueCurveAtTime(fc, t, dur);
     const b1 = ac.createBiquadFilter(); b1.type = 'bandpass'; b1.frequency.value = 620; b1.Q.value = 5;
     const b2 = ac.createBiquadFilter(); b2.type = 'bandpass'; b2.frequency.value = 1450; b2.Q.value = 7;
-    const g = ac.createGain(); g.gain.value = 0; g.gain.setValueCurveAtTime(gc.map((v) => v * 0.09), t, dur);
-    const r = bus({ reverb: 0.4, gain: 1 }).input;
+    const g = ac.createGain(); g.gain.value = 0; g.gain.setValueCurveAtTime(gc.map((v) => v * 0.09 * gm), t, dur);
+    const r = bus({ reverb: op.reverb ?? 0.4, pan: op.pan ?? 0, gain: 1 }).input;
     os.connect(b1); os.connect(b2); b1.connect(g); b2.connect(g); g.connect(r);
     os.start(t); os.stop(t + dur + 0.1);
     // soft wooden settle at the end
-    additive({ freq: 92, partials: [1, 0.35, 0.2], ratios: [1, 2.3, 3.9], attack: 0.01, decay: 0.5, gain: 0.05, when: t + dur * 0.97 });
+    additive({ freq: 92, partials: [1, 0.35, 0.2], ratios: [1, 2.3, 3.9], attack: 0.01, decay: 0.5, gain: 0.05 * gm, when: t + dur * 0.97 });
   }
 
 
