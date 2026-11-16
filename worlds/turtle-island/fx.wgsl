@@ -25,9 +25,9 @@ struct PV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
     col = vec4f(pink * 1.15, sin(ag * PI) * 0.4);
   } else if (ty == 3) {                                   // a whale spouts far away
     let ag = clamp(age * 4.0 - sd * 0.5, 0.0, 1.0);
-    p = vec3f(G.params2.z + h3.x * 2.0, 0.5 + ag * (15.0 + h3.y * 5.0), G.params2.w + h3.z * 2.0) + wind * ag * 5.0;
+    p = vec3f(G.params2.z + h3.x * 2.0, 0.5 + ag * (20.0 + h3.y * 6.0), G.params2.w + h3.z * 2.0) + wind * ag * 5.0;
     size = b.y * (0.4 + 1.6 * ag);
-    col = vec4f(pink * 1.2, sin(ag * PI) * 0.45);
+    col = vec4f(pink * 1.3, sin(ag * PI) * 0.6);
   } else if (ty == 4) {                                   // fireflies
     p += vec3f(sin(t * 0.31 + sd * 40.0) * 1.6 + sin(t * 0.13 + sd * 9.0), sin(t * 0.23 + sd * 17.0) * 0.6, cos(t * 0.27 + sd * 29.0) * 1.6 + cos(t * 0.11 + sd * 5.0));
     let bl = smoothstep(0.1, 0.9, sin(t * (0.7 + sd) + sd * 50.0));

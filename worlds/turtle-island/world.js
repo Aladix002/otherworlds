@@ -58,7 +58,7 @@ export default {
   spawn: { pos: [SPAWN[0], 3.2, SPAWN[1]], yaw: 0, pitch: 0.03 },
   // y is metres above the ground until init() resolves it
   poses: [
-    P(4, 1.65, -124, 0, 0.02, 12),                      // the head rising ahead, hatchlings crawling to the sea
+    P(4, 1.65, -124, 0, 0.02, 13.9),                      // the head rising ahead, hatchlings crawling to the sea
     P(46, 1.7, -134, -1.52, 0.09, 10.5),                 // tide pools on the shell, a flipper lifting beyond
     P(0, 2, 0, 0, 0, 16.8),                                   // lava meeting the sea (placed in init)
     P(-54, 1.6, -108.5, 2.3, 0.17, 12),                      // black sand and basalt columns
@@ -127,7 +127,7 @@ export default {
     const pools = [...HOT, ...TIDE], dry = (x, z, m = 1) => pools.every((p) => Math.hypot(x - p[0], z - p[1]) > p[2] + m);
     const sandy = (x, z) => T.mat(x, z, 2) > 0.6 && at(x, z) > 1.1 && at(x, z) < 4.5;
 
-    const palmAt = [[14, -139, 2.2], [-13, -131, 0.4], [-22, -118, 1.2], [30, -122, 3.0], [HAM[0][0] - 0.2, HAM[0][2] - 0.15, 3.6], [HAM[1][0] + 0.2, HAM[1][2] + 0.15, 0.5], [-9.5, -95, 2.2]];
+    const palmAt = [[27, -138, 2.2], [-13, -131, 0.4], [-22, -118, 1.2], [30, -122, 3.0], [HAM[0][0] - 0.2, HAM[0][2] - 0.15, 3.6], [HAM[1][0] + 0.2, HAM[1][2] + 0.15, 0.5], [-9.5, -95, 2.2]];
     for (let i = 0; i < 16; i++) { const a = R.range(0, TAU), r = 4 + 13 * Math.sqrt(R()); palmAt.push([93 + Math.cos(a) * r * 0.7, 22 + Math.sin(a) * r * 1.3, R.range(0, TAU)]); }
     scatter(q ? 16 : 8, (x, z) => sandy(x, z) && clear(x, z) && Math.abs(x - SPAWN[0]) > 9, (x, z) => palmAt.push([x, z, R.range(0, TAU)]));
     const veg = (x, z) => T.mat(x, z, 3);
@@ -201,7 +201,7 @@ export default {
     { const e = T.paths[2][T.paths[2].length - 6]; for (let i = 0; i < 8; i++) F(e[0], e[1] + 0.3, e[2], 0, 0.9, 6, 0.3); }
     for (let i = 0; i < 70 * nq; i++) { const p = R.pick(T.paths), s = p[R.int(p.length)]; if (s[3] > 0) F(s[0], s[1] + 0.2, s[2], 5, 0.04, R.range(4, 8)); }
     for (let i = 0; i < 26; i++) F(0, 0, 0, 2, 3.2, 1);
-    for (let i = 0; i < 18; i++) F(0, 0, 0, 3, 5, 17);
+    for (let i = 0; i < 22; i++) F(0, 0, 0, 3, 7, 17);
     scatter(190 * nq, (x, z) => veg(x, z) > 0.35 && at(x, z) < 22 && (z > 40 || x > 45) && R() < 0.4 + ss(60, 10, Math.hypot(x - SHRINE[0], z - SHRINE[1])), (x, z) => F(x, at(x, z) + R.range(0.5, 2.6), z, 4, 0.06, 1));
     for (let i = 0; i < 12; i++) F(HUT[0] + R.range(-7, 9), at(HUT[0], HUT[1]) + R.range(0.6, 2.5), HUT[1] + R.range(-7, 9), 4, 0.05, 1);
     for (const s of [-1, 1]) for (let i = 0; i < 44 * nq; i++) F(s, 0, 0, 6, 3.4, R.range(2.6, 4));
@@ -232,9 +232,9 @@ export default {
     e.params[0] = V0 * (t + 0.22 * STROKE / TAU * Math.sin(ph - 1.2));
     e.params[1] = ph;
     e.params[2] = ss(1, 9, th) * ss(40, 30, th);
-    e.params[3] = 0.5 * Math.sin(t * 0.07 + 0.5) * e.params[2];
+    e.params[3] = -0.45 * Math.sin(t * 0.07 + 1.2) * e.params[2];
     e.params2[0] = Math.min(1, Math.max(0, (th - 12) / 7));
-    const wz = -560 + 30 * Math.sin(t * 0.05), wx = 170;
+    const wz = -420 + 20 * Math.sin(t * 0.05), wx = 120;
     e.params2[2] = wx; e.params2[3] = wz - 7;
     DY = D; DO = 0;
     for (let i = 0; i < NB; i++) {                          // seabirds: wide slow circles round the cone, the coast and the head
@@ -256,9 +256,9 @@ export default {
     }
     for (let i = 0; i < ND; i++) {                          // dolphins riding beside the turtle
       const tt = (t + i * 4.3) % 12.5, u = Math.min(tt / 2.8, 1), s = Math.sin(Math.PI * u);
-      put(-42 - i * 9, -1.8 + 4.6 * s, -200 + i * 8 - 8 * u + 6 * ss(3, 12, tt), 1.6, 0, 0, 0.95 * Math.cos(Math.PI * u) * (tt < 2.8 ? 1 : 0), t * 5);
+      put(-26 - i * 8, -2.2 + 5.6 * s, -168 + i * 7 - 9 * u + 7 * ss(3, 12, tt), 2, 0, 0, 0.95 * Math.cos(Math.PI * u) * (tt < 2.8 ? 1 : 0), t * 5);
     }
-    put(wx, -1.25 + 0.5 * Math.sin(t * 0.25), wz, 1, 0, 0, 0.05 * Math.sin(t * 0.25 + 1), 0);
+    put(wx, -1.6 + 0.7 * Math.sin(t * 0.25), wz, 1.5, 0, 0, 0.05 * Math.sin(t * 0.25 + 1), 0);
     ctx.queue.writeBuffer(this.inst, this.dyn0 * 32, D);
 
     const A = ctx.audio;

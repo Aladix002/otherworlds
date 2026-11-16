@@ -24,8 +24,8 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
   c += vec3f(1.2, 0.3, 0.08) * exp(-(ab * ab + pow(rd.y - 0.36, 2.0)) * 60.0);
   // the head rising from the sea, the lifted flipper to the right
   let hq = vec2f(az, rd.y);
-  let hd = length((hq - vec2f(-0.235, 0.155 + 0.004 * sin(t * 0.3))) / vec2f(0.11, 0.066 - 0.03 * smoothstep(0.0, -0.11, az + 0.235)));
-  let nk = abs(az + 0.145 + (rd.y - 0.1) * 0.25) / 0.058;
+  let hd = length((hq - vec2f(0.47, 0.2 + 0.004 * sin(t * 0.3))) / vec2f(0.12, 0.07 - 0.02 * smoothstep(0.0, 0.11, az - 0.47)));
+  let nk = abs(az + 0.07 - rd.y * 2.4) / (0.085 - rd.y * 0.1);
   let fl = length((vec2f(az + 1.35, rd.y - 0.04 - (az + 1.35) * 0.12)) / vec2f(0.38, 0.045));
   let sil = max(max(smoothstep(1.1, 0.85, hd), smoothstep(1.1, 0.85, nk) * smoothstep(0.23, 0.15, rd.y)), smoothstep(1.05, 0.9, fl)) * step(0.0, rd.y);
   c = mix(c, vec3f(0.11, 0.08, 0.07) + hz * 0.3, sil);
@@ -38,7 +38,7 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
     let rs = max(dot(r, sun), 0.0);
     var sea = mix(vec3f(0.01, 0.035, 0.05), hz, pow(1.0 - min(-rd.y * 3.0, 1.0), 3.0) * 0.85 + 0.1);
     sea += vec3f(2.4, 0.9, 0.3) * pow(rs, 90.0) * (0.6 + 0.8 * w) + vec3f(0.4, 0.2, 0.1) * pow(rs, 12.0);
-    sea = mix(sea, vec3f(0.035, 0.035, 0.05), smoothstep(1.0, 0.6, length(vec2f(az + 0.15, rd.y + 0.08) / vec2f(0.1, 0.08))) * 0.5);
+    sea = mix(sea, vec3f(0.035, 0.035, 0.05), smoothstep(1.0, 0.6, length(vec2f(az - 0.05, rd.y + 0.07) / vec2f(0.12, 0.07))) * 0.5);
     let shore = 22.0 + 3.0 * sin(q.x * 0.09) + 1.5 * sin(t * 0.4 + q.x * 0.05);
     let sandc = vec3f(0.012, 0.012, 0.015) + hz * 0.1 * smoothstep(shore - 10.0, shore, d) + vec3f(0.02) * fbm2(q * 1.5, 2);
     sea = mix(sea, vec3f(0.6, 0.5, 0.52), smoothstep(2.5, 0.0, abs(d - shore - 1.5)) * 0.6 * step(abs(az), 1.6));

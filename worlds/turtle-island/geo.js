@@ -50,18 +50,18 @@ export function head() {
     if (j) { const p = C[j - 1], m = (TH[j - 1] + th) / 2; C.push([0, p[1] + Math.sin(m) / ns, p[2] - Math.cos(m) / ns]); }
   }
   const f = (s, a) => {
-    const j = Math.round(s * ns), th = TH[j], c = C[j], k = Math.max(s - 0.78, 0) / 0.22, sn = Math.sin(a), cs = Math.cos(a);
-    const r = 0.05 + 0.06 * Math.exp(-s * 4) + 0.068 * Math.exp(-Math.pow((s - 0.76) / 0.14, 2));
-    const end = Math.sqrt(Math.max(1 - Math.pow(k, 3), 0));
-    const mouth = 1 - 0.13 * Math.exp(-Math.pow((sn + 0.3) / 0.09, 2)) * ss(0.7, 0.78, s);                 // jaw line
-    const wr = 1 + 0.045 * Math.sin(s * 140 + 2 * sn) * ss(0.62, 0.5, s) * ss(0.04, 0.2, s);               // neck folds
-    const brow = 0.016 * Math.exp(-Math.pow((s - 0.815) / 0.045, 2)) * Math.exp(-Math.pow((sn - 0.55) / 0.3, 2));
-    const lx = cs * (r * (1 - 0.66 * k * k) * end * mouth * wr + brow + 0.003);
-    const ly = sn * (r * (sn > 0 ? 0.72 : 0.6) * (1 - 0.4 * k) * end * mouth * wr + 0.003) + brow * 0.6 - 0.055 * k * k * k;   // hooked beak
+    const j = Math.round(s * ns), th = TH[j], c = C[j], k = Math.max(s - 0.83, 0) / 0.17, sn = Math.sin(a), cs = Math.cos(a);
+    const r = 0.064 + 0.08 * Math.exp(-s * 3) + 0.06 * Math.exp(-Math.pow((s - 0.78) / 0.15, 2));
+    const end = Math.pow(Math.max(1 - Math.pow(k, 2.4), 0), 0.42);
+    const mouth = 1 - 0.07 * Math.exp(-Math.pow((sn + 0.3) / 0.09, 2)) * ss(0.7, 0.88, s);                 // jaw line
+    const wr = 1 + 0.022 * Math.sin(s * 140 + 2 * sn) * ss(0.66, 0.52, s) * ss(0.04, 0.2, s);               // neck folds
+    const brow = 0.004 * Math.exp(-Math.pow((s - 0.815) / 0.045, 2)) * Math.exp(-Math.pow((sn - 0.55) / 0.3, 2));
+    const lx = cs * (r * (1 - 0.34 * k * k) * end * mouth * wr + brow + 0.003);
+    const ly = sn * (r * (sn > 0 ? 0.84 : 0.66) * (1 - 0.3 * k) * end * mouth * wr + 0.003) + brow * 0.6 - 0.018 * k * k;   // blunt snout, beak tip dipping gently
     return [lx, c[1] + ly * Math.cos(th), c[2] + ly * Math.sin(th)];
   };
   const g = loft(ns, 28, f);
-  g.eye = f(0.835, 0.3); g.pivot = C[Math.round(0.6 * ns)]; g.nose = f(0.965, 1.15);
+  g.eye = f(0.85, 0.16); g.pivot = C[Math.round(0.6 * ns)]; g.nose = f(0.975, 0.9);
   return g;
 }
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };

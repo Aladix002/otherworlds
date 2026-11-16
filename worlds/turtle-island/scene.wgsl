@@ -190,7 +190,8 @@ struct WV { @builtin(position) pos: vec4f, @location(0) w: vec3f };
   let lg = exp(-max(m.r, 0.0) * 0.45) * smoothstep(-0.3, 0.3, depth);
   col += vec3f(3.5, 0.8, 0.1) * lg * (0.6 + 0.4 * fn1.b) * (1.0 - foam * 0.6);
 
-  let a = clamp(max(max(1.0 - exp(-depth * 1.4), fr * smoothstep(0.0, 0.6, depth)), foam), 0.0, 1.0) * smoothstep(0.0, 0.25, depth + foam * 0.2);
+  let dz = depth + (fn2.b - 0.5) * 0.3 + (d2.b - 0.5) * 0.16;            // lobed, uneven swash edge instead of a straight cut
+  let a = clamp(max(max(1.0 - exp(-max(dz, 0.0) * 0.8), fr * smoothstep(0.1, 1.2, dz)), foam * smoothstep(-0.05, 0.1, dz)), 0.0, 1.0) * smoothstep(-0.02, 0.45, dz);
   return vec4f(fog(col, w), a);
 }
 
@@ -213,8 +214,8 @@ struct UV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let s = in.uv.x; let sa = sin(in.uv.y * TAU); let ca = cos(in.uv.y * TAU); let hd = in.k;
   // graded scales: big scutes on the skull and along the flipper's leading edge, fine ones on the neck and trailing edge
   let g = mix(smoothstep(-0.5, 0.7, ca), smoothstep(0.74, 0.6, s), hd);
-  let uvs = in.uv * mix(vec2f(26.0, 16.0), vec2f(15.0, 17.0), hd);
-  let v1 = voronoi2(uvs); let v2 = voronoi2(uvs * 2.9 + 5.0);
+  let uvs = in.uv * mix(vec2f(26.0, 16.0), vec2f(10.0, 11.0), hd);
+  let v1 = voronoi2(uvs); let v2 = voronoi2(uvs * mix(2.9, 4.0, hd) + 5.0);
   let seam = mix(smoothstep(0.14, 0.02, v1.y - v1.x), smoothstep(0.2, 0.04, v2.y - v2.x), g);
   let cell = mix(v1.z, v2.z, g); let cd = mix(v1.x, v2.x, g);
   let under = smoothstep(0.1, -0.5, n.y) * (1.0 - hd * 0.4);
@@ -226,16 +227,16 @@ struct UV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   var gl = 0.45 + 0.3 * (1.0 - seam);
   if (hd > 0.5) {
     // neck folds, horn beak with a mouth line, nostril, lidded eye
-    alb *= 1.0 - 0.45 * smoothstep(0.2, 1.0, -sin(s * 140.0 + 2.0 * sa)) * smoothstep(0.62, 0.5, s);
-    alb = mix(alb, vec3f(0.15, 0.13, 0.08) * (0.6 + 0.6 * dt.b), smoothstep(0.86, 0.94, s) * 0.8);
+    alb *= 1.0 - 0.22 * smoothstep(0.2, 1.0, -sin(s * 140.0 + 2.0 * sa)) * smoothstep(0.66, 0.52, s);
+    alb = mix(alb, vec3f(0.15, 0.13, 0.08) * (0.6 + 0.6 * dt.b), smoothstep(0.93, 0.99, s) * 0.6);
     alb *= 1.0 - 0.85 * smoothstep(0.07, 0.02, abs(sa + 0.3)) * smoothstep(0.71, 0.77, s);
     let q = vec3f(abs(in.l.x), in.l.y, in.l.z);
     alb *= 1.0 - 0.9 * smoothstep(0.011, 0.005, length(q - NOS));
     let ep = q - EYE;
-    let ed = length(ep * vec3f(0.4, 1.0, 0.8)) / 0.024;
+    let ed = length(ep * vec3f(0.4, 1.0, 0.9)) / 0.017;
     let blink = smoothstep(0.985, 1.0, sin(G.time * 0.35 + 1.0));
     let lid = mix(0.35, -1.2, blink);                        // heavy upper lid, closes slowly
-    let eye = smoothstep(1.0, 0.88, ed) * smoothstep(lid + 0.12, lid - 0.12, ep.y / 0.024);
+    let eye = smoothstep(1.0, 0.88, ed) * smoothstep(lid + 0.12, lid - 0.12, ep.y / 0.017);
     alb = mix(alb, alb * 0.45, smoothstep(1.9, 1.0, ed) * (1.0 - eye) * 0.8);          // socket shade
     alb = mix(alb, vec3f(0.2, 0.17, 0.1), smoothstep(0.25, 0.0, abs(ed - 1.12)) * 0.8);   // lid rim
     alb = mix(alb, mix(vec3f(0.004, 0.004, 0.004), vec3f(0.12, 0.06, 0.02), smoothstep(0.5, 0.95, ed)), eye);

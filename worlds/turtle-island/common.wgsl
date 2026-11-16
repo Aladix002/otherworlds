@@ -57,11 +57,10 @@ fn flipW(p: vec3f, side: f32, rear: f32) -> vec3f {
   return vec3f(side * (mix(FP.x, 76.0, rear) + q.x), FP.y + q.y, mix(FP.z, 122.0, rear) + q.z);
 }
 // head + neck: unit mesh, neck rising from the origin toward -z, s = position along it. The head turns on the neck.
-fn headR(s: f32) -> mat3x3f { return rotX(0.12 * (G.params.z - 1.0)) * rotY(G.params.w * (0.3 + 1.6 * smoothstep(0.2, 0.85, s))); }
+fn headA(s: f32) -> f32 { return G.params.w * (0.35 + 1.5 * smoothstep(0.05, 0.9, s)); }      // the whole neck sweeps round in an arc
+fn headR(s: f32) -> mat3x3f { return rotX(0.12 * (G.params.z - 1.0)) * rotY(headA(s)); }
 fn headW(p: vec3f, s: f32) -> vec3f {
-  let k = smoothstep(0.2, 0.85, s);
-  let q = rotY(G.params.w * 0.3) * (HPV + rotY(G.params.w * 1.6 * k) * (p - HPV));
-  return HB + vec3f(0.0, -48.0 * (1.0 - G.params.z), 0.0) + rotX(0.12 * (G.params.z - 1.0)) * q * HL;
+  return HB + vec3f(0.0, -48.0 * (1.0 - G.params.z), 0.0) + headR(s) * p * HL;
 }
 
 // ocean surface height at island-space xz (swell rides the passing water + the wave trains shed by the front flippers)

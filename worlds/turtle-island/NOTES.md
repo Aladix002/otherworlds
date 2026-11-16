@@ -32,7 +32,7 @@ facing −Z (the sunset and the turtle's head); the door to `astral-ocean` stand
 The island never moves; the ocean detail, foam and swell scroll past by `flow` (speed pulses with each stroke), a wake fans
 out behind (+Z), the plume and steam trail backwards. Front flippers (period `STROKE` 14 s) lift like great fins, sweep
 back and under, shedding ring waves (`swell`) and churned foam; the head (cycle `HEADT` 80 s, up at t = 0..18) rises,
-turns to glance back, breathes out a mist puff and sinks.
+sweeps its whole neck round in an arc to glance back (`headA`), breathes out a mist puff and sinks.
 
 ## Tunables
 `V0` (swim speed), `STROKE`, `HEADT` (world.js); `FP`, `FL`, `HB`, `HL` (common.wgsl); `LAVA`, `HOT`, `TIDE`, `FLATS`
