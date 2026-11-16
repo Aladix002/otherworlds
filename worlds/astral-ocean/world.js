@@ -641,48 +641,47 @@ export default {
   },
 
   audio(ctx, a) {
-    const ac = a.ctx;
+    // E lydian, free and weightless: whale-song glides (a recurring 4-note motif with variants), glassy high harmonics, a deep sub swell
     a.setReverb({ seconds: 6.5, damp: 0.45, wet: 0.95, predelay: 0.04 });
-    a.drone({ freq: a.hz(36), partials: [1, 1.5, 2, 3, 4.02], amps: [1, 0.45, 0.5, 0.2, 0.1], gain: 0.05, cutoff: 420, detune: 5 });
+    const r = a.rng, LY = a.scale(52, 'lydian', 3); // E3 F#3 G#3 A#3 B3 C#4 D#4 E4 ...
+    a.drone({ freq: a.hz(28), partials: [1, 2, 3, 4.02], amps: [1, 0.6, 0.35, 0.1], gain: 0.05, cutoff: 360, detune: 5 });
     a.noiseBed({ color: 'brown', freq: 260, q: 0.5, gain: 0.025, mod: 0.4, modRate: 0.03 });
-    a.pad({ chords: [[72, 79, 83, 86], [71, 76, 79, 86], [69, 76, 81, 84], [74, 79, 83, 88], [67, 74, 79, 83]], type: 'sine', gain: 0.022, attack: 7, change: [16, 30], cutoff: 3200, reverb: 0.85 });
-    // whale song: formant-filtered glides, positioned at a whale
-    const song = (when, k = a.rng.int(3), mul = 1) => {
+    // very slow sub swell on the tonic / fifth
+    a.every(40, 75, (when) => a.additive({ freq: a.hz(r() < 0.65 ? 28 : 35), partials: [1, 0.35, 0.12], attack: 9, decay: 12, gain: 0.05, when, reverb: 0.5 }), { startDelay: 10 });
+    // whale song: the motif E-B-A#-F# (deg 0,4,3,1) glides, with variants
+    const MOTIF = [4, 7, 6, 3, 4]; // B3 E4 D#4 A#3 B3 -> overall contour up, fall, rest on the fifth
+    const songPath = (mul) => {
+      const x = r(), sh = r.int(3) - 1;
+      let d = MOTIF.map((k) => k + sh);
+      if (x < 0.25) d = d.slice(0, 3);
+      else if (x < 0.45) d = d.slice().reverse();
+      else if (x < 0.7) d = d.concat([d[d.length - 1] - 2 - r.int(2)]);
+      else if (x > 0.88) d = [r.int(6), r.int(6) + 1, r.int(6) + 2, r.int(6)].map((k) => k + 1);
+      return d.map((k) => LY[Math.max(0, Math.min(LY.length - 1, k))] + (mul > 1.5 ? 12 : 0));
+    };
+    const song = (when, k = r.int(3), mul = 1) => {
       const W = frame(PATHS[k], ctx.time, 0.2);
       const sp = a.spatial({ pos: W.p, ref: 40, rolloff: 0.6, reverb: 0.9, gain: 1 });
-      const base = (110 + a.rng() * 120) * mul, dur = (2.8 + a.rng() * 3) / mul, low = a.rng() < 0.35;
-      const os = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain();
-      os.type = 'sine'; o2.type = 'triangle';
-      const f = [base, base * (low ? 0.6 : 1.5 + a.rng() * 0.5), base * (low ? 0.5 : 1.15)];
-      for (const o of [os, o2]) {
-        o.frequency.setValueAtTime(f[0], when);
-        o.frequency.exponentialRampToValueAtTime(f[1], when + dur * 0.45);
-        o.frequency.exponentialRampToValueAtTime(f[2], when + dur);
-      }
-      o2.detune.value = 7;
-      const v = ac.createOscillator(), vg = ac.createGain(); v.frequency.value = 3.5 + a.rng() * 2; vg.gain.value = 4; v.connect(vg); vg.connect(os.frequency); vg.connect(o2.frequency);
-      const b1 = ac.createBiquadFilter(), b2 = ac.createBiquadFilter(), mix = ac.createGain();
-      b1.type = 'bandpass'; b1.frequency.value = 420 + a.rng() * 200; b1.Q.value = 3;
-      b2.type = 'bandpass'; b2.frequency.value = 1100 + a.rng() * 400; b2.Q.value = 5;
-      b1.frequency.setTargetAtTime(b1.frequency.value * 1.4, when + dur * 0.3, dur * 0.3);
-      os.connect(b1); o2.connect(b1); os.connect(b2); b1.connect(mix); b2.connect(mix); mix.gain.value = 1;
-      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
-      os.connect(lp); lp.connect(g); mix.connect(g);
-      g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(0.045, when + dur * 0.3); g.gain.linearRampToValueAtTime(0.03, when + dur * 0.75); g.gain.linearRampToValueAtTime(0, when + dur);
-      g.connect(sp.input);
-      for (const o of [os, o2, v]) { o.start(when); o.stop(when + dur + 0.1); }
+      const path = songPath(mul);
+      a.whaleSong({ path, dur: (6 + path.length * 1.4 + r() * 3) / Math.sqrt(mul), gain: 0.05, bus: sp, when });
     };
-    a.every(14, 34, (when) => { song(when); if (a.rng() < 0.5) song(when + 2.5 + a.rng() * 2); }, { startDelay: 6 });
+    a.every(24, 52, (when) => { song(when); if (r() < 0.4) song(when + 5 + r() * 3); }, { startDelay: 6 });
+    // glassy shimmer: two high lydian glass tones, rarely a slowly sounded triad
+    a.every(11, 26, (when) => {
+      const k = 8 + r.int(6);
+      a.glassHarmonica({ midi: LY[k] + 12, dur: 4 + r() * 3, gain: 0.014, pan: r.range(-0.6, 0.6), reverb: 0.9, when });
+      if (r() < 0.55) a.glassHarmonica({ midi: LY[k + 2] + 12, dur: 4 + r() * 3, gain: 0.011, pan: r.range(-0.6, 0.6), reverb: 0.9, when: when + 1.5 + r() * 2 });
+    }, { startDelay: 12 });
     // the calf answers in a small high voice; the reef ticks and chirps; sprites chime when they come to you
-    a.every(20, 46, (when) => song(when, 7, 2.3), { startDelay: 15 });
+    a.every(30, 70, (when) => song(when, 7, 2.3), { startDelay: 20 });
     const reef = a.spatial({ pos: REEF, ref: 12, rolloff: 1, reverb: 0.7, gain: 1 });
-    this.deep = a.drone({ freq: a.hz(24), partials: [1, 2, 3.01], amps: [1, 0.5, 0.2], gain: 0, cutoff: 200, detune: 4 });
-    const notes = a.scale(76, 'pentatonic', 2);
+    this.deep = a.drone({ freq: a.hz(28), partials: [1, 2, 3.01], amps: [1, 0.5, 0.2], gain: 0, cutoff: 200, detune: 4 });
+    const notes = a.scale(76, 'lydian', 2);
     a.every(3, 9, (when) => {
       if (a.rng() < 0.3) a.chirp({ f0: 700 + a.rng() * 300, f1: 1300 + a.rng() * 500, dur: 0.6, gain: 0.02, bus: reef, when });
       else a.pluck({ freq: a.hz(a.rng.pick(notes) - 12), decay: 1.6, gain: 0.03, bus: reef, when });
     });
-    a.every(4, 10, (when) => { if (this.lead > 0.35) a.bell({ freq: a.hz(a.rng.pick(notes) + 12), gain: 0.007 * this.lead, decay: 2.5, ratio: 4.2, index: 0.8, when, pan: a.rng.range(-0.5, 0.5), reverb: 0.8 }); });
+    a.every(4, 10, (when) => { if (this.lead > 0.35) a.bell({ freq: a.hz(a.rng.pick(notes)), gain: 0.007 * this.lead, decay: 2.5, ratio: 4.2, index: 0.8, when, pan: a.rng.range(-0.5, 0.5), reverb: 0.8 }); });
     a.every(1.8, 5.5, (when) => {
       const near = Math.max(0, 1 - this.nearJelly / 45);
       if (near <= 0.02 && a.rng() < 0.8) return;
