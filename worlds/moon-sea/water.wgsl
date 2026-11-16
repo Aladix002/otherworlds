@@ -51,7 +51,7 @@ fn doorRefl(p: vec3f, r: vec3f, col: vec3f) -> vec3f {
     let n = vec3f(cy * best.x + sy * best.z, best.y, -sy * best.x + cy * best.z);
     let hp = p + r * best.w;
     let lh = ro + rd * best.w;
-    let wood = vec3f(0.15, 0.1, 0.064) * (0.86 + 0.14 * sin(lh.x * 33.0));
+    let wood = vec3f(0.13, 0.115, 0.105) * (0.86 + 0.14 * sin(lh.x * 33.0));
     c = wood * (G.sunColor * wrapDiffuse(n, G.sunDir, 0.2) + hemi(n, G.ambientSky, G.ambientGround) + lampLight(hp, n) + vec3f(0.07, 0.05, 0.035));
   }
   return c;
@@ -81,8 +81,8 @@ fn doorRefl(p: vec3f, r: vec3f, col: vec3f) -> vec3f {
   let lim = 0.03 * G.camPos.y / (dist * dist);
   var sl = vec2f(0.0);
   if (fa > 0.0) { sl += snoise3d(vec3f(p * 1.9, t * 0.17)).xy * min(0.0011, lim * 0.5) * fa; }
-  if (fb > 0.0) { sl += snoise3d(vec3f(p * 0.43 + 7.0, t * 0.11)).xy * min(0.0016, lim * 2.3) * fb; }
-  sl += snoise3d(vec3f(p * vec2f(0.045, 0.11) - 3.0, t * 0.07)).xy * min(0.002, lim * 9.0) * fc;
+  if (fb > 0.0) { sl += snoise3d(vec3f(p * 0.43 + 7.0, t * 0.11)).xy * min(0.0022, lim * 3.2) * fb; }
+  sl += snoise3d(vec3f(p * vec2f(0.045, 0.11) - 3.0, t * 0.07)).xy * min(0.0028, lim * 12.0) * fc;
   sl *= breeze;
   var rs = vec2f(0.0);   // rings: footsteps, soft random rings, the door posts
   // footsteps
@@ -153,7 +153,7 @@ fn doorRefl(p: vec3f, r: vec3f, col: vec3f) -> vec3f {
 
   // ---- shading ----
   let cosv = -rd.y;
-  var F = mix(0.88, 1.0, pow(1.0 - cosv, 3.0));
+  var F = mix(0.74, 1.0, pow(1.0 - cosv, 2.0));
   let shallow = smoothstep(0.06, 0.0, depth);
   F *= 1.0 - 0.55 * shallow;
   // the sand under a few centimetres of water

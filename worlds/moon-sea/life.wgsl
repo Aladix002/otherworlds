@@ -22,12 +22,17 @@ fn podPath(h: vec2f, ph: f32, r: f32, a0: f32) -> vec2f {
     let aw = c - G.camPos.xz; let d = length(aw) + 1e-3;
     c += aw / d * 1.8 * smoothstep(3.5, 0.6, d);
   }
-  let w = c + f * cs.x * b.x + s * cs.y * b.x * select(0.7, 1.0, turtle);
   let d = distance(vec3f(c.x, 0.0, c.y), G.camPos);
+  var off = f * cs.x * b.x + s * cs.y * b.x * select(0.7, 1.0, turtle);
+  if (!turtle) {   // far fish are stretched along the view line, so they stay soft blobs instead of dashes
+    let vd = normalize(c - G.camPos.xz);
+    off += vd * dot(off, vd) * (clamp(d / (G.camPos.y * 1.7), 1.0, 6.0) - 1.0);
+  }
+  let w = c + off;
   let h = textureSampleLevel(hT, sLin, (c - HMAP.xy) / HMAP.z + 0.5, 0.0).r;
   var o: SWO;
   o.q = cs;
-  o.k = vec3f(b.z, b.y, smoothstep(-0.03, -0.058, h) * (1.0 - smoothstep(24.0, 55.0, d)));
+  o.k = vec3f(b.z, b.y, smoothstep(-0.03, -0.058, h) * (1.0 - smoothstep(24.0, 55.0, d)) * smoothstep(0.05, 0.16, G.camPos.y / d));
   o.pos = G.viewProj * vec4f(w.x, 0.004 + d * 0.0015, w.y, 1.0);
   if (o.k.z < 0.01) { o.pos = vec4f(0.0, 0.0, 2.0, 1.0); }
   return o;
@@ -39,42 +44,42 @@ fn seg2(p: vec2f, a: vec2f, b: vec2f) -> f32 {
 @fragment fn fsSwim(in: SWO) -> @location(0) vec4f {
   let t = G.time; let sd = in.k.y; let q = in.q;
   if (in.k.x < 0.5) {
-    // fish: a soft body of light, a brighter spine, a tail that wags
+    // fish: no outline, only light: a soft body, a brighter spine, a trail that fades behind the wagging tail
     let y = q.y + 0.2 * sin(t * (3.0 + 2.0 * sd) + sd * 40.0 + q.x * 2.5) * (0.5 - 0.5 * q.x);
-    let bw = 0.42 * (0.72 + 0.28 * q.x);
-    let f = (q.x - 0.18) * (q.x - 0.18) / 0.5 + y * y / (bw * bw);
-    let body = smoothstep(1.0, 0.2, f);
-    let tail = smoothstep(0.08, -0.05, abs(y) - (-0.42 - q.x) * 0.9) * step(q.x, -0.42) * smoothstep(-0.98, -0.8, q.x);
-    let m = max(body, tail * 0.6);
-    let halo = exp(-(q.x * q.x + y * y * 1.6) * 2.6) * (1.0 - smoothstep(0.6, 1.0, max(abs(q.x), abs(q.y))));
-    let gold = step(0.8, sd);
-    let tint = mix(BIO, vec3f(1.0, 0.5, 0.13), gold);
-    let core = mix(vec3f(0.6, 0.92, 1.0), vec3f(1.0, 0.85, 0.5), gold);
-    let c = (tint * (m * 0.5 + halo * 0.32) + core * body * exp(-y * y * 30.0) * 0.4) * (0.8 + 0.2 * sin(t * 0.9 + sd * 70.0));
+    let bw = 0.3 * (0.75 + 0.25 * q.x);
+    let f = (q.x - 0.25) * (q.x - 0.25) / 0.34 + y * y / (bw * bw);
+    let body = exp(-f * 1.6);
+    let trail = exp(-y * y * 9.0) * smoothstep(-1.0, -0.3, q.x) * smoothstep(0.5, -0.2, q.x) * 0.3;
+    let edge = 1.0 - smoothstep(0.55, 1.0, max(abs(q.x), abs(q.y)));
+    let gold = step(0.82, sd);
+    let tint = mix(vec3f(0.12, 0.6, 0.9), vec3f(0.9, 0.78, 0.5), gold);
+    let core = mix(vec3f(0.65, 0.9, 1.0), vec3f(1.0, 0.93, 0.75), gold);
+    let c = (tint * (body * 0.42 + trail) + core * exp(-f * 5.0) * 0.3) * edge * (0.8 + 0.2 * sin(t * 0.9 + sd * 70.0));
     return vec4f(c * in.k.z, 0.0);
   }
-  // turtle: a dark shape under the mirror, drawn in lines of light
+  // turtle: a dark shape deep under the mirror; only the shell ridges and a dusting of plankton carry light
   let sw = sin(t * 0.8) * 0.28; let sw2 = sin(t * 0.8 - 1.2) * 0.2;
   let ay = abs(q.y);
   let p = vec2f(q.x, ay);
   let ds = (length((q - vec2f(-0.02, 0.0)) / vec2f(0.5, 0.39)) - 1.0) * 0.4;
-  let dh = length((q - vec2f(0.63, 0.0)) / vec2f(1.0, 0.8)) - 0.125;
-  let ff = seg2(p, vec2f(0.32, 0.3), vec2f(0.02 - sw * 0.6, 0.74)) - mix(0.135, 0.06, clamp((ay - 0.3) / 0.45, 0.0, 1.0));
-  let fr = seg2(p, vec2f(-0.38, 0.22), vec2f(-0.66 - sw2 * 0.2, 0.42 + sw2 * 0.3)) - 0.075;
-  let tl = seg2(q, vec2f(-0.5, 0.0), vec2f(-0.66, 0.0)) - 0.03;
-  let d = min(min(min(ds, dh), min(ff, fr)), tl);
-  let body = smoothstep(0.015, -0.015, d);
-  let v = voronoi2(q * vec2f(5.2, 6.4) + 2.3);
-  let shell = smoothstep(0.0, -0.04, ds);
-  let line = smoothstep(0.2, 0.05, v.y - v.x);
-  // luminous scutes with dark seams, dim limbs, a thin rim of light
-  let cells = shell * (1.0 - line) * (0.08 + 0.16 * v.z) * (0.75 + 0.25 * sin(t * 0.4 + v.z * 30.0));
-  var c = BIO * (cells + body * (1.0 - shell) * 0.13 + exp(-abs(d) * 26.0) * 0.16)
-    + vec3f(0.25, 1.0, 0.7) * shell * exp(-v.x * v.x * 14.0) * 0.1;
-  let ep = p - vec2f(0.68, 0.065);
-  c += vec3f(0.7, 0.95, 1.0) * exp(-dot(ep, ep) * 2500.0) * 0.5;   // eyes
-  let a = body * 0.5 * in.k.z;
-  return vec4f(c * in.k.z + vec3f(0.004, 0.012, 0.02) * a, a);
+  let dh = length((q - vec2f(0.61, 0.0)) / vec2f(1.0, 0.75)) - 0.12;
+  let ft = clamp((ay - 0.28) / 0.5, 0.0, 1.0);
+  let ff = seg2(p, vec2f(0.33, 0.28), vec2f(0.0 - sw * 0.6, 0.76)) - mix(0.15, 0.035, ft * ft);
+  let rt = clamp((ay - 0.2) / 0.25, 0.0, 1.0);
+  let fr = seg2(p, vec2f(-0.36, 0.2), vec2f(-0.66 - sw2 * 0.2, 0.4 + sw2 * 0.3)) - mix(0.1, 0.03, rt);
+  let tl = seg2(q, vec2f(-0.5, 0.0), vec2f(-0.64, 0.0)) - 0.025;
+  let d = smin(smin(ds, dh, 0.05), smin(min(ff, fr), tl, 0.03), 0.05);
+  let body = smoothstep(0.035, -0.045, d);                      // soft, as seen through water
+  let shell = smoothstep(0.01, -0.09, ds);
+  let v = voronoi2(q * vec2f(4.6, 5.6) + 2.3);
+  let ridge = smoothstep(0.26, 0.0, v.y - v.x) * shell;
+  let dome = clamp(1.0 + ds * 2.2, 0.0, 1.0);                    // brighter toward the rim of the carapace
+  let spk = voronoi2(q * 21.0 + vec2f(t * 0.05, 0.0));
+  let dust = exp(-spk.x * spk.x * 60.0) * step(0.55, spk.z) * (0.5 + 0.5 * sin(t * (0.6 + spk.z) + spk.z * 40.0)) * smoothstep(0.22, 0.0, abs(d + 0.03));
+  let teal = vec3f(0.2, 0.46, 0.52);
+  var c = teal * (ridge * (0.1 + 0.16 * dome) + shell * 0.035 + body * (1.0 - shell) * 0.04 * (1.0 - ft)) + vec3f(0.5, 0.85, 0.9) * dust * 0.3;
+  let a = body * 0.62 * in.k.z;
+  return vec4f(c * in.k.z + vec3f(0.006, 0.012, 0.02) * a, a);
 }
 
 // ---- fireflies ----
@@ -93,7 +98,7 @@ struct FO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) @
   var o: FO;
   o.pos = G.viewProj * vec4f(billboard(p, QC[vi], vec2f(hs)), 1.0);
   o.c = QC[vi];
-  o.a = bl * (1.0 - fogAmount(d)) * min(1.0, 0.075 / hs * 3.0) * (1.0 - smoothstep(110.0, 170.0, d));
+  o.a = bl * (1.0 - fogAmount(d)) * min(1.0, 0.075 / hs * 3.0) * (1.0 - smoothstep(110.0, 170.0, d)) * smoothstep(0.7, 3.0, d);   // never a blob in the face
   if (o.a < 0.004) { o.pos = vec4f(0.0, 0.0, 2.0, 1.0); }
   return o;
 }
@@ -176,7 +181,7 @@ const WHALE_T = 83.0;
 struct WHO { @builtin(position) pos: vec4f, @location(0) q: vec2f, @location(1) w: vec3f, @location(2) @interpolate(flat) k: f32 };
 @vertex fn vsWhale(@builtin(vertex_index) vi: u32) -> WHO {
   let e = floor(G.time / WHALE_T); let lt = G.time - e * WHALE_T;
-  let az = 0.3 + 1.5 * fract(e * 0.618 + 0.2); let ds = 230.0 + 80.0 * fract(e * 0.37);
+  let az = 0.98 + 0.95 * fract(e * 0.618 + 0.2); let ds = 300.0 + 80.0 * fract(e * 0.37);   // well left of the lighthouse bearing
   let c = vec3f(-sin(az), 0.0, -cos(az)) * ds;
   let r = normalize(vec3f(c.z, 0.0, -c.x));
   let cs = QC[vi];
@@ -206,12 +211,10 @@ struct WHO { @builtin(position) pos: vec4f, @location(0) q: vec2f, @location(1) 
   let notch = length(vec2f(ax, p.y) - vec2f(0.0, 20.2)) - 1.5;
   let d = max(smin(stalk, lobe, 1.2), -notch);
   let m = smoothstep(0.12, -0.12, d) * smoothstep(0.0, 0.25, in.q.y);
-  var c = vec3f(0.012, 0.017, 0.028) + vec3f(0.3, 0.4, 0.62) * exp(d * 0.9) * 0.16 * smoothstep(-0.4, 0.6, p.x * 0.05 + 0.3);
-  // water streaming off, lit by the plankton
-  let dr = snoise2(vec2f(p.x * 1.7, p.y * 0.25 + G.time * 0.8));
-  c += BIO * 0.1 * smoothstep(0.35, 0.9, dr) * exp(d * 0.6) * (1.0 - k);
-  c = fogged(c, in.w);
-  // the wake glows where it breaks the surface
-  let wk = BIO * exp(-in.q.y * 0.55) * exp(-in.q.x * in.q.x / (30.0 + 60.0 * k)) * sin(PI * k) * 0.55 * (0.6 + 0.4 * snoise2(vec2f(in.q.x * 0.6, G.time * 0.5)));
-  return vec4f(c * m + wk * (1.0 - fogAmount(distance(in.w, eye()))), m);
+  // an opaque silhouette, a little darker than the horizon haze behind it, with a thin moonlit edge
+  let hz = skyBase(normalize(vec3f(in.w.x, 0.0, in.w.z)));
+  var c = mix(vec3f(0.006, 0.009, 0.016), hz, 0.42) + vec3f(0.3, 0.4, 0.62) * exp(d * 1.1) * 0.07 * smoothstep(-0.4, 0.6, p.x * 0.05 + 0.3);
+  // soft glowing mist where it breaks the surface
+  let wk = BIO * exp(-in.q.y * 0.4) * exp(-in.q.x * in.q.x / (40.0 + 70.0 * k)) * sin(PI * k) * 0.2;
+  return vec4f(c * m + wk * (1.0 - m) * (1.0 - fogAmount(distance(in.w, eye()))), m);
 }

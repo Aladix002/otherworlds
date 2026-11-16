@@ -35,7 +35,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
   c += vec3f(0.5, 0.6, 0.9) * 0.004 * (fbm3(rd * 9.0, 4) * 0.5 + 0.5) * smoothstep(0.0, 0.3, sy);
   // moon halo
   let ha = max(ang - MR, 0.0);
-  c += vec3f(0.36, 0.47, 0.72) * (0.3 * exp(-ha * 13.0) + 0.09 * exp(-ha * 3.6) + 0.012 * exp(-ha * 1.1));
+  c += vec3f(0.36, 0.47, 0.72) * (0.26 * exp(-ha * 45.0) + 0.32 * exp(-ha * 13.0) + 0.1 * exp(-ha * 3.6) + 0.014 * exp(-ha * 1.1));
   // thin moonlit cirrus low over the horizon
   let cq = vec2f(az * 2.6, el * 17.0);
   let cn = fbm2(cq + 0.6 * vec2f(fbm2(cq * 0.7 + 3.0, 3), fbm2(cq * 0.7 - 7.0, 3)), 6);
@@ -75,10 +75,11 @@ fn craB(p: vec3f, s: f32, th: f32) -> f32 {
   let m2 = fbm3(wp * 3.1 + m * 1.5, 6);
   let m3 = fbm3(p * 9.0 + 5.0, 5);
   let ms = m + 0.3 * m2 + 0.07 * m3 + 0.12 * p.y - 0.1 * p.x;
-  let mar = smoothstep(0.03, 0.17, ms);
+  let mar = smoothstep(-0.03, 0.26, ms + 0.04 * fbm3(p * 24.0, 3));
   let deep = smoothstep(0.12, 0.5, ms);
   let hi = fbm3(p * 2.2 - 4.0, 5);
-  var alb = mix(0.74 + 0.1 * hi, 0.36 - 0.1 * deep + 0.07 * m2, mar);
+  let lg = fbm3(p * 0.9 + 17.0, 3);                              // broad albedo provinces
+  var alb = mix(0.86 + 0.09 * hi + 0.07 * lg, 0.33 - 0.11 * deep + 0.07 * m2 + 0.06 * lg, mar);
   // regolith mottling at every scale
   alb *= 0.88 + 0.1 * fbm3(p * 6.0, 5) + 0.08 * fbm3(p * 21.0, 4) + 0.06 * fbm3(p * 70.0, 3) + 0.035 * fbm3(p * 190.0, 2);
   // a full moon is lit head-on: relief is faint, craters read mostly as brightness
@@ -101,9 +102,9 @@ fn craB(p: vec3f, s: f32, th: f32) -> f32 {
     let cs = vec2f(cos(a), sin(a));
     let ray = pow(smoothstep(-0.2, 0.9, fbm2(cs * 3.4 + f32(i) * 9.0, 3)), 2.0) * (0.6 + 0.4 * fbm2(cs * 11.0 + dl * 3.0, 2));
     let k = select(1.0, 0.5, i > 0);
-    alb += k * (0.16 * ray * exp(-dl * select(6.0, 2.2, i == 0)) * smoothstep(0.015, 0.07, dl) + 0.1 * exp(-dl * dl * 260.0) + 0.22 * exp(-dl * dl * 2600.0));
+    alb += k * (0.42 * ray * exp(-dl * select(4.5, 1.7, i == 0)) * smoothstep(0.015, 0.07, dl) + 0.16 * exp(-dl * dl * 260.0) + 0.25 * exp(-dl * dl * 2600.0));
   }
-  alb *= mix(0.55, 1.0, pow(n.z, 0.5));
-  let col = mix(vec3f(1.0, 0.965, 0.9), vec3f(0.84, 0.9, 1.0), mar * 0.8) * clamp(alb, 0.0, 1.1) * 0.9;
+  alb *= mix(0.42, 1.0, pow(n.z, 0.55));
+  let col = mix(vec3f(1.0, 0.97, 0.91), vec3f(0.84, 0.9, 1.0), mar * 0.8) * clamp(alb, 0.0, 1.05) * 0.95;
   return vec4f(col, smoothstep(1.0, 0.972, sqrt(r2)));
 }

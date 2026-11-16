@@ -45,7 +45,7 @@ fn sky(rd0: vec3f) -> vec3f {
     if (dot(q, q) < 1.06) {
       q.y *= fl;
       let tx = textureSampleLevel(moonT, sLin, vec2f(0.5 + q.x * 0.49, 0.5 - q.y * 0.49), 0.0);
-      c = mix(c, tx.rgb * 1.3, tx.a);
+      c = mix(c, tx.rgb * 1.62, tx.a);
     }
   }
   return c;
@@ -62,7 +62,7 @@ fn lanternAt(i0: vec4f, i1: vec4f) -> LS {   // i0: x, z, phase (static: glow st
   if (i1.x > 1.5) {   // drifting floaters (2 = paper boat, 3 = lotus): a slow wander around home, radius i1.w
     let a = t * 0.021 * (0.6 + sd) + sd * 40.0;
     let xz = i0.xy + i1.w * vec2f(sin(a) + 0.4 * sin(a * 2.3 + sd * 9.0), cos(a * 0.83 + sd * 5.0) + 0.4 * sin(a * 1.7));
-    o.p = vec3f(xz.x, i1.y + 0.005 * sin(t * 0.9 + sd * 20.0), xz.y);
+    o.p = vec3f(xz.x, i1.y, xz.y);
     o.a = i0.z;
     if (i1.x > 2.5) { o.a *= 0.3 + 0.7 * smoothstep(12.0, 4.5, distance(xz, G.camPos.xz)); }   // lotus candles brighten as you come close
     return o;
@@ -80,6 +80,9 @@ fn lanternAt(i0: vec4f, i1: vec4f) -> LS {   // i0: x, z, phase (static: glow st
   let xz = i0.xy + WIND * y * 0.3 + sw * (0.2 + 0.035 * y) * lift;
   o.p = vec3f(xz.x, y + 0.015 + 0.012 * sin(t * 0.7 + sd * 20.0) * (1.0 - lift), xz.y);
   o.a = smoothstep(0.0, 4.0, age) * (1.0 - smoothstep(LT * 0.86, LT, age));
+  // sky lanterns keep clear of the moon's face
+  let R = asin(U.moon.w);
+  o.a *= smoothstep(R * 1.12, R * 1.7, acos(clamp(dot(normalize(o.p - G.camPos), U.moon.xyz), -1.0, 1.0)));
   return o;
 }
 fn lampLight(p: vec3f, n: vec3f) -> vec3f {

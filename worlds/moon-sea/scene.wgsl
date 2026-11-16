@@ -18,19 +18,20 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let dry = 1.0 - 0.7 * wet;
   let ph2 = ph * 3.3 + big * 4.0;
   let gr = vec2f(snoise2(p.xz * 17.0), snoise2(p.xz * 17.0 + 37.0)) * dry;
-  var n = normalize(in.n + vec3f(0.78, 0.0, 0.62) * (cos(ph) * (0.13 + 0.08 * big) * nf + cos(ph2) * 0.08 * nn) * dry
-    + vec3f(big, 0.0, vnoise2(p.xz * 5.0)) * 0.07 * nf + vec3f(gr.x, 0.0, gr.y) * 0.09 * nn);
-  var alb = mix(vec3f(0.5, 0.47, 0.43), vec3f(0.35, 0.32, 0.29), smoothstep(-0.4, 0.5, wv + 0.3 * big));
+  let fl = smoothstep(0.55, 0.9, in.n.y);   // ripples flatten out on steep faces instead of stretching
+  var n = normalize(in.n + vec3f(0.78, 0.0, 0.62) * (cos(ph) * (0.1 + 0.03 * big) * nf + cos(ph2) * 0.07 * nn) * dry * fl
+    + vec3f(big, 0.0, vnoise2(p.xz * 5.0)) * 0.03 * nf + vec3f(gr.x, 0.0, gr.y) * 0.13 * nn);
+  var alb = mix(vec3f(0.48, 0.455, 0.42), vec3f(0.4, 0.375, 0.345), smoothstep(-0.5, 0.6, wv + 0.2 * big));
   alb *= (0.94 + 0.06 * sin(ph) * nf) * (0.94 + 0.06 * gr.x * nn);
   alb *= mix(1.0, 0.5, wet);
   let nl = wrapDiffuse(n, G.sunDir, 0.1);
   let ndv = max(dot(n, V), 0.0);
-  var c = alb * (G.sunColor * nl * 1.35 + hemi(n, G.ambientSky, G.ambientGround) * 0.8 + lampLight(p, n));
+  var c = alb * (G.sunColor * nl * 1.35 + hemi(n, G.ambientSky, G.ambientGround) * 0.8 + lampLight(p, in.n) * 0.6);
   // moon rim on the crests, sparse glints of grain, a thin clean sheen on the wet strip
   c += alb * G.sunColor * pow(1.0 - ndv, 3.0) * 0.7 * max(dot(n, G.sunDir) + 0.4, 0.0);
   let R = reflect(-V, n);
-  let gl = step(0.995, hash21(floor(p.xz * 85.0))) * pow(max(dot(R, G.sunDir), 0.0), 6.0);
-  c += G.sunColor * gl * 1.6 * (1.0 - smoothstep(2.0, 11.0, dist)) * dry;
+  let gl = step(0.99, hash21(floor(p.xz * 85.0))) * pow(max(dot(R, G.sunDir), 0.0), 5.0);
+  c += G.sunColor * gl * 1.5 * (1.0 - smoothstep(3.0, 16.0, dist)) * dry;
   c += wet * (fresnelSchlick(ndv, 0.04) * G.fogColor * 1.4 + G.sunColor * specBlinn(n, G.sunDir, V, 60.0) * 0.25);
   // bioluminescent swash sliding up and down the beach (s = metres inland of the mean waterline)
   if (in.uv.y > 0.5) {
@@ -74,21 +75,18 @@ struct RO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let nf = 1.0 - smoothstep(12.0, 50.0, dist);
   // fractured stone: broad chipped facets, bedding strata, cracks along cell borders, fine grain
   let v = voronoi3(lp * 2.3);
-  let v2 = voronoi3(lp * 6.5 + 3.0);
   let g = fbm3(lp * 3.0, 3);
   let g2 = fbm3(lp * 17.0, 2);
   let fac = normalize(hash33(vec3f(v.z * 91.0, v.z * 37.0, 1.0)) - 0.5);
-  let fac2 = normalize(hash33(vec3f(v2.z * 53.0, 2.0, v2.z * 71.0)) - 0.5);
-  let cm = smoothstep(-0.1, 0.5, fbm3(lp * 1.1 - 3.0, 2));          // cracks come in patches
+  let cm = smoothstep(-0.2, 0.4, g);          // cracks come in patches
   let crack = smoothstep(0.035, 0.0, v.y - v.x) * nf * cm * 0.8;
-  let crack2 = smoothstep(0.05, 0.0, v2.y - v2.x) * nf * cm * 0.35;
   let strata = sin((lp.y + 0.25 * g) * 34.0);
-  var n = normalize(in.n + (fac * 0.36 + fac2 * 0.2 + vec3f(g2, strata * 0.25, -g2) * 0.22) * nf + 0.12 * vec3f(g, 0.0, -g));
+  var n = normalize(in.n + (fac * 0.4 + vec3f(g2, strata * 0.25, -g2) * 0.22) * nf + 0.12 * vec3f(g, 0.0, -g));
   let V = normalize(eye() - p);
   let wet = 1.0 - smoothstep(0.03, 0.16, p.y);
   var alb = mix(vec3f(0.1, 0.105, 0.12), vec3f(0.3, 0.29, 0.28), clamp(0.45 + 0.35 * g + 0.2 * g2 + 0.25 * (v.z - 0.5) + 0.06 * strata, 0.0, 1.0));
-  alb = mix(alb, vec3f(0.3, 0.31, 0.27), smoothstep(0.25, 0.6, fbm3(lp * 1.4 + 9.0, 3)) * smoothstep(0.2, 0.8, in.n.y) * 0.55);   // pale lichen on top
-  alb *= (0.7 + 0.5 * in.tint) * mix(1.0, 0.45, wet) * (1.0 - 0.75 * max(crack, crack2));
+  alb = mix(alb, vec3f(0.3, 0.31, 0.27), smoothstep(0.25, 0.6, fbm3(lp * 1.4 + 9.0, 2)) * smoothstep(0.2, 0.8, in.n.y) * 0.55);   // pale lichen on top
+  alb *= (0.7 + 0.5 * in.tint) * mix(1.0, 0.45, wet) * (1.0 - 0.75 * crack);
   let ao = 0.55 + 0.45 * smoothstep(-0.35, 0.5, in.lp.y);
   var c = alb * ao * (G.sunColor * wrapDiffuse(n, G.sunDir, 0.1) * 1.3 + hemi(n, G.ambientSky, G.ambientGround) + lampLight(p, n));
   c += G.sunColor * specBlinn(n, G.sunDir, V, mix(14.0, 40.0, wet)) * mix(0.05, 0.16, wet) * max(dot(n, G.sunDir), 0.0);
@@ -113,7 +111,8 @@ fn sway(p: vec3f, ph: f32, amt: f32) -> vec3f {
   let p = in.w; let V = normalize(eye() - p);
   let b = fbm2(vec2f(in.uv.x * 14.0, p.y * 5.0 + in.uv.x * 3.0), 3);
   let n = normalize(in.n + 0.3 * b * vec3f(in.n.z, 0.0, -in.n.x));
-  let alb = mix(vec3f(0.075, 0.06, 0.055), vec3f(0.19, 0.17, 0.16), b * 0.5 + 0.5);
+  var alb = mix(vec3f(0.075, 0.06, 0.055), vec3f(0.19, 0.17, 0.16), b * 0.5 + 0.5);
+  alb = mix(alb, vec3f(0.36, 0.3, 0.37), smoothstep(1.7, 2.7, p.y - U.misc.y) * 0.8);   // twigs in the crown take the blossom tone
   var c = alb * (G.sunColor * wrapDiffuse(n, G.sunDir, 0.2) * 1.3 + hemi(n, G.ambientSky, G.ambientGround) + lampLight(p, n) * 1.2);
   c += G.sunColor * pow(1.0 - max(dot(n, V), 0.0), 3.0) * 0.12 * max(dot(n, G.sunDir) + 0.4, 0.0);
   return vec4f(fogged(c, p), 1.0);
@@ -129,7 +128,7 @@ struct BLO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) 
 @fragment fn fsLeaf(in: BLO) -> @location(0) vec4f {
   let p = in.w; let V = normalize(eye() - p);
   let dist = distance(p, eye());
-  let far = smoothstep(9.0, 30.0, dist);
+  let far = smoothstep(5.0, 20.0, dist);
   let r = length(in.q); let a = atan2(in.q.y, in.q.x) + in.tone * 40.0;
   let pet = abs(cos(a * 2.5));
   let R = mix(0.46 + 0.54 * pow(pet, 0.55), 0.9, far);
@@ -140,12 +139,17 @@ struct BLO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) 
   let T = normalize(cross(n, vec3f(0.31, 0.9, 0.3))); let B = cross(n, T);
   n = normalize(n + (T * in.q.x + B * in.q.y) * 0.75 * (1.0 - far));
   let rr = r / R;
-  var alb = mix(vec3f(0.62, 0.3, 0.42), mix(vec3f(0.5, 0.42, 0.56), vec3f(0.8, 0.68, 0.74), in.tone), smoothstep(0.1, 0.75, rr));
+  let hue = fract(in.tone * 7.31);
+  var tip = mix(vec3f(0.5, 0.42, 0.58), vec3f(0.84, 0.72, 0.76), in.tone);
+  tip = mix(tip, vec3f(0.82, 0.5, 0.62), smoothstep(0.6, 1.0, hue) * 0.7);
+  tip = mix(tip, vec3f(0.9, 0.88, 0.92), smoothstep(0.3, 0.0, hue) * 0.6);
+  var alb = mix(vec3f(0.62, 0.3, 0.42), tip, smoothstep(0.1, 0.75, rr));
   alb *= 0.8 + 0.2 * pet;
   alb = mix(alb, vec3f(0.9, 0.7, 0.3), smoothstep(0.2, 0.1, r) * (1.0 - far));     // stamens
   let back = pow(max(dot(-V, G.sunDir), 0.0), 3.0);
   let hg = clamp((p.y - U.misc.y - 1.6) * 0.45, 0.0, 1.0);
   var c = alb * (0.5 + 0.6 * hg) * (G.sunColor * (max(dot(n, G.sunDir), 0.0) * 0.75 + 0.3 + 2.4 * back * (0.4 + 0.6 * rr)) + hemi(n, G.ambientSky, G.ambientGround) * 1.2 + lampLight(p, n) * 1.3);
+  c += alb * G.sunColor * pow(1.0 - abs(dot(normalize(in.n), V)), 2.0) * 0.35 * max(dot(-V, G.sunDir) + 0.6, 0.0);   // moon rim
   c = mix(c, c * 0.65, smoothstep(14.0, 50.0, dist));
   return vec4f(fogged(c, p), 1.0);
 }
@@ -153,7 +157,7 @@ struct BLO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) 
 // ---- lanterns ----
 struct LO {
   @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f,
-  @location(3) @interpolate(flat) fa: vec2f,
+  @location(3) @interpolate(flat) fa: vec2f, @location(4) lp: vec3f,
 };
 fn lanternScale(c: vec3f, s: f32) -> f32 {
   let d = distance(vec3f(c.x, c.y * MIR, c.z), G.camPos);
@@ -174,7 +178,7 @@ fn lanternScale(c: vec3f, s: f32) -> f32 {
   }
   let R = rotY(i0.w * 30.0 + G.time * 0.05 * (i0.w - 0.5));
   var o: LO;
-  o.w = L.p + R * (p * sc); o.n = R * n; o.uv = uv; o.fa = vec2f(L.fl, L.a);
+  o.w = L.p + R * (p * sc); o.n = R * n; o.uv = uv; o.fa = vec2f(L.fl, L.a); o.lp = p0;
   o.pos = clipW(o.w);
   if (L.a < 0.004) { o.pos = vec4f(0.0, 0.0, 2.0, 1.0); }
   return o;
@@ -187,14 +191,32 @@ fn lanternScale(c: vec3f, s: f32) -> f32 {
   let ndv = abs(dot(n, V));
   if (in.uv.x > 1.5) {
     if (dot(n, V) < 0.0) { n = -n; }
-    let m = in.uv.x;
+    let m = in.uv.x; let lit = in.fa.x * in.fa.y;
+    if (m > 5.5) { return vec4f(fogged(vec3f(1.0, 0.8, 0.42) * 5.5 * lit, in.w), 1.0); }           // candle flame
     var alb = vec3f(0.09, 0.065, 0.045);
-    var em = vec3f(0.0);
-    if (m > 4.5) { alb = vec3f(0.03, 0.085, 0.05); em = WARM * 0.05 * v; }
-    else if (m > 3.5) { alb = mix(vec3f(0.9, 0.55, 0.68), vec3f(0.8, 0.3, 0.5), smoothstep(0.1, 0.6, v)); em = mix(vec3f(1.0, 0.35, 0.3), vec3f(1.0, 0.62, 0.3), v) * v * v * 1.5; }
-    else if (m > 2.5) { alb = vec3f(0.62, 0.6, 0.56); em = mix(vec3f(1.0, 0.33, 0.07), vec3f(1.0, 0.62, 0.22), v) * (0.12 + 2.6 * v * v) * (0.8 + 0.2 * ndv); }
-    else { em = WARM * 0.12 * v; }
-    let c = alb * (G.sunColor * wrapDiffuse(n, G.sunDir, 0.3) * 1.2 + hemi(n, G.ambientSky, G.ambientGround)) + em * in.fa.x * in.fa.y;
+    var em = WARM * 0.12 * v;
+    var sp = vec3f(0.0);
+    if (m > 4.5) {
+      // lily pad: flush with the water (never in the mirror), a notch, radial veins, moon sheen
+      if (MIR < 0.0) { discard; }
+      let r = length(in.lp.xz) / 1.4; let ang = atan2(in.lp.z, in.lp.x);
+      if (r > 0.955 + 0.04 * sin(ang * 5.0 + in.lp.x) || (abs(ang) < 0.1 && r > 0.16)) { discard; }
+      let vn = sin(ang * 9.0);
+      let vein = smoothstep(0.92, 1.0, abs(cos(ang * 9.0))) * smoothstep(0.08, 0.4, r) + smoothstep(0.05, 0.0, abs(r - 0.93));
+      n = normalize(vec3f(-sin(ang), 0.0, cos(ang)) * vn * 0.09 * smoothstep(0.05, 0.5, r) + vec3f(0.0, 1.0, 0.0));
+      alb = mix(vec3f(0.022, 0.07, 0.04), vec3f(0.05, 0.13, 0.07), vein) * (0.8 + 0.2 * snoise2(in.lp.xz * 4.0));
+      em = WARM * 0.22 * exp(-r * r * 7.0);
+      sp = G.sunColor * specBlinn(n, G.sunDir, V, 50.0) * 0.14 + fresnelSchlick(max(dot(n, V), 0.0), 0.05) * G.ambientSky * 0.9;
+    } else if (m > 3.5) {
+      // petals: pale tips, a warm translucent heart lit by the candle, moonlight through the edges
+      alb = mix(vec3f(0.8, 0.42, 0.58), vec3f(0.95, 0.87, 0.86), smoothstep(0.0, 0.8, v));
+      em = mix(vec3f(1.0, 0.32, 0.25), vec3f(1.0, 0.66, 0.34), v) * pow(v, 1.6) * 1.5;
+      sp = alb * G.sunColor * (pow(max(dot(-V, G.sunDir), 0.0), 2.0) * 0.6 + pow(1.0 - ndv, 2.0) * 0.25);
+    } else if (m > 2.5) {
+      alb = vec3f(0.66, 0.64, 0.6);
+      em = mix(vec3f(1.0, 0.33, 0.07), vec3f(1.0, 0.62, 0.22), v) * (0.06 + 2.4 * v * v) * (0.8 + 0.2 * ndv);
+    }
+    let c = alb * (G.sunColor * wrapDiffuse(n, G.sunDir, 0.3) * 1.2 + hemi(n, G.ambientSky, G.ambientGround)) + sp + em * lit;
     return vec4f(fogged(c, in.w), 1.0);
   }
   let front = ff == (MIR > 0.0);
@@ -208,21 +230,43 @@ fn lanternScale(c: vec3f, s: f32) -> f32 {
 }
 
 struct GO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) @interpolate(flat) a: f32 };
-@vertex fn vsGlow(@builtin(vertex_index) vi: u32, @location(0) i0: vec4f, @location(1) i1: vec4f) -> GO {
-  var cs = array<vec2f, 6>(vec2f(-1, -1), vec2f(1, -1), vec2f(-1, 1), vec2f(-1, 1), vec2f(1, -1), vec2f(1, 1));
+// Halo sprites. A light at the waterline gets one disc: the part above the water is an upright billboard, the part
+// below is slid along the view rays onto the water surface (same pixels, no depth cut, no seam). Lights high above the
+// water keep a plain billboard here and a mirrored one in the reflection pass; `wl` blends between the two.
+struct HGO { @builtin(position) pos: vec4f, @location(0) @interpolate(linear) c: vec2f, @location(1) @interpolate(flat) a: f32 };
+@vertex fn vsGlow(@builtin(vertex_index) vi: u32, @location(0) i0: vec4f, @location(1) i1: vec4f) -> HGO {
   let L = lanternAt(i0, i1);
-  let sc = select(i1.z, lanternScale(L.p, i1.z), i1.x < 1.5);
-  let c = vec3f(L.p.x, (L.p.y + 0.3 * sc) * MIR, L.p.z);
-  var o: GO;
-  o.pos = G.viewProj * vec4f(billboard(c, cs[vi], vec2f(1.9 * sc)), 1.0);
-  o.c = cs[vi];
-  o.a = L.fl * L.a * (1.0 - fogAmount(distance(c, G.camPos)));
-  if (L.a < 0.004 || (MIR < 0.0 && L.p.y < -0.05)) { o.pos = vec4f(0.0, 0.0, 2.0, 1.0); }
+  var sc = select(i1.z, lanternScale(L.p, i1.z), i1.x < 1.5);
+  if (i1.x > 1.5 && i1.x < 2.5) { sc *= 0.6; }
+  let r = 1.9 * sc; let hc = L.p.y + 0.3 * sc;
+  let wl = smoothstep(0.7, 0.2, L.p.y);
+  let q = QC[vi % 6u];
+  let low = vi >= 6u;
+  let rt = normalize(vec3f(G.camRight.x, 0.0, G.camRight.z));
+  var o: HGO;
+  o.a = L.fl * L.a * (1.0 - fogAmount(distance(vec3f(L.p.x, hc, L.p.z), G.camPos)));
+  var kill = L.a < 0.004;
+  if (MIR < 0.0) {
+    o.c = q; o.a *= 1.0 - wl; kill = kill || low;
+    o.pos = G.viewProj * vec4f(vec3f(L.p.x, -hc, L.p.z) + rt * q.x * r + vec3f(0.0, q.y * r, 0.0), 1.0);
+  } else {
+    let ylo = clamp(-hc / r, -1.0, 1.0);
+    let qy = select(mix(ylo, 1.0, q.y * 0.5 + 0.5), mix(-1.0, ylo, q.y * 0.5 + 0.5), low);
+    var p = vec3f(L.p.x, hc, L.p.z) + rt * q.x * r + vec3f(0.0, qy * r, 0.0);
+    if (low) {
+      let yw = 0.012 + distance(p, G.camPos) * 0.0015;
+      p = G.camPos + (p - G.camPos) * ((G.camPos.y - yw) / max(G.camPos.y - p.y, 1e-3));
+      o.a *= wl; kill = kill || ylo < -0.999 || wl < 0.004;
+    }
+    o.c = vec2f(q.x, qy);
+    o.pos = G.viewProj * vec4f(p, 1.0);
+  }
+  if (kill) { o.pos = vec4f(0.0, 0.0, 2.0, 1.0); }
   return o;
 }
-@fragment fn fsGlow(in: GO) -> @location(0) vec4f {
+@fragment fn fsGlow(in: HGO) -> @location(0) vec4f {
   let r2 = dot(in.c, in.c);
-  let g = max(exp(-r2 * 3.2) - 0.0408, 0.0) * 0.16 + max(exp(-r2 * 16.0) - 0.0001, 0.0) * 0.34;
+  let g = (exp(-r2 * 3.6) * 0.15 + exp(-r2 * 16.0) * 0.34) * smoothstep(1.0, 0.45, r2);
   return vec4f(WARM * g * in.a, 0.0);
 }
 // warm light pool on the water under low lanterns

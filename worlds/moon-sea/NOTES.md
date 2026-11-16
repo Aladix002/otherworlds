@@ -51,6 +51,18 @@ the spawn, near the door).
 - Mirror cost: the islet, tower, floaters, fireflies, beams and the whale are in the mirror pass; swimmers are not.
 - Big islet boulders (scale > 1) and the tower collide through `sdf`.
 
+## Polish after the variety critic
+- Halos (`vsGlow`, 12 vertices): a light at the waterline gets one disc; the half below the water is slid along the view
+  rays onto the surface, so there is no depth cut and no seam. `wl` cross-fades to the mirrored halo for lights that rise.
+- Turtle is a dark soft shape with dim teal shell ridges and plankton dust; fish are soft blobs (stretched along the view
+  line when far, faded at grazing angles), gold ones are pale.
+- Lotus: curved smooth-shaded petals, a flame mesh (material 6), a paper-thin pad with notch, veins and sheen (not in the mirror).
+- Moon: brighter (x1.62 in `sky()`), softer maria, albedo provinces, stronger rays, limb darkening, a tight inner halo in
+  the sky bake. Water fresnel is lower when looking down, so the reflection is dimmer than the sky.
+- Whale: opaque haze-tinted silhouette, soft mist at the base, bearing 0.98-1.93 rad left (away from the lighthouse), 300-380 m.
+- Sky lanterns fade out before they cross the moon's face; fewer of them (48 on Medium).
+- The core door look is changing in the working tree (grey driftwood); `doorRefl` uses a neutral grey-brown.
+
 ## Tunables
 - `MOON_EL`, `MOON_R`, `MW_POLE` (world.js) — moon elevation/size, Milky Way orientation. Moon brightness: `sky()` (×1.2).
 - `BARS` — sandbars; `ISX/ISZ/ISR` — dune island (also in common.wgsl); `HM` must match `HMAP`.

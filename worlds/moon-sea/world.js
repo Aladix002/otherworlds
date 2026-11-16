@@ -99,7 +99,7 @@ function makeTree(M, R) {
     }
     L.idx.push(k, k + 1, k + 2, k + 2, k + 1, k + 3);
   };
-  const tuft = (q, n, r) => { for (let i = 0; i < n; i++) leaf([q[0] + (R() - 0.5) * 2 * r, q[1] + (R() - 0.5) * 1.4 * r, q[2] + (R() - 0.5) * 2 * r], 0.06 + R() * R() * 0.07); };
+  const tuft = (q, n, r) => { for (let i = 0; i < n; i++) leaf([q[0] + (R() - 0.5) * 2 * r, q[1] + (R() - 0.5) * 1.4 * r, q[2] + (R() - 0.5) * 2 * r], 0.06 + R() * R() * 0.075); };
   const branch = (p, d, len, rad, depth) => {
     const n = depth === 0 ? 6 : 4, path = [p]; let q = p, dir = d;
     for (let i = 1; i <= n; i++) {
@@ -107,7 +107,7 @@ function makeTree(M, R) {
       q = [q[0] + dir[0] * len / n, q[1] + dir[1] * len / n, q[2] + dir[2] * len / n]; path.push(q);
     }
     wood.push(M.tube(path, (t) => Math.max(rad * (1 - 0.4 * t), 0.016), depth < 2 ? 7 : 5));
-    if (depth === 3) { for (let i = 1; i <= n; i++) tuft(path[i], 26, 0.29); return; }
+    if (depth === 3) { for (let i = 1; i <= n; i++) tuft(path[i], 34, 0.29); return; }
     const kids = depth === 0 ? 4 : 3;
     for (let k = 0; k < kids; k++) {
       const at = k === 0 ? n : n - 1 - (k % 2) - (depth === 0 ? (k >> 1) : 0), a = R() * TAU, sp = k === 0 ? 0.45 : 1;
@@ -284,7 +284,7 @@ export default {
 
     // ---------- lanterns and floaters: x, z, phase (static: glow strength), seed | mode, y, scale, bob / drift radius ----------
     // buffer order: tree lantern, sky lanterns | toro (square water lanterns) | paper boats | lotus | glow-only (lighthouse lamp)
-    const nL = [44, 64, 90][q], ld = [];
+    const nL = [34, 48, 66][q], ld = [];
     const LS = 0.78;
     ld.push(hang[0], hang[2], 1, 0.31, 1, hang[1] - 0.69 * LS, LS, 0.0);
     const lampY = terrain(ISL[0], ISL[1]) - 0.35 + 6.3;
@@ -305,19 +305,19 @@ export default {
       for (let i = 0, tries = 0; i < n && tries < 200; tries++) {
         const x = cx + Rf.gauss() * sp * 0.5, z = cz + Rf.gauss() * sp * 0.5;
         if (!wetAt(x, z) || Math.hypot(x - DOOR[0], z - DOOR[1]) < 6) continue;
-        ld.push(x, z, 0.5, Rf(), 2, 0, 0.5 + Rf() * 0.25, 1.5 + Rf() * 2.5); i++;
+        ld.push(x, z, 0.55, Rf(), 2, 0, 0.6 + Rf() * 0.25, 1.5 + Rf() * 2.5); i++;
       }
     }
     this.nBoat = ld.length / 8 - this.nLant - this.nToro;
     const lp = [], nLo = [30, 46, 62][q];
     for (let tries = 0; lp.length < nLo && tries < 4000; tries++) {
       const a = Rf() * TAU, r = Math.pow(Rf(), 0.65) * LOTUS[2], x = LOTUS[0] + Math.cos(a) * r * 1.25, z = LOTUS[1] + Math.sin(a) * r * 0.85;
-      if (!wetAt(x, z) || lp.some((p) => Math.hypot(p[0] - x, p[1] - z) < 1.7)) continue;
+      if (!wetAt(x, z) || Math.hypot(x + 28.5, z - 27) < 3.4 || lp.some((p) => Math.hypot(p[0] - x, p[1] - z) < 1.7)) continue;
       lp.push([x, z]);
-      ld.push(x, z, 0.75, Rf(), 3, 0.0, 0.2 + Rf() * 0.09, 0.22);
+      ld.push(x, z, 0.75, Rf(), 3, 0.002, 0.2 + Rf() * 0.09, 0.22);
     }
     this.nLotus = lp.length;
-    ld.push(ISL[0], ISL[1], 0.8, 0.5, 1, lampY - 0.84, 2.8, 0);
+    ld.push(ISL[0], ISL[1], 0.5, 0.5, 1, lampY - 0.84, 2.8, 0);
     this.nAll = ld.length / 8;
     this.lantInst = ctx.buffer(new Float32Array(ld), 'vertex');
     this.lantMesh = M.upload(M.lathe([[0.14, 0], [0.165, 0.08], [0.2, 0.2], [0.235, 0.34], [0.255, 0.47], [0.255, 0.56], [0.225, 0.64], [0.15, 0.682], [0.001, 0.69]], 26));
@@ -335,23 +335,30 @@ export default {
       parts.push(bx(0.34, 0.48, 0.34, 0, 0.3, 0, 3, (x, y) => 0.95 - 0.55 * (y + 0.24) / 0.48));
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push(bx(0.032, 0.52, 0.032, sx * 0.178, 0.295, sz * 0.178, 2, () => 0.3));
       this.toroMesh = M.upload(M.merge(parts));
-      // paper boat
-      const S = [-0.5, 0.17, 0], B = [0.5, 0.17, 0], K1 = [-0.28, 0, 0], K2 = [0.28, 0, 0], Lf = [0, 0.13, 0.17], Rt = [0, 0.13, -0.17], a = [-0.26, 0.11, 0], b = [0.26, 0.11, 0], P = [0, 0.3, 0];
-      this.boatMesh = M.upload(flat([[S, K1, Lf], [K1, K2, Lf], [K2, B, Lf], [S, Rt, K1], [K1, Rt, K2], [K2, Rt, B], [a, P, Lf], [P, b, Lf], [a, Rt, P], [P, Rt, b]], 3,
-        (p) => Math.exp(-Math.hypot(p[0], p[1] - 0.12, p[2]) * 3.2)));
-      // lotus: three rings of petals over a pad
-      const T = [], K = [];
-      const ring = (n, r0, rm, rt, hm, ht, w, off) => {
-        for (let i = 0; i < n; i++) {
-          const an = off + i / n * TAU, c = Math.cos(an), s = Math.sin(an), pt = (r, y, sd) => [c * r - s * sd, y, s * r + c * sd];
-          const base = pt(r0, 0.03, 0), tip = pt(rt, ht, 0);
-          T.push([base, pt(rm, hm, -w), tip], [base, tip, pt(rm, hm, w)]); K.push([1, 0.5, 0.12], [1, 0.12, 0.5]);
+      // paper boat: a clean origami hull, a folded sail, a candle flame (material 6)
+      const flame = (x, y, z, s) => M.translate(M.scale(tag(M.sphere(1, 0), 6, () => 1), s, s * 2.2, s), x, y, z);
+      const S = [-0.56, 0.24, 0], B = [0.56, 0.24, 0], K1 = [-0.3, 0, 0], K2 = [0.3, 0, 0], Lf = [0, 0.17, 0.2], Rt = [0, 0.17, -0.2];
+      const s0 = [-0.17, 0.13, 0.03], s1 = [0.17, 0.13, 0.03], s2 = [-0.17, 0.13, -0.03], s3 = [0.17, 0.13, -0.03], P = [0, 0.33, 0];
+      this.boatMesh = M.upload(M.merge([flat([[S, K1, Lf], [K1, K2, Lf], [K2, B, Lf], [S, Rt, K1], [K1, Rt, K2], [K2, Rt, B], [s0, P, s1], [s2, s3, P]], 3,
+        (p) => 0.42 * Math.exp(-Math.hypot(p[0] - 0.3, p[1] - 0.16, p[2]) * 2.4)), flame(0.31, 0.16, 0, 0.022)]));
+      // lotus: three rings of narrow curved petals (smooth normals) over a paper-thin pad, a flame in the heart
+      const lo = { pos: [], uv: [], idx: [] };
+      const petal = (an, r0, len, wid, lift, curl) => {
+        const c = Math.cos(an), s = Math.sin(an), b = lo.pos.length / 3;
+        for (let j = 0; j <= 4; j++) {
+          const t = j / 4, r = r0 + len * t, y = 0.04 + lift * t + curl * t * t, hw = wid * Math.sin(Math.PI * Math.pow(t, 0.75));
+          for (const sd of (j === 0 || j === 4 ? [0] : [-1, 0, 1])) { lo.pos.push(c * r - s * sd * hw, y + Math.abs(sd) * hw * 0.45, s * r + c * sd * hw); lo.uv.push(4, 1 - t); }
         }
+        lo.idx.push(b, b + 1, b + 2, b, b + 2, b + 3, b + 10, b + 8, b + 7, b + 10, b + 9, b + 8);
+        for (let j = 0; j < 2; j++) { const o = b + 1 + j * 3; lo.idx.push(o, o + 3, o + 1, o + 1, o + 3, o + 4, o + 1, o + 4, o + 2, o + 2, o + 4, o + 5); }
       };
-      ring(9, 0.12, 0.56, 1.0, 0.1, 0.2, 0.21, 0); ring(7, 0.08, 0.38, 0.7, 0.24, 0.46, 0.17, 0.3); ring(5, 0.04, 0.2, 0.36, 0.3, 0.6, 0.12, 0.1);
+      for (const [n, r0, len, wid, lift, curl, off] of [[11, 0.1, 0.92, 0.15, 0.1, 0.16, 0], [9, 0.07, 0.7, 0.125, 0.34, 0.16, 0.3], [6, 0.04, 0.42, 0.09, 0.5, 0.14, 0.1]]) {
+        for (let i = 0; i < n; i++) petal(off + i / n * TAU, r0, len, wid, lift, curl);
+      }
+      const pet = M.computeNormals({ pos: new Float32Array(lo.pos), nrm: new Float32Array(lo.pos.length), uv: new Float32Array(lo.uv), idx: new Uint32Array(lo.idx) });
       const pad = [];
-      for (let i = 0; i < 21; i++) { const a0 = i / 22 * TAU, a1 = (i + 1) / 22 * TAU; pad.push([[0, 0.006, 0], [Math.cos(a1) * 1.4, 0.006, Math.sin(a1) * 1.4], [Math.cos(a0) * 1.4, 0.006, Math.sin(a0) * 1.4]]); }
-      this.lotusMesh = M.upload(M.merge([flat(T, 4, (p, i, j) => K[i][j]), flat(pad, 5, (p, i, j) => (j ? 0.1 : 1))]));
+      for (let i = 0; i < 24; i++) { const a0 = i / 24 * TAU, a1 = (i + 1) / 24 * TAU; pad.push([[0, 0.012, 0], [Math.cos(a1) * 1.4, 0.012, Math.sin(a1) * 1.4], [Math.cos(a0) * 1.4, 0.012, Math.sin(a0) * 1.4]]); }
+      this.lotusMesh = M.upload(M.merge([pet, flat(pad, 5, () => 0), flame(0, 0.13, 0, 0.035)]));
     }
 
     // ---------- the lighthouse (uv.x = material: 0 stone, 1 lamp glass, 2 dark metal) ----------
@@ -535,7 +542,7 @@ export default {
   drawGlow(pass, P) {
     pass.setBindGroup(1, this.bg1);
     pass.setPipeline(P[13]); pass.draw(6);
-    pass.setPipeline(P[7]); pass.setVertexBuffer(0, this.lantInst); pass.draw(6, this.nAll);
+    pass.setPipeline(P[7]); pass.setVertexBuffer(0, this.lantInst); pass.draw(12, this.nAll);
     pass.setPipeline(P[11]); pass.draw(12);
     pass.setPipeline(P[12]); pass.setVertexBuffer(0, this.flyInst); pass.draw(6, this.nFly);
   },
