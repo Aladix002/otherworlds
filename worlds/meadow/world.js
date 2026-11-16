@@ -315,22 +315,51 @@ export default {
   },
 
   audio(ctx, a) {
+    // identity: G major, harp arpeggios in a gentle 6/8 lilt + a tin-whistle folk tune
+    const R = a.rng, W = a.scale(67, 'major', 2);                    // G4..
     a.setReverb({ seconds: 3.2, damp: 0.6, wet: 0.7 });
     a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 700, q: 0.6, gain: 0.045, mod: 0.6, modRate: 0.05, gainMod: 0.6 });      // wind through grass
     a.noiseBed({ color: 'white', filter: 'highpass', freq: 4200, gain: 0.004, mod: 0.4, modRate: 0.11, gainMod: 0.8 });
-    a.drone({ freq: a.hz(45), partials: [1, 2, 3.01], gain: 0.014, cutoff: 420 });
-    a.pad({ chords: [[57, 64, 69, 73], [62, 66, 69, 76], [59, 64, 68, 71], [57, 61, 64, 69]], gain: 0.016, attack: 6, change: [16, 30], cutoff: 2000, reverb: 0.7 });
+    a.drone({ freq: a.hz(43), partials: [1, 2, 3.01], gain: 0.014, cutoff: 420 });
+    a.pad({ chords: [[55, 62, 67, 71], [52, 59, 67, 71], [48, 55, 64, 67], [50, 57, 66, 69]], gain: 0.012, attack: 6, change: [16, 30], cutoff: 2000, reverb: 0.7 });
+    // harp episodes: 2-4 bars of 6/8 arpeggios (I vi IV V), then rests; now and then the whistle sings a tune over them
+    const CH = { G: [55, 59, 62, 67, 71], Em: [52, 59, 64, 67, 71], C: [48, 55, 60, 64, 67], D: [50, 57, 62, 66, 69], Am: [57, 60, 64, 69, 72] };
+    const PRG = [['G', 'Em', 'C', 'D'], ['G', 'C', 'G', 'D'], ['Em', 'C', 'G', 'D'], ['G', 'Am', 'C', 'D']];
+    const ARP = [[0, 1, 2, 3, 2, 1], [0, 2, 1, 3, 2, 4], [0, 1, 3, 2, 4, 3]];
+    const TUNE = [[0, 2, 4, 5, 4, 2, 1], [0, 2, 4, 6, 5, 4, 2], [4, 5, 4, 2, 1, 0, 0]];       // degrees in W (G4 = 0); 6/8 durations below
+    const RHY = [[1.5, 0.5, 1, 1.5, 0.5, 1, 3], [1, 1, 1, 1.5, 0.5, 1, 3]];
+    let lastTune = -99, pi = 0, ps = 0, step = 0;
+    a.every(24, 50, (when) => {
+      const prg = PRG[(ps++ + R.int(2)) % PRG.length], bars = 2 + R.int(3), ar = R.pick(ARP), tempo = 130 + R.int(30), eighth = 60 / tempo;
+      const lift = R() < 0.25 ? 12 : 0;
+      for (let b = 0; b < bars; b++) {
+        const ch = CH[prg[(b + pi) % 4]];
+        for (let i = 0; i < 6; i++) {
+          if (R() < 0.12) continue;
+          a.harp({ midi: ch[ar[i]] + (i > 2 ? 12 : 0) * 0 + lift, gain: 0.035, vel: i === 0 ? 1.1 : 0.8 + R() * 0.2, reverb: 0.55, pan: -0.25 + i * 0.1, when: when + (b * 6 + i) * eighth + (R() - 0.5) * 0.02 });
+        }
+      }
+      pi = (pi + 1 + R.int(2)) % 4;
+      if (a.now() - lastTune > 40 && R() < 0.8) {
+        lastTune = a.now();
+        const tn = TUNE[step++ % 3 ? R.int(3) : 0], rh = R.pick(RHY), sh = R.pick([0, 0, 1, -1, 2]), notes = [];
+        tn.forEach((d, i) => { notes.push({ deg: Math.min(13, Math.max(0, d + 4 + sh)), dur: rh[i], vel: 0.9 }); });
+        a.phrase({ notes, inst: a.flute, opts: { preset: 'whistle', gain: 0.03, vibrato: 12, reverb: 0.6, pan: 0.2, attack: 0.05, release: 0.2, durMul: 0.9 }, tempo, humanize: 0.012, scale: W, when: when + 6 * eighth * (bars > 2 ? 1 : 0) + 0.4 });
+      }
+    }, { startDelay: 5 });
+    // a lone harp note or two between the episodes
+    a.every(9, 22, (when) => { if (R() < 0.6) a.harp({ midi: R.pick(W.slice(0, 11)), gain: 0.03, reverb: 0.6, pan: R.range(-0.5, 0.5), when }); }, { startDelay: 12 });
     for (const b of BRIDGES) a.noiseBed({ color: 'white', filter: 'bandpass', freq: 900, q: 0.5, gain: 0.07, mod: 0.2, modRate: 0.17, bus: a.spatial({ pos: [b.x, 0.3, b.z], ref: 9, rolloff: 1.2, reverb: 0.3, gain: 1 }) });   // river
     const rs = a.spatial({ pos: [RING[0], hAt(RING[0], RING[1]) + 2, RING[1]], ref: 6, rolloff: 1.3, reverb: 0.8, gain: 1 });
-    a.every(3, 8, (when) => a.bell({ freq: a.hz(a.rng.pick([76, 81, 83, 88])), gain: 0.02, decay: 5, when, bus: rs }));        // the giant flowers chime
+    a.every(3, 8, (when) => a.bell({ freq: a.hz(R.pick([76, 79, 83, 88])), gain: 0.02, decay: 5, when, bus: rs }));        // the giant flowers chime
     const bee = a.spatial({ pos: [BIGTREE[0] - 2.4, hAt(BIGTREE[0], BIGTREE[1]) + 4, BIGTREE[1] + 1.2], ref: 3, rolloff: 1.4, reverb: 0.1, gain: 1 });
     const bz = a.drone({ freq: 148, partials: [1, 2, 3, 4], type: 'sawtooth', detune: 14, cutoff: 700, gain: 0.012, bus: bee });
-    a.every(3, 9, () => bz.setFreq(138 + a.rng() * 30));
+    a.every(3, 9, () => bz.setFreq(138 + R() * 30));
     a.every(5, 16, (when) => {                                                                // birdsong: short phrases, far and sparse
-      const f = 1900 + a.rng() * 1900, pan = a.rng.range(-0.8, 0.8), k = a.rng.int(3);
-      for (let i = 0, n = 2 + a.rng.int(4); i < n; i++) a.chirp({ f0: f * (k ? 1 : 1.25), f1: f * (k === 1 ? 1.35 : 0.85), dur: 0.07 + 0.05 * k, vib: k === 2 ? 60 : 0, vibRate: 30, gain: 0.006, when: when + i * (0.13 + 0.05 * k), pan, reverb: 0.7 });
+      const f = 1900 + R() * 1900, pan = R.range(-0.8, 0.8), k = R.int(3);
+      for (let i = 0, n = 2 + R.int(4); i < n; i++) a.chirp({ f0: f * (k ? 1 : 1.25), f1: f * (k === 1 ? 1.35 : 0.85), dur: 0.07 + 0.05 * k, vib: k === 2 ? 60 : 0, vibRate: 30, gain: 0.006, when: when + i * (0.13 + 0.05 * k), pan, reverb: 0.7 });
     }, { startDelay: 4 });
-    const notes = a.scale(69, 'pentatonic', 2);
-    a.every(0.7, 2.2, (when) => { if (this.mov > 0.3) a.bell({ freq: a.hz(a.rng.pick(notes)), gain: 0.007, decay: 2.5, when, pan: a.rng.range(-0.5, 0.5), reverb: 0.8 }); });   // petal-soft chimes while flowers open around you
+    const notes = a.scale(67, 'pentatonic', 2);
+    a.every(0.7, 2.2, (when) => { if (this.mov > 0.3) a.bell({ freq: a.hz(R.pick(notes)), gain: 0.007, decay: 2.5, when, pan: R.range(-0.5, 0.5), reverb: 0.8 }); });   // petal-soft chimes while flowers open around you
   },
 };
