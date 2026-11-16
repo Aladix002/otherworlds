@@ -208,20 +208,40 @@ export default {
   audio(ctx, a) {
     a.setReverb({ seconds: 5, damp: 0.5, wet: 0.9, predelay: 0.03 });
     const can = this.aCan = a.bus({ gain: 0, reverb: 0.6 }), dun = this.aDun = a.bus({ gain: 1, reverb: 0.3 });
-    a.drone({ freq: a.hz(33), partials: [1, 2, 3, 4.01, 5.02], amps: [1, 0.5, 0.25, 0.1, 0.05], detune: 6, cutoff: 320, gain: 0.05, attack: 6 });
+    a.tanpura({ root: 38, gain: 0.05, reverb: 0.5 });                                              // Sa-Pa-Sa-Sa drone cycle on D
+    const mus = a.bus({ gain: 1, reverb: 0.5 });
     // canyon: wind whistling through the slot, resonant tones
     a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 640, q: 10, gain: 0.02, mod: 0.5, modRate: 0.05, bus: can });
     a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 965, q: 14, gain: 0.011, mod: 0.6, modRate: 0.033, bus: can });
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 240, gain: 0.05, mod: 0.4, modRate: 0.04, bus: can });
-    a.pad({ chords: [[50, 57, 62, 69], [48, 55, 64, 67], [53, 57, 60, 69], [45, 52, 60, 64]], gain: 0.016, attack: 7, change: [18, 34], cutoff: 1300, type: 'sine', reverb: 0.8, bus: can });
     // dunes: sand hiss, sparse harp notes, small creature chirps
     a.noiseBed({ color: 'white', filter: 'highpass', freq: 3800, gain: 0.005, mod: 0.7, modRate: 0.08, bus: dun });
     a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 420, q: 0.7, gain: 0.022, mod: 0.5, modRate: 0.04, bus: dun });
-    const notes = a.scale(50, 'pentatonic', 3);
-    a.every(4, 12, (when) => {
-      const i = a.rng.int(notes.length - 3), n = 1 + a.rng.int(3);
-      for (let k = 0; k < n; k++) a.pluck({ freq: a.hz(notes[i + k]), decay: 3.5, gain: 0.03 - 0.006 * k, reverb: 0.7, pan: a.rng.range(-0.5, 0.5), bus: dun, when: when + k * a.rng.range(0.22, 0.4) });
-    }, { startDelay: 4 });
+    // music: D hijaz, rubato. oud motif with bends, ney answers, rare soft darbuka
+    const sc = a.scale(62, 'hijaz', 2), R = a.rng;            // 14 degrees: D Eb F# G A Bb C | D' ...
+    const oud = (notes, o = {}) => a.phrase({ notes, inst: a.oud, scale: sc, tempo: R.range(44, 56), humanize: 0.04, opts: { gain: 0.05, reverb: 0.55, pan: R.range(-0.3, 0.3), bus: mus, ...o }, when: a.now() + 0.1 });
+    const ney = (notes, when) => a.phrase({ notes, inst: a.flute, scale: sc, tempo: 48, humanize: 0.03, opts: { preset: 'ney', gain: 0.045, reverb: 0.8, bus: mus, vibrato: 30 }, when });
+    // motif A Bb A G F# Eb D, in four shapes
+    const SHAPES = [
+      [4, 5, 4, 3, 2, 1, 0].map((deg, i) => ({ deg, dur: i === 0 ? 1.5 : i === 6 ? 3 : 1 })),
+      [{ deg: 4, dur: 1.5 }, { deg: 5, dur: 1 }, { deg: 4, dur: 1 }, { rest: 1, dur: 1 }, { deg: 2, dur: 1.5 }, { deg: 1, dur: 1 }, { deg: 0, dur: 3 }],
+      [{ deg: 0, dur: 1 }, { deg: 1, dur: 1 }, { deg: 2, dur: 1.5 }, { rest: 1, dur: 1.5 }, { deg: 4, dur: 2 }, { deg: 3, dur: 1 }, { deg: 0, dur: 3 }],
+      [{ deg: 7, dur: 2 }, { deg: 5, dur: 1 }, { deg: 4, dur: 1.5 }, { deg: 2, dur: 1 }, { deg: 1, dur: 1 }, { deg: 0, dur: 4 }],
+    ];
+    let n = R.int(4);
+    a.every(38, 80, () => {
+      const t0 = oud(SHAPES[n++ % 4], { bend: R.pick([0, 0, 1]) });
+      if (R() < 0.6) ney([{ deg: 4, dur: 6 }, { deg: 3, dur: 3 }, { deg: 2, dur: 4 }, { rest: 1, dur: 2 }, { deg: 0, dur: 9 }], t0 + 1.5);
+    }, { startDelay: 10 });
+    a.every(16, 36, () => {                                      // lone taqsim-like phrases
+      const i = R.int(6), k = 2 + R.int(2);
+      oud(Array.from({ length: k }, (_, j) => ({ deg: i + (j === k - 1 ? -1 : j % 2), dur: 1.5 + R() * 1.5 })), { gain: 0.035 });
+    }, { startDelay: 22 });
+    a.every(12, 26, (when) => {                                  // very soft darbuka
+      a.darbuka({ type: 'doum', gain: 0.03, reverb: 0.5, bus: mus, when });
+      if (R() < 0.7) a.darbuka({ type: 'tek', gain: 0.018, reverb: 0.5, bus: mus, when: when + 0.75 });
+      if (R() < 0.4) a.darbuka({ type: 'tek', gain: 0.014, reverb: 0.5, bus: mus, when: when + 1.2 });
+    }, { startDelay: 15 });
     a.every(8, 22, (when) => a.chirp({ f0: a.rng.range(2300, 3400), f1: a.rng.range(2700, 3900), dur: 0.06, repeat: 2 + a.rng.int(3), gap: 0.1, vib: 0.02, gain: 0.006,
       reverb: 0.5, pan: a.rng.range(-0.9, 0.9), bus: dun, when }), { startDelay: 7 });
     // places: the oasis trickles, the carved arch hums, the lantern caravan chimes now and then
@@ -229,7 +249,7 @@ export default {
     a.noiseBed({ color: 'white', filter: 'bandpass', freq: 2300, q: 2, gain: 0.018, mod: 0.8, modRate: 0.45, bus: oa });
     a.every(2, 7, (when) => a.chirp({ f0: a.rng.range(1500, 2200), f1: 850, dur: 0.05, gain: 0.02, bus: oa, when }));
     a.drone({ freq: a.hz(57), partials: [1, 2.01, 3.02], amps: [1, 0.4, 0.15], detune: 4, cutoff: 800, gain: 0.05, attack: 5, bus: ar });
-    a.every(11, 28, (when) => a.bell({ freq: a.hz(a.rng.pick(notes) + 24), gain: 0.012, decay: 4, reverb: 0.8, pan: a.rng.range(-0.7, 0.7), bus: dun, when }), { startDelay: 9 });
+    a.every(11, 28, (when) => a.bell({ freq: a.hz(a.rng.pick(sc) + 24), gain: 0.008, decay: 4, reverb: 0.8, pan: a.rng.range(-0.7, 0.7), bus: dun, when }), { startDelay: 9 });  // far chimes in D hijaz
     this.ka = -1;
   },
 };
