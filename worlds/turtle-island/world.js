@@ -8,8 +8,8 @@ import FXS from './fx.wgsl';
 import BAKE from './bake.wgsl';
 
 const TAU = Math.PI * 2, STROKE = 14, HEADT = 80, V0 = 2.6;
-const HAM = [[95.5, 0, 30.5], [98.9, 0, 32.2]];
-const NB = 14, NC = 8, NT = 7, ND = 3;                     // birds, crabs, baby turtles, dolphins (+1 whale)
+const HAM = [[1.5, 0, -89], [4.8, 0, -87.6]];
+const NB = 14, NC = 8, NT = 9, ND = 3;                     // birds, crabs, baby turtles, dolphins (+1 whale)
 let DY, DO = 0;
 function put(x, y, z, s, yaw, tint, pitch, an) { const D = DY, o = DO; D[o] = x; D[o + 1] = y; D[o + 2] = z; D[o + 3] = s; D[o + 4] = yaw; D[o + 5] = tint; D[o + 6] = pitch; D[o + 7] = an; DO += 8; }
 const P = (x, y, z, yaw, pitch, t) => ({ pos: [x, y, z], yaw, pitch, t });
@@ -58,12 +58,12 @@ export default {
   spawn: { pos: [SPAWN[0], 3.2, SPAWN[1]], yaw: 0, pitch: 0.03 },
   // y is metres above the ground until init() resolves it
   poses: [
-    P(4, 1.65, -124, 0, 0.035, 12),                      // the head rising ahead, hatchlings crawling to the sea
-    P(96, 1.35, -54.5, -0.55, 0.1, 10.5),                 // tide pools on the shell, a flipper lifting beyond
+    P(4, 1.65, -124, 0, 0.02, 12),                      // the head rising ahead, hatchlings crawling to the sea
+    P(46, 1.7, -134, -1.52, 0.09, 10.5),                 // tide pools on the shell, a flipper lifting beyond
     P(0, 2, 0, 0, 0, 16.8),                                   // lava meeting the sea (placed in init)
     P(-54, 1.6, -108.5, 2.3, 0.17, 12),                      // black sand and basalt columns
     P(0, 2, 0, 0.52, -0.17, 10),                        // the summit: crater, sea and the head
-    P(-3.2, 1.55, -103.5, Math.PI - 0.42, 0.06, 30),        // the door on the beach, the volcano behind it
+    P(-3.6, 1.55, -104.5, Math.PI - 0.24, 0.05, 30),        // the door on the beach, the volcano behind it
   ],
   flythrough: [
     P(4, 2, -124, 0.06, 0), P(-14, 2.4, -128, 0.7, 0), P(-48, 2.6, -116, 1.0, 0.05), P(-78, 9, -78, 0.2, -0.25),
@@ -122,7 +122,7 @@ export default {
     const push = (x, y, z, s, yaw, tint, sy = 1, an = 0) => inst.push(x, y, z, s, yaw, tint, sy, an);
     const batch = (geo, fill) => { const first = inst.length / 8; fill(); const b = { mesh: M.upload(geo), first, count: inst.length / 8 - first }; batches.push(b); return b; };
     const scatter = (n, ok, put) => { for (let i = 0, k = 0; i < n && k < n * 40; k++) { const x = R.range(-150, 150), z = R.range(-170, 170); if (ok(x, z)) { put(x, z); i++; } } };
-    const clear = (x, z) => Math.hypot(x - DOOR[0], z - DOOR[1]) > 4.5 && Math.hypot(x - SPAWN[0], z - SPAWN[1]) > 3 && Math.hypot(x - HUT[0], z - HUT[1]) > 4.5
+    const clear = (x, z) => Math.hypot(x - DOOR[0], z - DOOR[1]) > 4.5 && Math.hypot(x + 54, z + 108.5) > 14 && Math.hypot(x - 46, z + 134) > 10 && Math.hypot(x - SPAWN[0], z - SPAWN[1]) > 3 && Math.hypot(x - HUT[0], z - HUT[1]) > 4.5
       && Math.hypot(x - SHRINE[0], z - SHRINE[1]) > 4 && Math.hypot(x - NEST[0], z - NEST[1]) > 2 && T.lavaD(x, z) > 1.5;
     const pools = [...HOT, ...TIDE], dry = (x, z, m = 1) => pools.every((p) => Math.hypot(x - p[0], z - p[1]) > p[2] + m);
     const sandy = (x, z) => T.mat(x, z, 2) > 0.6 && at(x, z) > 1.1 && at(x, z) < 4.5;
@@ -130,10 +130,11 @@ export default {
     const palmAt = [[14, -139, 2.2], [-13, -131, 0.4], [-22, -118, 1.2], [30, -122, 3.0], [HAM[0][0] - 0.2, HAM[0][2] - 0.15, 3.6], [HAM[1][0] + 0.2, HAM[1][2] + 0.15, 0.5], [-9.5, -95, 2.2]];
     for (let i = 0; i < 16; i++) { const a = R.range(0, TAU), r = 4 + 13 * Math.sqrt(R()); palmAt.push([93 + Math.cos(a) * r * 0.7, 22 + Math.sin(a) * r * 1.3, R.range(0, TAU)]); }
     scatter(q ? 16 : 8, (x, z) => sandy(x, z) && clear(x, z) && Math.abs(x - SPAWN[0]) > 9, (x, z) => palmAt.push([x, z, R.range(0, TAU)]));
-    const palmOk = palmAt.filter((p, i) => i < 7 || (sandy(p[0], p[1]) && clear(p[0], p[1]) && palmAt.every((o, j) => j >= i || Math.hypot(o[0] - p[0], o[1] - p[1]) > 2.6)));
-    for (let v = 0; v < 3; v++) batch(GEO.palm(11 + v * 5), () => palmOk.forEach((p, i) => { if (i % 3 === v) { push(p[0], at(p[0], p[1]) - 0.15, p[1], R.range(0.85, 1.15), p[2], R()); stamps.push([p[0], p[1], 1.3, 0.5]); } }));
     const veg = (x, z) => T.mat(x, z, 3);
-    for (let v = 0; v < 2; v++) batch(GEO.tree(3 + v * 4), () => scatter([36, 55, 75][q], (x, z) => veg(x, z) > 0.62 && at(x, z) < 27 && clear(x, z) && dry(x, z, 2.5), (x, z) => { push(x, at(x, z), z, R.range(0.8, 1.4), R.range(0, TAU), R(), R.range(0.85, 1.5)); stamps.push([x, z, 2.6, 0.45]); }));
+    scatter([45, 80, 115][q], (x, z) => veg(x, z) > 0.5 && at(x, z) < 38 && dry(x, z, 2.5), (x, z) => palmAt.push([x, z, R.range(0, TAU), 1]));   // jungle palms on the slopes
+    const palmOk = palmAt.filter((p, i) => i < 7 || ((p[3] || sandy(p[0], p[1])) && clear(p[0], p[1]) && palmAt.every((o, j) => j >= i || Math.hypot(o[0] - p[0], o[1] - p[1]) > 2.6)));
+    for (let v = 0; v < 3; v++) batch(GEO.palm(11 + v * 5), () => palmOk.forEach((p, i) => { if (i % 3 === v) { push(p[0], at(p[0], p[1]) - 0.15, p[1], R.range(0.85, 1.15), p[2], R()); stamps.push([p[0], p[1], 1.3, 0.5]); } }));
+    for (let v = 0; v < 2; v++) batch(GEO.tree(3 + v * 4), () => scatter([9, 14, 20][q], (x, z) => veg(x, z) > 0.62 && at(x, z) < 34 && clear(x, z) && dry(x, z, 2.5), (x, z) => { push(x, at(x, z), z, R.range(0.8, 1.4), R.range(0, TAU), R(), R.range(0.85, 1.5)); stamps.push([x, z, 2.6, 0.45]); }));
     batch(GEO.fern(5), () => {
       scatter([350, 800, 1300][q], (x, z) => veg(x, z) > 0.3 && clear(x, z) && dry(x, z), (x, z) => push(x, at(x, z) - 0.03, z, R.range(0.7, 1.9), R.range(0, TAU), R()));
       scatter(40, (x, z) => T.mat(x, z, 2) > 0.3 && at(x, z) > 2.2 && at(x, z) < 5 && clear(x, z), (x, z) => push(x, at(x, z) - 0.03, z, R.range(0.6, 1.1), R.range(0, TAU), R()));
@@ -144,20 +145,20 @@ export default {
         (x, z) => { const s = 0.15 + 1.5 * Math.pow(R(), 3.5); push(x, at(x, z) - s * 0.2, z, s, R.range(0, TAU), R(), R.range(0.6, 1)); stamps.push([x, z, s * 1.5, 0.45]); });
       if (!v) { push(DOOR[0] - 1.15, at(DOOR[0], DOOR[1]) - 0.08, DOOR[1] + 0.05, 0.3, 1, 0.5, 0.8); push(DOOR[0] + 1.2, at(DOOR[0], DOOR[1]) - 0.05, DOOR[1] - 0.2, 0.2, 2, 0.5, 0.8); }
     });
-    batch(GEO.boulder(9, 1), () => scatter([150, 350, 600][q], (x, z) => sandy(x, z) || (T.mat(x, z, 2) > 0.5 && at(x, z) > 0.1 && at(x, z) < 1.2 && R() < 0.5),
-      (x, z) => { const s = 0.03 + 0.1 * R() * R(); push(x, at(x, z) - s * 0.15, z, s, R.range(0, TAU), R(), R.range(0.5, 0.9)); }));
+    batch(GEO.boulder(9, 1), () => { for (const sd of [-1, 1]) push(DOOR[0] + sd * 0.78, at(DOOR[0], DOOR[1]) - 0.12, DOOR[1], 0.6, sd, 0.5, 0.32); scatter([150, 350, 600][q], (x, z) => sandy(x, z) || (T.mat(x, z, 2) > 0.5 && at(x, z) > 0.1 && at(x, z) < 1.2 && R() < 0.5),
+      (x, z) => { const s = 0.03 + 0.1 * R() * R(); push(x, at(x, z) - s * 0.15, z, s, R.range(0, TAU), R(), R.range(0.5, 0.9)); }); });
     stamps.push([DOOR[0], DOOR[1], 1.5, 0.5], [HUT[0], HUT[1], 3.2, 0.5], [COLS[0], COLS[1], 13, 0.4], [NEST[0], NEST[1], 1.3, 0.35]);
     batch(GEO.column(), () => {                              // Reynisfjara-like organ of hex columns: a stepped foot rising to a cliff
       for (let j = -14; j <= 14; j++) for (let i = -30; i <= 30; i++) {
         const lx = (i + (j & 1) * 0.5) * 0.54, lz = j * 0.468, e = Math.hypot(lx / 15, lz / 6.4);
         if (e > 1 + 0.1 * Math.sin(i * 0.7 + j)) continue;
         const x = COLS[0] + lx * 0.81 - lz * 0.585, z = COLS[1] - lx * 0.585 - lz * 0.81 + 0, g = at(x, z);
-        const u = ss(-6.5, 3.5, -lz) * ss(1.08, 0.75, e);
-        const top = 0.3 + Math.min(11 * Math.pow(u, 1.6), 7 + 1.6 * Math.sin(lx * 0.31 + 1) + 0.9 * Math.sin(lx * 1.3 + lz)) + 0.35 * Math.floor(R() * 5) * (0.3 + u);
+        const u = (0.3 + 0.7 * ss(-6.5, 3, -lz)) * ss(1.06, 0.6, e), cl = ctx.noise.fbm2(lx * 0.2 + 7, lz * 0.2, 2);      // clustered heights, not a cone
+        const top = 0.3 + u * Math.max(0.4, 5.5 + 7.5 * cl) + 0.35 * Math.floor(R() * 5) * (0.3 + u) - (R() < 0.07 ? 1.5 * u : 0);
         push(x, g - 1, z, 0.312, 0.624, R(), (top + 1) / 0.312, top + 1);
       }
     });
-    batch(GEO.starfish(), () => TIDE.forEach((p, i) => { for (let k = 0; k < 2; k++) { const a = i * 2.1 + k * 2.6, r = p[2] * (0.35 + 0.3 * k); push(p[0] + Math.cos(a) * r, at(p[0], p[1]) + 0.005, p[1] + Math.sin(a) * r, R.range(0.9, 1.5), a, k); } }));
+    batch(GEO.starfish(), () => TIDE.forEach((p, i) => { for (let k = 0; k < 2; k++) { const a = i * 2.1 + k * 2.6, r = p[2] * (0.35 + 0.3 * k); push(p[0] + Math.cos(a) * r, at(p[0], p[1]) + 0.005, p[1] + Math.sin(a) * r, R.range(1.8, 2.8), a, k); } }));
     HAM.forEach((h) => { h[1] = at(h[0], h[2]) + 1.45; });
     batch(GEO.props(at, HUT, SHRINE, HAM, NEST), () => push(0, 0, 0, 1, 0, 0.5));
     // dynamic creatures live at the end of the instance buffer
@@ -186,7 +187,7 @@ export default {
     }
     this.wv = ctx.buffer(wv, 'vertex'); this.wi = ctx.buffer(wi, 'index'); this.wn = k;
     const hg = GEO.head(), v3 = (n, p) => `const ${n} = vec3f(${p.map((x) => x.toFixed(4)).join(',')});`;
-    const CM = v3('EYE', hg.eye) + v3('HPV', hg.pivot) + v3('NOS', hg.nose) + `const NESTP=vec2f(${NEST});` + v3('HUTL', [HUT[0] + 2.3, at(HUT[0], HUT[1]) + 2.45, HUT[1] + 0.9]) + v3('SHRL', [SHRINE[0] - 1.6, at(SHRINE[0], SHRINE[1]) + 1.6, SHRINE[1] - 0.4]) + COMMON;
+    const CM = v3('EYE', hg.eye) + v3('HPV', hg.pivot) + v3('NOS', hg.nose) + `const NESTP=vec2f(${NEST});` + v3('HUTL', [HUT[0] - 0.9, at(HUT[0], HUT[1]) + 2.45, HUT[1] - 1.8]) + v3('SHRL', [SHRINE[0] - 1.6, at(SHRINE[0], SHRINE[1]) + 1.6, SHRINE[1] - 0.4]) + COMMON;
     this.flipMesh = M.upload(GEO.flipper()); this.headMesh = M.upload(hg);
     await progress(0.6);
 
@@ -194,12 +195,13 @@ export default {
     const fx = [], F = (x, y, z, ty, size, life, ex = 0) => fx.push(x, y, z, ty, R(), size, life, ex);
     const nq = [0.5, 1, 1.5][q];
     for (let i = 0; i < 140 * nq; i++) F(VOL[0], at(VOL[0], VOL[1]) + 2, VOL[1], 1, 5, 44);
-    for (const e of entry) for (let i = 0; i < 36 * nq; i++) F(e[0], 0.3, e[2], 0, 3, 11, 1);
+    for (let i = 0; i < 12 * nq; i++) F(VOL[0], at(VOL[0], VOL[1]) + 1, VOL[1], 0, 2.6, 13, 1);
+    for (const e of entry) for (let i = 0; i < 50 * nq; i++) F(e[0], 0.3, e[2], 0, 3.8, 11, 1);
     for (const p of HOT) for (let i = 0; i < 12 * nq; i++) F(p[0], at(p[0], p[1]) + 0.2, p[1], 0, p[2] * 0.42, 8, 0);
     { const e = T.paths[2][T.paths[2].length - 6]; for (let i = 0; i < 8; i++) F(e[0], e[1] + 0.3, e[2], 0, 0.9, 6, 0.3); }
     for (let i = 0; i < 70 * nq; i++) { const p = R.pick(T.paths), s = p[R.int(p.length)]; if (s[3] > 0) F(s[0], s[1] + 0.2, s[2], 5, 0.04, R.range(4, 8)); }
     for (let i = 0; i < 26; i++) F(0, 0, 0, 2, 3.2, 1);
-    for (let i = 0; i < 14; i++) F(0, 0, 0, 3, 3, 17);
+    for (let i = 0; i < 18; i++) F(0, 0, 0, 3, 5, 17);
     scatter(190 * nq, (x, z) => veg(x, z) > 0.35 && at(x, z) < 22 && (z > 40 || x > 45) && R() < 0.4 + ss(60, 10, Math.hypot(x - SHRINE[0], z - SHRINE[1])), (x, z) => F(x, at(x, z) + R.range(0.5, 2.6), z, 4, 0.06, 1));
     for (let i = 0; i < 12; i++) F(HUT[0] + R.range(-7, 9), at(HUT[0], HUT[1]) + R.range(0.6, 2.5), HUT[1] + R.range(-7, 9), 4, 0.05, 1);
     for (const s of [-1, 1]) for (let i = 0; i < 44 * nq; i++) F(s, 0, 0, 6, 3.4, R.range(2.6, 4));
@@ -232,29 +234,29 @@ export default {
     e.params[2] = ss(1, 9, th) * ss(40, 30, th);
     e.params[3] = 0.5 * Math.sin(t * 0.07 + 0.5) * e.params[2];
     e.params2[0] = Math.min(1, Math.max(0, (th - 12) / 7));
-    const wz = -900 + (e.params[0] * 0.45 + 500) % 1700, wx = -430;
+    const wz = -560 + 30 * Math.sin(t * 0.05), wx = 170;
     e.params2[2] = wx; e.params2[3] = wz - 7;
     DY = D; DO = 0;
     for (let i = 0; i < NB; i++) {                          // seabirds: wide slow circles round the cone, the coast and the head
-      const g = i % 3, cx = g === 0 ? VOL[0] : g === 1 ? -40 + i * 9 : 0, cz = g === 0 ? VOL[1] : g === 1 ? -100 : -205;
-      const r = 42 + (i * 37 % 60) + (g === 1 ? 20 : 0), dir = i & 1 ? 1 : -1, a = i * 2.4 + dir * t * 8.5 / r;
+      const g = i % 3, cx = g === 0 ? VOL[0] : g === 1 ? -10 + (i % 4) * 8 : 0, cz = g === 0 ? VOL[1] : g === 1 ? -150 : -205;
+      const r = g === 1 ? 20 + (i * 37 % 26) : 42 + (i * 37 % 60), dir = i & 1 ? 1 : -1, a = i * 2.4 + dir * t * 8.5 / r;
       const rr = r * (1 + 0.18 * Math.sin(a * 2 + i)), x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr * 0.8;
-      const y = (g === 0 ? 34 : g === 1 ? 9 : 24) + (i * 13 % 17) + 4 * Math.sin(t * 0.13 + i * 1.9);
-      put(x, y, z, 1.25, Math.atan2(Math.sin(a) * dir, -Math.cos(a) * dir * 0.8), 0, 0.1 * Math.cos(t * 0.13 + i * 1.9), t * 2.6 + i * 1.3 + 1.2 * Math.sin(t * 0.37 + i));
+      const y = (g === 0 ? 46 : g === 1 ? 6 : 24) + (i * 13 % (g === 1 ? 8 : 17)) + (g === 1 ? 1.5 : 4) * Math.sin(t * 0.13 + i * 1.9);
+      put(x, y, z, 1.6, Math.atan2(Math.sin(a) * dir, -Math.cos(a) * dir * 0.8), 0, 0.1 * Math.cos(t * 0.13 + i * 1.9), t * 2.6 + i * 1.3 + 1.2 * Math.sin(t * 0.37 + i));
     }
     for (let i = 0; i < NC; i++) {                          // crabs sidle along the rims of the tide pools
       const p = TIDE[i % 4], a = i * 1.9 + 0.7 * Math.sin(t * 0.11 + i * 2.3) + 0.25 * Math.sin(t * 0.37 + i), r = p[2] + 0.35 + 0.2 * (i >> 2);
       const x = p[0] + Math.cos(a) * r, z = p[1] + Math.sin(a) * r;
-      put(x, at(x, z) - 0.01, z, 1 + 0.25 * (i % 3), Math.atan2(-Math.cos(a), -Math.sin(a)), 0, 0, a * 7);
+      put(x, at(x, z) - 0.01, z, 2.1 + 0.4 * (i % 3), Math.atan2(-Math.cos(a), -Math.sin(a)), 0, 0, a * 7);
     }
     for (let i = 0; i < NT; i++) {                          // hatchlings: from the nest down to the water, again and again
-      const s = (t / 125 + i / NT + 0.02 * Math.sin(i * 5)) % 1, d = s * 34, lat = (i - 3) * 0.55 * ss(0, 4, d) + 0.3 * Math.sin(d * 0.6 + i * 2);
+      const s = (t / 125 + i / NT + 0.02 * Math.sin(i * 5)) % 1, d = s * 34, lat = (i % 7 - 3) * 0.55 * ss(0, 4, d) + 0.3 * Math.sin(d * 0.6 + i * 2);
       const x = NEST[0] + 0.12 * d + lat, z = NEST[1] - 0.993 * d, y = at(x, z);
-      put(x, y, z, (1.25 + 0.2 * (i % 3)) * ss(0, 0.5, d) * ss(-0.3, -0.05, y), 0.12 + 0.25 * Math.cos(d * 0.6 + i * 2) + 0.12 * Math.sin(t * 2.2 + i), 0, 0, t * 4.4 + i * 2);
+      put(x, y, z, (2 + 0.3 * (i % 3)) * ss(0, 0.5, d) * ss(-0.3, -0.05, y), 0.12 + 0.25 * Math.cos(d * 0.6 + i * 2) + 0.12 * Math.sin(t * 2.2 + i), 0, 0, t * 4.4 + i * 2);
     }
     for (let i = 0; i < ND; i++) {                          // dolphins riding beside the turtle
       const tt = (t + i * 4.3) % 12.5, u = Math.min(tt / 2.8, 1), s = Math.sin(Math.PI * u);
-      put(-178 - i * 7, -1.1 + 3.1 * s, 6 + i * 13 - 7 * u + 5 * ss(3, 12, tt), 1, 0, 0, 0.95 * Math.cos(Math.PI * u) * (tt < 2.8 ? 1 : 0), t * 5);
+      put(-42 - i * 9, -1.8 + 4.6 * s, -200 + i * 8 - 8 * u + 6 * ss(3, 12, tt), 1.6, 0, 0, 0.95 * Math.cos(Math.PI * u) * (tt < 2.8 ? 1 : 0), t * 5);
     }
     put(wx, -1.25 + 0.5 * Math.sin(t * 0.25), wz, 1, 0, 0, 0.05 * Math.sin(t * 0.25 + 1), 0);
     ctx.queue.writeBuffer(this.inst, this.dyn0 * 32, D);

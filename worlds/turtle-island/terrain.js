@@ -2,7 +2,7 @@
 import { fbm2 } from '../../core/src/noise.js';
 
 export const SA = 128, SB = 160, VOL = [8, 22], HEX = 15, MS = 400, MN = 1024, GN = 448, CELL = MS / GN;
-export const DOOR = [-6, -98], SPAWN = [4, -124], NEST = [11, -120], COLS = [-70, -97], HUT = [87, 10], SHRINE = [14, 112];
+export const DOOR = [-6, -98], SPAWN = [4, -124], NEST = [7.5, -121.5], COLS = [-70, -97], HUT = [9, -83], SHRINE = [14, 112];
 export const HOT = [[-52, -62, 3.2], [-59.5, -54, 2.2], [-45, -70, 1.8]];
 export const TIDE = [[99, -58, 2.4], [104, -47, 1.7], [95, -67, 1.5], [106, -38, 2.0]];
 const LAVA = [[-2.25, -121, -38, 0], [2.25, -88, 118, 0], [-0.62, -44, -56, 1]];   // start azimuth on the rim, target x/z, tube
@@ -28,14 +28,14 @@ function raw(x, z) {
   const e = Math.hypot(x / SA, z / SB), b = beach(x, z);
   const n1 = fbm2(x * 0.011 + 3.1, z * 0.011 - 1.7, 3), n2 = fbm2(x * 0.045 + 9, z * 0.045, 4);
   const o = Math.max(e - 0.86, 0), o2 = Math.max(e - 0.94, 0);
-  const ys = 1.35 - 0.5 * e * e - 2.8 * b - 230 * o * o + 0.7 * ss(0.02, 0.2, hexE(x / HEX, z / HEX));
+  const ys = 1.35 - 0.5 * e * e - 2.8 * b - 230 * o * o + 0.5 * ss(0, 0.3, hexE(x / HEX, z / HEX));
   const dC = (0.8 + 0.05 * n1 - e) * 140;
   const rock = dC < 0 ? dC : 4.2 * ss(0, 7, dC) + 0.025 * dC + (2.2 * n2 + 1) * ss(3, 16, dC);
   const sand = (0.915 - e) * 10.5 - 320 * o2 * o2 + 0.25 * n2 * ss(0.9, 0.7, e);
   let land = mix(rock, sand, b) + 7.5 * Math.exp(-(Math.pow(x - COLS[0] - 5.5, 2) + Math.pow(z - COLS[1] - 7.5, 2)) / 60);
   const dx = x - VOL[0], dz = z - VOL[1], dv = Math.hypot(dx, dz);
-  let c = 48 * Math.pow(Math.max(1 - dv / 90, 0), 1.55) * (1 + 0.1 * Math.sin(Math.atan2(dx, dz) * 7 + n1 * 5) * ss(8, 40, dv) + 0.1 * n2);
-  if (c > 37) c = 37 + 3 * (1 - Math.exp(-(c - 37) / 3));
+  let c = 62 * Math.pow(Math.max(1 - dv / 90, 0), 1.55) * (1 + 0.1 * Math.sin(Math.atan2(dx, dz) * 7 + n1 * 5) * ss(8, 40, dv) + 0.1 * n2);
+  if (c > 50) c = 50 + 3 * (1 - Math.exp(-(c - 50) / 3));
   c -= 9.5 * ss(14, 4, dv) + 5.5 * Math.exp(-Math.pow(Math.atan2(dx, -dz) + 0.52, 2) / 0.5) * ss(5, 12, dv) * ss(32, 16, dv);
   land += c * ss(-2, 14, dC) * (1 - 0.6 * b);
   const d = ys - land;
@@ -127,7 +127,7 @@ export function buildTerrain() {
     nx /= l; ny /= l; nz /= l;
     const a = 3, c = (H[j * N + Math.max(i - a, 0)] + H[j * N + Math.min(i + a, GN)] + H[Math.max(j - a, 0) * N + i] + H[Math.min(j + a, GN) * N + i]) / 4 - h;
     const dC = M[k * 4 + 3], b = M[k * 4 + 2];
-    const veg = ss(4, 11, dC) * (1 - b) * ss(35, 24, h) * ss(0.42, 0.22, 1 - ny) * ss(1.2, 5, lavaD(x, z)) * (0.75 + 0.5 * fbm2(x * 0.03 + 40, z * 0.03, 2));
+    const veg = ss(4, 11, dC) * (1 - b) * ss(46, 32, h) * ss(0.42, 0.22, 1 - ny) * ss(1.2, 5, lavaD(x, z)) * (0.75 + 0.5 * fbm2(x * 0.03 + 40, z * 0.03, 2));
     const ao = Math.min(1, Math.max(0.35, 1 - 0.3 * c));
     verts[o] = x; verts[o + 1] = h; verts[o + 2] = z; verts[o + 3] = nx; verts[o + 4] = ny; verts[o + 5] = nz;
     verts[o + 6] = ao; verts[o + 7] = M[k * 4 + 1]; verts[o + 8] = b * ss(6, 4, h); verts[o + 9] = M[k * 4 + 3] = veg;

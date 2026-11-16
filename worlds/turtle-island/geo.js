@@ -34,28 +34,34 @@ export function loft(ns, nc, f) {
   return g;
 }
 
-// giant flipper: unit length along +x, chord along z (trailing edge +z), thin in y
-export const flipper = () => loft(30, 18, (s, a) => {
-  const w = 0.115 * Math.pow(Math.sin(Math.PI * Math.pow(0.06 + 0.93 * s, 0.62)), 0.75) * (0.35 + 0.65 * ss(0, 0.14, s)), th = 0.04 * (1 - 0.75 * s) * Math.sqrt(Math.sin(Math.PI * Math.min(1, 0.04 + s * 1.02)) + 0.02);
+// giant flipper: unit length along +x, chord along z (leading edge -z thick, trailing edge +z thin), swept back at the tip
+export const flipper = () => loft(34, 18, (s, a) => {
   const c = Math.cos(a), sn = Math.sin(a);
-  return [s, sn * th, 0.34 * s * s + c * w * (c > 0 ? 1.15 : 0.85) - 0.02];
+  const w = 0.105 * Math.pow(Math.sin(Math.PI * Math.pow(0.05 + 0.94 * s, 0.6)), 0.7) * (0.45 + 0.55 * ss(0, 0.16, s));
+  const th = (0.05 * (1 - 0.8 * s) + 0.022 * Math.exp(-Math.pow((s - 0.27) / 0.09, 2))) * Math.sqrt(Math.sin(Math.PI * Math.min(1, 0.03 + s * 0.97)) + 0.02);
+  return [s, sn * th * (0.6 - 0.4 * c) - 0.06 * s * s * s, 0.1 * s + 0.32 * s * s * s + 0.04 * ss(0.2, 0.4, s) + c * w * (c > 0 ? 1.2 : 0.8)];
 });
 // head + neck, unit length: the neck climbs from the origin toward -z, the head levels out. Returns the geo plus the
 // eye, neck pivot and nostril points (mesh space) for the shaders.
 export function head() {
-  const ns = 44, C = [[0, 0, 0]], TH = [];
+  const ns = 56, C = [[0, 0, 0]], TH = [];
   for (let j = 0; j <= ns; j++) {
-    const th = 0.95 * ss(0.8, 0.25, j / ns) - 0.12; TH.push(th);
+    const th = 0.78 * ss(0.8, 0.25, j / ns) - 0.12; TH.push(th);
     if (j) { const p = C[j - 1], m = (TH[j - 1] + th) / 2; C.push([0, p[1] + Math.sin(m) / ns, p[2] - Math.cos(m) / ns]); }
   }
   const f = (s, a) => {
-    const j = Math.round(s * ns), th = TH[j], c = C[j], k = Math.max(s - 0.8, 0) / 0.2;
-    const r = (0.05 + 0.06 * Math.exp(-s * 4) + 0.072 * Math.exp(-Math.pow((s - 0.79) / 0.16, 2))) * (Math.sqrt(Math.max(1 - Math.pow(k, 2.6), 0)) * (1 - 0.42 * k) + 0.004);
-    const sn = Math.sin(a), ly = sn * r * (sn > 0 ? 0.82 : 0.6) - 0.045 * k * k;
-    return [Math.cos(a) * r, c[1] + ly * Math.cos(th), c[2] + ly * Math.sin(th)];
+    const j = Math.round(s * ns), th = TH[j], c = C[j], k = Math.max(s - 0.78, 0) / 0.22, sn = Math.sin(a), cs = Math.cos(a);
+    const r = 0.05 + 0.06 * Math.exp(-s * 4) + 0.068 * Math.exp(-Math.pow((s - 0.76) / 0.14, 2));
+    const end = Math.sqrt(Math.max(1 - Math.pow(k, 3), 0));
+    const mouth = 1 - 0.13 * Math.exp(-Math.pow((sn + 0.3) / 0.09, 2)) * ss(0.7, 0.78, s);                 // jaw line
+    const wr = 1 + 0.045 * Math.sin(s * 140 + 2 * sn) * ss(0.62, 0.5, s) * ss(0.04, 0.2, s);               // neck folds
+    const brow = 0.016 * Math.exp(-Math.pow((s - 0.815) / 0.045, 2)) * Math.exp(-Math.pow((sn - 0.55) / 0.3, 2));
+    const lx = cs * (r * (1 - 0.66 * k * k) * end * mouth * wr + brow + 0.003);
+    const ly = sn * (r * (sn > 0 ? 0.72 : 0.6) * (1 - 0.4 * k) * end * mouth * wr + 0.003) + brow * 0.6 - 0.055 * k * k * k;   // hooked beak
+    return [lx, c[1] + ly * Math.cos(th), c[2] + ly * Math.sin(th)];
   };
-  const g = loft(ns, 24, f);
-  g.eye = f(0.83, 0.42); g.pivot = C[Math.round(0.6 * ns)]; g.nose = f(0.985, 1.2);
+  const g = loft(ns, 28, f);
+  g.eye = f(0.835, 0.3); g.pivot = C[Math.round(0.6 * ns)]; g.nose = f(0.965, 1.15);
   return g;
 }
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -158,7 +164,8 @@ export function props(g, HUT, SHRINE, HAM, NEST) {
     P.push(bx(2.9, 1.9, 2.7, x, y + 1.0, z, 5, 0.2));
     P.push(translate(yaw(mt(lathe([[2.75, 0], [1.3, 1.05], [0.02, 1.9]], 4), 6), Math.PI / 4), x + 0.2, y + 1.9, z));
     P.push(bx(0.03, 0.75, 0.8, x + 1.47, y + 1.15, z + 0.55, 7, 0)); P.push(bx(0.04, 1.5, 0.7, x + 1.47, y + 0.8, z - 0.6, 0, 0.1));
-    P.push(bx(0.8, 0.75, 0.03, x - 0.3, y + 1.15, z + 1.37, 7, 0));
+    P.push(bx(0.8, 0.75, 0.03, x - 0.3, y + 1.15, z + 1.37, 7, 0)); P.push(bx(0.9, 0.75, 0.03, x + 0.3, y + 1.15, z - 1.37, 7, 0)); P.push(bx(0.03, 0.7, 0.7, x - 1.47, y + 1.15, z - 0.3, 7, 0));
+    P.push(translate(mt(ell(0.11, 0.14, 0.11), 7, 1), x - 0.9, y + 1.55, z - 1.8)); P.push(bx(0.015, 0.3, 0.015, x - 0.9, y + 1.8, z - 1.8, 0, 0));
     for (let i = 0; i < 4; i++) P.push(bx(0.5, 0.05, 0.16, x + 3.2 + i * 0.24, y - 0.2 - i * 0.24, z - 0.6, 0, 0.6));
     P.push(translate(mt(ell(0.1, 0.13, 0.1), 7, 1), x + 2.3, y + 1.55, z + 0.9)); P.push(bx(0.015, 0.3, 0.015, x + 2.3, y + 1.8, z + 0.9, 0, 0)); }
   { const [a, b] = HAM, n = 12, gm = mk((n + 1) * 3, n * 12); let k = 0;     // hammock between two palms: uv.x = sag weight
@@ -173,10 +180,13 @@ export function props(g, HUT, SHRINE, HAM, NEST) {
   { const [x, z] = SHRINE, y = g(x, z);                    // torii facing +z (the wake) + stone lantern + steps
     for (const sd of [-1, 1]) P.push(translate(mt(lathe([[0.13, 0], [0.11, 2.6]], 8), 14), x + sd * 1.05, y - 0.1, z + 2.2));
     P.push(bx(3.1, 0.16, 0.2, x, y + 2.62, z + 2.2, 14, 0)); P.push(bx(3.4, 0.1, 0.3, x, y + 2.76, z + 2.2, 0, 0.1)); P.push(bx(2.3, 0.11, 0.12, x, y + 2.15, z + 2.2, 14, 0));
-    P.push(translate(mt(lathe([[0.42, 0], [0.36, 0.14], [0.13, 0.2], [0.11, 0.95], [0.3, 1.02], [0.3, 1.08]], 6), 15), x - 1.6, y - 0.05, z - 0.4));
-    P.push(translate(mt(lathe([[0.2, 0], [0.2, 0.34]], 6), 7, 0.6), x - 1.6, y + 1.03, z - 0.4));
-    P.push(translate(mt(lathe([[0.46, 0], [0.2, 0.2], [0.07, 0.26], [0.09, 0.36], [0.001, 0.42]], 6), 15), x - 1.6, y + 1.37, z - 0.4));
-    for (let i = 0; i < 3; i++) P.push(bx(1.6 - i * 0.1, 0.16, 0.5, x, y - 0.08 - i * 0.16, z + 3.2 + i * 0.5, 15, 0));
+    for (const [lx, lz] of [[-1.6, -0.4], [-1.9, 3.6], [1.9, 3.6]]) {                 // stone lanterns
+      const X = x + lx, Z = z + lz, Y = g(X, Z);
+      P.push(translate(mt(lathe([[0.42, 0], [0.36, 0.14], [0.13, 0.2], [0.11, 0.95], [0.3, 1.02], [0.3, 1.08]], 6), 15), X, Y - 0.05, Z));
+      P.push(translate(mt(lathe([[0.2, 0], [0.2, 0.34]], 6), 7, 0.6), X, Y + 1.03, Z));
+      P.push(translate(mt(lathe([[0.46, 0], [0.2, 0.2], [0.07, 0.26], [0.09, 0.36], [0.001, 0.42]], 6), 15), X, Y + 1.37, Z));
+    }
+    for (let i = 0; i < 7; i++) P.push(bx(1.7 - i * 0.05, 0.16, 0.5, x, g(x, z + 3.2 + i * 0.5) - 0.06, z + 3.2 + i * 0.5, 15, 0));
     P.push(translate(mt(scale(rock(31, 2, 0.3), 0.7, 0.5, 0.6), 15), x + 1.4, y + 0.1, z - 0.6)); }
   { const [x, z] = NEST;                                     // nest: a ring of sand lumps and egg shells
     for (let i = 0; i < 9; i++) { const a = i * 0.7, r = 0.75 + (i % 3) * 0.07; P.push(translate(mt(ell(0.3, 0.12, 0.26), 4, 1), x + Math.cos(a) * r, g(x + Math.cos(a) * r, z + Math.sin(a) * r) + 0.02, z + Math.sin(a) * r)); }

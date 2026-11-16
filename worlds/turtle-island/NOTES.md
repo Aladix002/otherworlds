@@ -10,10 +10,12 @@ facing −Z (the sunset and the turtle's head); the door to `astral-ocean` stand
   lava tube with skylights and ends in a pond beside three **hot springs** (milky turquoise, sinter rims, steam).
 - **Shell ledge + tide pools** (east, `TIDE`): exposed scutes of the turtle's shell, pools with crabs and starfish, the
   right front flipper rising beyond.
-- **Palm grove** (east beach): hammock between two palms, a lit fisherman's hut on stilts with shell chimes.
+- **Hut and hammock** (behind the door, `HUT`, `HAM`): a lit fisherman's hut on stilts with shell chimes, a hammock
+  between two palms. A palm grove stands on the east beach; palms also climb the jungle slopes.
 - **Shrine** (north knoll, `SHRINE`): torii facing the wake, stone lantern, fireflies and crickets.
 - **Summit**: breached crater with a crusted lava lake, plume trailing behind the moving island, embers.
-- Around: seabirds circling the cone / coast / head, dolphins leaping off the west side, a whale spouting far away.
+- Around: seabirds circling the cone / front beach / head, dolphins leaping ahead-left of the spawn (in the sun
+  glitter), a whale spouting on the horizon ahead-right.
 
 ## Files
 - `terrain.js` — analytic height `raw()` → 449² grid (walk height = bilinear, mesh = same grid), flattened spots, guided
@@ -35,6 +37,12 @@ turns to glance back, breathes out a mist puff and sinks.
 ## Tunables
 `V0` (swim speed), `STROKE`, `HEADT` (world.js); `FP`, `FL`, `HB`, `HL` (common.wgsl); `LAVA`, `HOT`, `TIDE`, `FLATS`
 (terrain.js); counts scale with `ctx.q.level` in `init`; post: exposure 1.05, bloom threshold 1.2.
+
+## Critic round 1 changes
+Turtle head rebuilt (hooked beak, jaw line, lidded eye, nostril, neck folds, graded scutes, wet band, foam collar);
+flipper is an airfoil paddle with a mostly submerged stroke, foam ring and streaming water; scute seams wobble and read
+as algae grooves; soft depth-faded shore; V wake, bow wave and flow streaks; taller cone; soil grain everywhere; jungle
+palms replace most broadleaf trees; hut/hammock moved into the door sightline; bigger hatchlings, crabs, starfish.
 
 ## Known issues
 - No planar reflection: the water mirrors the baked sky only (plus a soft dark smear for the head); the island, flippers

@@ -7,9 +7,9 @@ fn bkCloud(p: vec2f) -> f32 { return fbm2(p + 0.35 * vec2f(fbm2(p * 0.7 + 3.1, 3
   let d = vec3f(sin(az) * c, y, -cos(az) * c);
   let sd = dot(d, SUNV); let s01 = clamp(sd * 0.5 + 0.5, 0.0, 1.0);
   let sh = clamp(dot(normalize(d.xz + vec2f(1e-5, 0.0)), SUNH) * 0.5 + 0.5, 0.0, 1.0);
-  let mid = mix(vec3f(0.13, 0.11, 0.33), vec3f(0.95, 0.33, 0.27), pow(sh, 1.7));
+  let mid = mix(vec3f(0.2, 0.16, 0.42), vec3f(0.95, 0.33, 0.27), pow(sh, 1.7));
   var col = mix(haze(d), mid, smoothstep(0.0, 0.17, y));
-  col = mix(col, vec3f(0.016, 0.026, 0.1), smoothstep(0.06, 0.66, y));
+  col = mix(col, vec3f(0.03, 0.04, 0.13), smoothstep(0.06, 0.66, y));
   col += vec3f(0.3, 0.09, 0.14) * exp(-(y - 0.11) * (y - 0.11) / 0.0049) * (1.0 - sh);            // belt of Venus
   col += vec3f(1.7, 0.6, 0.16) * pow(s01, 48.0) + vec3f(0.9, 0.36, 0.2) * pow(s01, 7.0) * 0.3;
   // clouds: long streaks low in the sky, lit from beneath by the sun that has just gone
