@@ -1,7 +1,7 @@
 // opaque scene: sandstone (mesa, slot canyon, arch: surface-nets mesh with baked canyon light) and the sand
 @group(1) @binding(0) var dtex: texture_2d<f32>;
 @group(1) @binding(1) var dsmp: sampler;
-struct Lights { l: array<vec4f, 26> };
+struct Lights { l: array<vec4f, 50> };
 @group(1) @binding(2) var<uniform> LU: Lights;
 
 // l = canyon light, ao, warm (1 = inside the canyon) | g = static glow (terrain)
@@ -102,9 +102,9 @@ fn farFog(col: vec3f, p: vec3f, dist: f32) -> vec3f {
   var lightN = nightLight(nd, 1.0);
   let fr = pow(1.0 - max(dot(nd, V), 0.0), 4.0);
   lightN += (G.ambientSky * 0.9 + vec3f(0.03, 0.005, 0.035)) * fr + vec3f(0.16, 0.1, 0.3) * fr * smoothstep(0.0, 0.25, ng.y - nd.y + 0.5 * dot(ng.xz, V.xz));   // rim on crests
-  for (var i = 0; i < 13; i++) {                            // glow of the creatures on the sand
+  for (var i = 0; i < 25; i++) {                            // glow of the creatures and lanterns on the sand
     let lp = LU.l[2 * i]; let v = lp.xyz - p; let dd = dot(v, v);
-    let att = 1.0 / (1.0 + dd / (lp.w * lp.w)) * smoothstep(40.0, 4.0, dd);
+    let w2 = lp.w * lp.w; let att = 1.0 / (1.0 + dd / w2) * smoothstep(w2 * 60.0, w2 * 6.0, dd);
     lightN += LU.l[2 * i + 1].rgb * att * (0.45 + 0.55 * max(dot(nd, v) * inverseSqrt(dd + 1e-4), 0.0)) * 0.55;
   }
   var night = alb * (lightN + in.g);
@@ -113,7 +113,7 @@ fn farFog(col: vec3f, p: vec3f, dist: f32) -> vec3f {
   night += hsv2rgb(vec3f(t2.r * 5.0 + t1.r, 0.6, 1.0)) * glit * (0.12 + luminance(in.g) * 2.0);
 
   // canyon floor: same light ramp as the walls, hot pools where the beams land
-  let Lw = in.l.x * (0.4 + 0.3 * nd.y) * shade + beamSpot(p) * 0.6 * (0.75 + 0.5 * t1.r) * max(nd.y, 0.0);
+  let Lw = min(in.l.x * (0.4 + 0.3 * nd.y) * shade + beamSpot(p) * 0.6 * (0.75 + 0.5 * t1.r) * max(nd.y, 0.0), 0.86);   // warm pool, never white
   var col = mix(night, ramp(Lw) * mix(vec3f(1.0), vec3f(1.1, 0.9, 1.2), t0.r), in.l.z);
 
   // the oasis: wet sand and a luminous shoreline

@@ -1,9 +1,9 @@
 // Dream desert life: glowing lizards and snakes (CPU skeletons -> spline tubes built in the vertex shader), their fading
 // footprints and trails, and the strange plants. Everything is an analytic function of time (deterministic shots).
-import { ground, DOOR, ARCH, OASIS, DEVILS, ss } from './geo.js';
+import { ground, sdRock, cx, DOOR, ARCH, OASIS, DEVILS, ss } from './geo.js';
 import { makeRng } from '../../core/src/math.js';
 
-export const NLZ = 5, NSN = 5, NPR = 14, NL = 13, NLT = 12, NBT = 10;
+export const NLZ = 5, NSN = 5, NPR = 14, NL = 25, NLT = 12, NBT = 10;
 const LP = 18, GP = 5, SP = 28, TP = 36, PI = Math.PI;
 export const RINGS = [44, 10, 72, 16];                  // bodies, legs, trails, plants
 // loop centre x, z, radii x, z, wobble, wobble phase, start angle, speed (m/s), hue, size
@@ -17,7 +17,7 @@ const C = [
   [4, -84, 9, 6, 0.8, 2.6, 4.2, 0.24, 0.55, 1.1],
   [-6, -112, 14, 8, 1.4, 0.2, 2.9, 0.28, 0.16, 1.2],
   [-30, 60, 9, 6, 0.8, 5.0, 1.7, 0.25, 0.4, 0.95],
-  [0, -100, 80, 42, 5, 1.0, 0.5, 2.6, 0.78, 20],          // the sky serpent
+  [0, -100, 80, 42, 5, 1.0, -8.16, 2.6, 0.78, 34],          // the sky serpent
 ];
 const BC = [];                                          // beetle loops (filled in makeLife)
 const o = new Float64Array(5);                          // x, z, tangent x, z, metres per unit u
@@ -51,7 +51,7 @@ export function makeLife(level) {
   // ---------------- plants (static tubes)
   const samples = [];
   for (const c of C) for (let k = 0; k < 90; k++) { path(c, k / 90 * 2 * PI * c[2]); samples.push(o[0], o[1]); }
-  const spots = [[5, -47, 0], [-14, -47, 1], [-11, 51, 0], [4, 63, 1], [16, -76, 0], [-16, -70, 1], [33, -84, 1], [OASIS[0] - 3, OASIS[2] - 10, 0], [OASIS[0] - 8, OASIS[2] - 4, 1]];
+  const spots = [[5, -47, 0], [-14, -47, 1], [-11, 51, 0], [4, 63, 1], [16, -76, 0], [-16, -70, 1], [33, -84, 1], [-18, 47, 0], [11, 45, 0], [3, -51, 0], [OASIS[0] - 3, OASIS[2] - 10, 0], [OASIS[0] - 8, OASIS[2] - 4, 1]];
   const np = [9, 14, 20][level];
   for (let tries = 0; spots.length < np && tries < 900; tries++) {
     const a = rng() * 2 * PI, r = rng.range(52, 125), x = Math.cos(a) * r, z = Math.sin(a) * r * 0.9 - 14;
@@ -92,6 +92,14 @@ export function makeLife(level) {
     }
   }
 
+  // half-buried boulders around the mesa foot and the door knoll
+  for (let k = 0; k < 44; k++) {
+    const a = rng() * 6.283, x0 = k < 34 ? Math.cos(a) * rng.range(33, 50) : DOOR[0] + Math.cos(a) * rng.range(4, 13), z0 = k < 34 ? Math.sin(a) * rng.range(39, 56) : DOOR[2] + Math.sin(a) * rng.range(4, 13), y0 = ground(x0, z0);
+    if (sdRock(x0, y0 + 0.5, z0) < 1.5 || Math.abs(x0 - cx(z0)) < 4.5 || Math.abs(x0 - DOOR[0]) < 2) continue;
+    const R = rng.range(0.25, 0.9) * (rng() < 0.15 ? 1.8 : 1), b = rng() * 6.283, ox = Math.cos(b) * R, oz = Math.sin(b) * R, st = sp.length / 4;
+    for (const [f, r] of [[-1, 0], [-0.4, 0.9], [0.4, 1], [1, 0]]) sp.push(x0 + ox * f, y0 + R * 0.15, z0 + oz * f, r * R * rng.range(0.8, 1));
+    sh.push(st, 4, RINGS[3], 10, 0, rng(), R, 0.65, 0, 1, 0, 1);
+  }
   // night-blooming trumpet flowers ringing the oasis pool
   for (let k = 0; k < 16; k++) {
     const a = (k % 4) * 1.57 + 0.5 + rng.range(-0.38, 0.38), r = rng.range(6.6, 9.5), x0 = OASIS[0] + Math.cos(a) * r, z0 = OASIS[2] + Math.sin(a) * r, y0 = ground(x0, z0);
@@ -127,7 +135,7 @@ export function makeLife(level) {
   { const L = lizardAt(0, 10); BC[0][0] = L[0] + L[3] * 1.3 - L[4] * 0.3; BC[0][1] = L[2] + L[4] * 1.3 + L[3] * 0.3; BC[0][2] = 0.9; BC[0][3] = 0.7; BC[1][0] = L[0] - L[3] * 0.5; BC[1][1] = L[2] - L[4] * 0.5; BC[1][2] = 2.6; BC[1][3] = 2.2; }
 
   // ---------------- buffers
-  const nDynPts = NLZ * (LP + 4 * GP) + NSN * (SP + TP), nDynTubes = NLZ * 5 + NSN * 2;
+  const P0 = NLZ * (LP + 4 * GP) + NSN * (SP + TP), T0 = NLZ * 5 + NSN * 2, nDynPts = P0 + 3 * TP, nDynTubes = T0 + 3;
   const pts = new Float32Array(nDynPts * 4 + sp.length), tubes = new Float32Array(nDynTubes * 12 + sh.length);
   pts.set(sp, nDynPts * 4);
   for (let k = 0; k < sh.length; k += 12) sh[k] += nDynPts;
@@ -141,9 +149,10 @@ export function makeLife(level) {
   for (let i = 0; i < NSN; i++) {
     const c = C[NLZ + i], st = NLZ * 38 + i * (SP + TP);
     tube(NLZ + i, st, SP, RINGS[0], i > 3 ? 6 : 2, c, 3.2 * c[9], i > 3 ? 0.55 : 0.86);
-    tube(NLZ + NSN + NLZ * 4 + i, st + SP, TP, RINGS[2], 5, c, TP * 0.3, 0.1);
+    tube(NLZ + NSN + NLZ * 4 + i, st + SP, TP, RINGS[2], i > 3 ? 7 : 5, c, TP * 0.3, i > 3 ? 0.3 : 0.1);
   }
   const NP0 = NLZ * 4 * NPR, nPrints = NP0 + NBT * 8;
+  for (let s = 0; s < 3; s++) tubes.set([P0 + s * TP, TP, RINGS[2], 7, [0.48, 0.85, 0.12][s], s, 5, 1, 0, 1, 0, 1], (T0 + s) * 12);   // sand-spiral ribbons
   const prints = new Float32Array(nPrints * 12), PK = new Int32Array(nPrints).fill(-1e9), lights = new Float32Array(NL * 8), lant = new Float32Array(NLT * 8);
   for (let i = 0; i < NLT; i++) { hue([0.07, 0.1, 0.04, 0.93, 0.5][i % 5], 1, lant, i * 8 + 4); lant[i * 8 + 3] = 1.5 + (i % 3) * 0.4; lant[i * 8 + 7] = i * 2.4; }
   const F = new Float64Array(3);
@@ -220,7 +229,7 @@ export function makeLife(level) {
     const n = NLZ + i, c = C[n], sc = c[9], len = 3.2 * sc, u = uAt(c, t, n), sky = i > 3, D = (sky ? 0.12 : 0.3) * sc;
     path(c, u);
     const g = o[4];
-    let q = (NLZ * 38 + i * (SP + TP)) * 4;
+    let q = (NLZ * 38 + i * (SP + TP)) * 4, HX = 0, HY = 0, HZ = 0, FX = 0, FZ = 0;
     for (let j = 0; j < SP + TP; j++, q += 4) {
       const tr = j >= SP, m = j - SP;
       const s = tr ? len : j / (SP - 1) * len;
@@ -228,8 +237,14 @@ export function makeLife(level) {
       path(c, uj);
       const sw = (0.04 + 0.2 * ss(0, 0.9, s)) * sc * Math.sin(2 * PI * uj / (sky ? 50 : 1.5 * sc) + n);
       const x = o[0] - o[3] * sw, z = o[1] + o[2] * sw, f = s / len;
-      const r = tr ? (sky ? 0 : 0.075 * sc) : j === 0 ? 0.012 : j === 1 ? 0.05 * sc : j === 2 ? 0.043 * sc : (0.062 * Math.pow(Math.max(1 - Math.pow(f, 2.6), 0), 0.62) + 0.004) * sc;
-      pts[q] = x; pts[q + 1] = sky ? 62 + 8 * Math.sin(uj * 0.021) + sw * 0.6 : ground(x, z) + (tr ? 0.03 : r * 0.8 + 0.09 * sc * ss(0.45, 0, s)); pts[q + 2] = z; pts[q + 3] = r;
+      const r = tr ? (sky ? 0 : 0.075 * sc) : j === 0 ? 0.012 : j === 1 ? (sky ? 0.09 : 0.05) * sc : j === 2 ? (sky ? 0.075 : 0.043) * sc : (0.062 * Math.pow(Math.max(1 - Math.pow(f, 2.6), 0), 0.62) + 0.004) * sc;
+      pts[q] = x; pts[q + 1] = sky ? 44 + 6 * Math.sin(uj * 0.021) + sw * 0.6 : ground(x, z) + (tr ? 0.03 : r * 0.8 + 0.09 * sc * ss(0.45, 0, s)); pts[q + 2] = z; pts[q + 3] = r;
+      if (j === 0) { HX = x; HY = pts[q + 1]; HZ = z; FX = o[2]; FZ = o[3]; }
+      if (sky && tr) {                                    // the serpent's long whiskers: one ribbon through the head
+        const v = m / (TP - 1) * 2 - 1, a = Math.abs(v), W = 0.5 * sc;
+        pts[q] = HX - FX * a * W - FZ * v * W * 0.6; pts[q + 2] = HZ - FZ * a * W + FX * v * W * 0.6;
+        pts[q + 1] = HY - a * W * 0.25 + Math.sin(t * 0.6 + a * 5) * W * 0.07; pts[q + 3] = 0.045 * sc * Math.sqrt(1 - a);
+      }
       if (!sky && (j === 5 || j === 17)) { const li = (NLZ + i * 2 + (j === 5 ? 0 : 1)) * 8; lights[li] = x; lights[li + 1] = pts[q + 1] + 0.15; lights[li + 2] = z; lights[li + 3] = 0.7 * sc; hue(c[8] + (j === 5 ? 0 : 0.14), 0.8, lights, li + 4); }
     }
   }
@@ -259,7 +274,16 @@ export function makeLife(level) {
       for (let i = 0; i < NLZ; i++) lizard(i, t);
       for (let i = 0; i < NSN; i++) snake(i, t);
       for (let i = 0; i < NBT; i++) beetle(i, t);
-      for (let i = 0; i < NLT; i++) lantern(i, t, lant, i * 8);
+      for (let i = 0; i < NLT; i++) {
+        lantern(i, t, lant, i * 8);
+        const li = (13 + i) * 8;                           // each lantern lights the sand below it
+        for (let k = 0; k < 3; k++) { lights[li + k] = lant[i * 8 + k]; lights[li + 4 + k] = lant[i * 8 + 4 + k] * 0.9; }
+        lights[li + 3] = 3;
+      }
+      for (let s = 0, q = P0 * 4; s < 3; s++) for (let m = 0; m < TP; m++, q += 4) {
+        const f = m / (TP - 1), a = f * 9 + t * 0.35 + s * 2, R = 0.25 + 1.4 * f, d = DEVILS[s];
+        pts[q] = d[0] + Math.cos(a) * R; pts[q + 1] = d[1] + 0.15 + 4.4 * f; pts[q + 2] = d[2] + Math.sin(a) * R; pts[q + 3] = 0.2 * Math.sin(PI * f);
+      }
     },
   };
 }

@@ -32,3 +32,10 @@ Door (-> `light-library`) stands on a knoll ~35 m behind the spawn, outside the 
 - Creatures walk fixed loops and do not avoid the player or each other; no collision with plants or creatures.
 - The pool is a flat disc intersecting the bowl; you can wade through it.
 - Terrain is a single 448² warped grid (no LOD); far dune crests are slightly faceted.
+
+## Later passes
+- Mesa: benches stepping down to the rim and buttress fins (`sdRock`); canyon glow masked to interior faces.
+- Ground: small ridges/swells near the mesa and door, boulders (tube kind 10), deeper oasis basin with palms and reeds (kind 9).
+- Sky serpent: scale 34, whisker ribbon through the head (kind 7), passes through pose 2 at t = 10 (start angle in `C`).
+- Lanterns light the sand through the terrain light uniform (25 lights: 13 creature + 12 lantern).
+- Sand spirals: a CPU helix ribbon (kind 7) plus the mote figures. Beam pool on the floor is clamped below white.

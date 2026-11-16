@@ -73,7 +73,7 @@ export default {
     await progress(0.04);
     const ter = terrain([320, 448, 520][lv], life.glows);
     await progress(0.2);
-    const mesa = await meshBox(-39, -1.6, -45, 39, 23.5, 45, [0.4, 0.34, 0.3][lv], (f) => progress(0.2 + 0.6 * f));
+    const mesa = await meshBox(-44, -1.6, -50, 44, 23.5, 50, [0.4, 0.34, 0.3][lv], (f) => progress(0.2 + 0.6 * f));
     const arch = await meshBox(ARCH[0] - 11, ARCH[1] - 3, ARCH[2] - 11, ARCH[0] + 11, ARCH[1] + 9.5, ARCH[2] + 11, 0.3);
     await progress(0.85);
     const up = (m) => ({ vb: ctx.buffer(m.verts, 'vertex'), ib: ctx.buffer(m.idx, 'index'), n: m.idx.length });
@@ -173,7 +173,7 @@ export default {
     const L = this.life;
     pass.setPipeline(this.pWater); pass.setBindGroup(1, this.sBG); pass.draw(6);
     pass.setPipeline(this.pPrint); pass.setVertexBuffer(0, this.printBuf); pass.draw(6, L.nPrints);
-    pass.setPipeline(this.pTrail); pass.setBindGroup(1, this.tBG); pass.draw(RINGS[2] * 60, NSN, 0, NLZ * 5 + NSN);
+    pass.setPipeline(this.pTrail); pass.setBindGroup(1, this.tBG); pass.draw(RINGS[2] * 60, NSN + 3, 0, NLZ * 5 + NSN);
     pass.setPipeline(this.pHalo); pass.setVertexBuffer(0, this.haloBuf); pass.draw(6, L.halos.length / 8);
     pass.setPipeline(this.pLant); pass.setVertexBuffer(0, this.lantBuf); pass.draw(6, NLT);
     pass.setPipeline(this.pMote);

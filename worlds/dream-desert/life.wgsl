@@ -20,7 +20,7 @@ struct TV {
   var P = 0.5 * (2.0 * p1 + c1 * u + c2 * u * u + c3 * u * u * u);
   let tg = normalize((c1 + 2.0 * c2 * u + 3.0 * c3 * u * u).xyz + vec3f(0.0, 1e-5, 0.0));
   let kind = T.a.w;
-  if ((kind > 2.5 && kind < 4.5) || kind > 7.5) {                          // plants sway a little in the night wind
+  if ((kind > 2.5 && kind < 4.5) || (kind > 7.5 && kind < 9.5)) {                          // plants sway a little in the night wind
     let s = t * t * T.b.z * 0.045;
     P = vec4f(P.x + s * sin(G.time * 0.7 + T.b.y * 40.0), P.y, P.z + s * sin(G.time * 0.53 + T.b.y * 70.0), P.w);
   }
@@ -87,6 +87,8 @@ struct TV {
     ec = hsv2rgb(vec3f(hue, 0.55, 1.0));
   } else if (kind == 9) {                                  // palms and reeds: silhouettes with a faint sheen
     skin = vec3f(0.012, 0.035, 0.03);
+  } else if (kind == 10) {                                 // boulders
+    skin = vec3f(0.07, 0.03, 0.05) * (0.7 + 0.5 * vnoise3(in.w * 5.0)); ec = vec3f(0.0);
   } else {                                                 // lantern cactus: glowing ribs, bright head
     skin = vec3f(0.035, 0.07, 0.075);
     let rib = pow(0.5 + 0.5 * cos(in.st.y * 9.0), 10.0);
@@ -103,17 +105,18 @@ struct TV {
   col += ec * skin * 2.0 * (0.4 + 0.6 * max(n.y, 0.0));                             // own light spilling over the skin
   col += ec * e * 6.0 * breath + vec3f(3.5, 3.0, 2.2) * eye;
   if (kind == 6) { let rb = hsv2rgb(vec3f(hue + t * 1.3 - time * 0.02, 0.95, 1.0));
-    return vec4f(rb * (0.3 + e * 2.0 + 2.4 * exp(-a * a * 14.0) + fr * 2.6) * breath + vec3f(4.0) * eye, 1.0); }   // the sky serpent is all light
+    return vec4f(rb * (0.55 + e * 2.0 + 2.4 * exp(-a * a * 14.0) + fr * 2.6) * breath + vec3f(4.0) * eye, 1.0); }   // the sky serpent is all light
   return vec4f(applyFog(col, in.w), 1.0);
 }
 
 // glowing trail a snake leaves in the sand (additive ribbon, fading with age)
 @fragment fn fsTrail(in: TV) -> @location(0) vec4f {
   let x = cos(in.st.y); let t = in.st.z;
-  let prof = pow(max(1.0 - x * x, 0.0), 2.0) * step(0.0, sin(in.st.y));
-  let fade = pow(1.0 - t, 1.6) * smoothstep(0.0, 0.03, t);
+  let rib = in.k.x > 6.5;                                 // whiskers and sand spirals: lit all round, no age fade
+  let prof = pow(max(1.0 - x * x, 0.0), 2.0) * select(step(0.0, sin(in.st.y)), 0.7, rib);
+  let fade = select(pow(1.0 - t, 1.6) * smoothstep(0.0, 0.03, t), 1.0, rib);
   let sp = 0.6 + 0.8 * smoothstep(0.2, 0.9, vnoise2(in.w.xz * 55.0));
-  let col = hsv2rgb(vec3f(in.k.y + in.w.x * 0.02 + in.w.z * 0.013, 0.8, 1.0));
+  let col = hsv2rgb(vec3f(in.k.y + in.w.x * 0.02 + in.w.z * 0.013 + t * select(0.0, 0.25, rib), 0.8, 1.0));
   return vec4f(col * prof * fade * sp * 0.6 * (1.0 - fogAmount(distance(in.w, G.camPos))), 0.0);
 }
 

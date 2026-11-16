@@ -51,6 +51,7 @@ function ground0(x, z) {
   let h = 0.1 * fbm2(x * 0.09, z * 0.09, 2);
   if (dm < 4) h += 0.8 * ss(w - 2.3, w + 0.5, dl);                         // sand banked against the canyon walls
   if (dm > -3) h += 1.5 * Math.exp(-Math.max(dm, 0) / 4.5) * ss(-3, 0, dm) * (0.55 + 0.45 * snoise2(x * 0.06, z * 0.06)) * ss(5, 12, dl);   // drifts at the mesa foot
+  h += ss(1, 9, dm) * ss(3, 9, dl + Math.max(0, Math.abs(z) - 45)) * (1.1 * crest((x * 0.6 - z * 0.8) * 0.045 + 0.6 * snoise2(x * 0.02, z * 0.02)) + 0.5 * snoise2(x * 0.07 + 4, z * 0.07));   // small ridges and swells
   if (m > 0) {
     const wx = x + 28 * snoise2(x * 0.004 + 3.1, z * 0.004), wz = z + 28 * snoise2(x * 0.004 - 7.3, z * 0.004 + 2.2);
     const A = (5.5 + 8 * ss(15, 120, dm)) * (0.7 + 0.3 * snoise2(x * 0.003 + 9, z * 0.003 + 5));
@@ -85,9 +86,11 @@ export function sdRock(x, y, z) {
     return (Math.min(Math.max(q, e), 0) + Math.hypot(Math.max(q, 0), Math.max(e, 0)) - 0.22 + 0.16 * vn3(x * 0.5, y * 0.5, z * 0.5)) * 0.8;
   }
   const d2 = mesa2(x, z);
-  if (d2 > 9) return d2 - 4;
-  const top = HM + 3.5 * vn3(x * 0.045, 0.5, z * 0.045);
-  let dm = d2 - (HM - y) * 0.16 + 3.4 * vn3(x * 0.055, y * 0.05, z * 0.055) + 0.5 * Math.sin(y * 0.9 + 2.5 * vn3(x * 0.1, y * 0.1, z * 0.1));
+  if (d2 > 13) return d2 - 9;
+  // eroded mesa: benches stepping down to the rim, buttress fins flaring into the sand
+  const tq = Math.max(0, d2 + 9) / 3, tf = Math.floor(tq);
+  const top = HM + 4.5 * vn3(x * 0.045, 0.5, z * 0.045) - 1.9 * (tf + ss(0.7, 1, tq - tf));
+  let dm = d2 - 2.8 * Math.pow(0.5 + 0.5 * Math.sin(Math.atan2(z, x * 1.2) * 9 + 3 * vn3(x * 0.03, 0.2, z * 0.03)), 2) * ss(HM, 1, y) - (HM - y) * 0.16 + 3.4 * vn3(x * 0.055, y * 0.05, z * 0.055) + 0.5 * Math.sin(y * 0.9 + 2.5 * vn3(x * 0.1, y * 0.1, z * 0.1));
   dm = smax(dm, y - top, 2);
   const c = cx(z);
   if (Math.abs(x - c) > 13) return dm;
