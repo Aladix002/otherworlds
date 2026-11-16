@@ -5,7 +5,9 @@ import COMMON from './common.wgsl';
 import SCENE from './scene.wgsl';
 import SKY from './sky.wgsl';
 import BAKE from './bake.wgsl';
+import { updateCaravan, caravanPts, caravanBones, nCaravanPts, buildParticles, buildTrail } from './caravan.js';
 import LIFE from './life.wgsl';
+import CARA from './caravan.wgsl';
 import FX from './fx.wgsl';
 
 const HORIZ = [0.032, 0.022, 0.07], WARMFOG = [0.2, 0.03, 0.08];
@@ -35,7 +37,7 @@ function flyPath() {
     while (yaw - prev > Math.PI) yaw -= 2 * Math.PI;
     while (yaw - prev < -Math.PI) yaw += 2 * Math.PI;
     prev = yaw;
-    out.push({ pos: [p[0], eye(p[0], p[1], 1.75), p[1]], yaw, pitch: 0.04 });
+    out.push({ pos: [p[0], eye(p[0], p[1], 1.75), p[1]], yaw, pitch: p[1] < -40 ? 0.3 : 0.04 });
   }
   return out;
 }
@@ -48,7 +50,7 @@ export default {
   poses: [
     look(cx(18.5) + 0.2, eye(cx(18.5), 18.5), 18.5, B0[0], 2.6, B0[2]),                 // beam and dancing dust
     look(cx(1.5), eye(cx(1.5), 1.5), 1.5, cx(-3) + 2.6, 3.6, -3),                       // flowing strata, close
-    look(cx(-32.5) + 0.3, eye(cx(-32.5), -32.5), -32.5, cx(-39) + 1.5, 3.2, -46),                      // canyon exit onto the dunes
+    look(cx(-32.5) + 0.3, eye(cx(-32.5), -32.5), -32.5, cx(-39) + 1.5, 6, -46),                      // canyon exit onto the dunes
     look(OASIS[0] + 4, eye(OASIS[0] + 4, OASIS[2] + 13, 1.7), OASIS[2] + 13, OASIS[0] - 2, OASIS[1] + 2.2, OASIS[2] - 6),   // hidden oasis under the Milky Way
     lizPose(),                                                                          // glowing lizard and its tracks
     look(DOOR[0] + 2.6, DOOR[1] + 1.5, DOOR[2] - 6.6, DOOR[0], DOOR[1] + 1.25, DOOR[2]), // the door on its dune
@@ -111,11 +113,15 @@ export default {
     this.tBG = ctx.bindGroup(tL, [this.ptsBuf, this.tubeBuf]);
     this.dynPts = life.pts.subarray(0, life.nDynPts * 4); this.dynTubes = life.tubes.subarray(0, life.nDynTubes * 12);
     this.printBuf = ctx.buffer(life.prints, 'vertex'); this.haloBuf = ctx.buffer(life.halos, 'vertex'); this.lantBuf = ctx.buffer(life.lant, 'vertex');
+    this.cPts = ctx.buffer(caravanPts, 'vertex'); this.cBones = ctx.buffer(caravanBones, 'storage');
+    const cp = buildParticles(lv, ctx.rng), ct = buildTrail(lv, ctx.rng);
+    this.cBody = ctx.buffer(cp.data, 'vertex'); this.nBody = cp.count; this.cTrail = ctx.buffer(ct.data, 'vertex'); this.nTrail = ct.count;
+    this.cBG = ctx.bindGroup(ctx.layout(['storage']), [this.cBones]);
 
-    const scene = ctx.shader(HDR + SCENE, 'scene'), sky = ctx.shader(HDR + SKY, 'sky'), lifeM = ctx.shader(HDR + LIFE, 'life'), fx = ctx.shader(HDR + FX, 'fx');
+    const scene = ctx.shader(HDR + SCENE, 'scene'), sky = ctx.shader(HDR + SKY, 'sky'), lifeM = ctx.shader(HDR + LIFE, 'life'), fx = ctx.shader(HDR + FX, 'fx'), cara = ctx.shader(HDR + CARA, 'caravan');
     const v4 = (n, step) => ({ arrayStride: n * 16, stepMode: step, attributes: Array.from({ length: n }, (_, i) => ({ shaderLocation: i, offset: i * 16, format: 'float32x4' })) });
-    const P = (d) => ctx.pipelineAsync(d), add = { blend: 'add', cull: 'none' };
-    [this.pSky, this.pStar, this.pRock, this.pTer, this.pTube, this.pTrail, this.pPrint, this.pHalo, this.pMote, this.pBeam, this.pWater, this.pLant] = await Promise.all([
+    const cL = ctx.layout(['storage']), P = (d) => ctx.pipelineAsync(d), add = { blend: 'add', cull: 'none' };
+    [this.pSky, this.pStar, this.pRock, this.pTer, this.pTube, this.pTrail, this.pPrint, this.pHalo, this.pMote, this.pBeam, this.pWater, this.pLant, this.pCPt, this.pCBody, this.pCTrail] = await Promise.all([
       P({ module: sky, layouts: [sL], depthTest: false, depthWrite: false, cull: 'none', label: 'sky' }),
       P({ module: sky, vs: 'vsStar', fs: 'fsStar', buffers: [v4(2, 'instance')], ...add, depthTest: false, label: 'star' }),
       P({ module: scene, fs: 'fsRock', buffers: [v4(3, 'vertex')], layouts: [gL], label: 'rock' }),
@@ -128,6 +134,9 @@ export default {
       P({ module: fx, vs: 'vsBeam', fs: 'fsBeam', layouts: [this.dL], blend: 'add', depthFormat: null, label: 'beam' }),
       P({ module: sky, vs: 'vsWater', fs: 'fsWater', layouts: [sL], cull: 'none', blend: 'alpha', label: 'water' }),
       P({ module: lifeM, vs: 'vsHalo', fs: 'fsLant', buffers: [v4(2, 'instance')], ...add, label: 'lantern' }),
+      P({ module: cara, vs: 'vsPt', fs: 'fsPt', buffers: [v4(2, 'instance')], ...add, depthTest: false, label: 'caravan stars' }),
+      P({ module: cara, vs: 'vsBody', fs: 'fsPart', buffers: [v4(2, 'instance')], layouts: [cL], ...add, depthTest: false, label: 'caravan body' }),
+      P({ module: cara, vs: 'vsTrail', fs: 'fsPart', buffers: [v4(1, 'instance')], layouts: [cL], ...add, depthTest: false, label: 'caravan trail' }),
     ]);
     this.nm = PER[lv] * 3;
     this.k = -1; this.ka = -1; this.inside = false;
@@ -143,8 +152,9 @@ export default {
 
   update(ctx, dt, t, cam) {
     const L = this.life, e = cam.eye, env = ctx.env;
-    L.update(t);
+    L.update(t); updateCaravan(t);
     ctx.write(this.ptsBuf, this.dynPts); ctx.write(this.tubeBuf, this.dynTubes); ctx.write(this.printBuf, L.prints); ctx.write(this.lightBuf, L.lights); ctx.write(this.lantBuf, L.lant);
+    ctx.write(this.cPts, caravanPts); ctx.write(this.cBones, caravanBones);
     // dusk in the canyon -> night on the dunes
     const k = this.k = dusk(e[0], e[2]);
     env.params[0] = k;
@@ -157,7 +167,13 @@ export default {
 
   render(ctx, pass) {
     pass.setPipeline(this.pSky); pass.setBindGroup(1, this.sBG); pass.draw(3);
-    if (this.k < 0.99) { pass.setPipeline(this.pStar); pass.setVertexBuffer(0, this.stars); pass.draw(6, this.ns); }
+    if (this.k < 0.99) {
+      pass.setPipeline(this.pStar); pass.setVertexBuffer(0, this.stars); pass.draw(6, this.ns);
+      pass.setPipeline(this.pCPt); pass.setVertexBuffer(0, this.cPts); pass.draw(6, nCaravanPts);          // the star caravan
+      pass.setBindGroup(1, this.cBG);
+      pass.setPipeline(this.pCBody); pass.setVertexBuffer(0, this.cBody); pass.draw(6, this.nBody);
+      pass.setPipeline(this.pCTrail); pass.setVertexBuffer(0, this.cTrail); pass.draw(6, this.nTrail);
+    }
     pass.setBindGroup(1, this.gBG);
     pass.setPipeline(this.pRock);
     for (let i = 0; i < 2; i++) { const g = this.geo[i]; pass.setVertexBuffer(0, g.vb); pass.setIndexBuffer(g.ib, 'uint32'); pass.drawIndexed(g.n); }

@@ -41,7 +41,7 @@ struct TV {
 @fragment fn fsTube(in: TV) -> @location(0) vec4f {
   let kind = i32(in.k.x + 0.5); let hue = in.k.y; let seed = in.k.z;
   let t = in.st.z;
-  let s = select(in.st.x, t * 3.2, kind == 2 || kind == 6);
+  let s = select(in.st.x, t * 3.2, kind == 2);
   let n = normalize(in.n);
   let dist = distance(in.w, G.camPos);
   let V = (G.camPos - in.w) / dist;
@@ -52,7 +52,7 @@ struct TV {
   var ec = hsv2rgb(vec3f(hue, 0.85, 1.0));
   var skin = mix(vec3f(0.02, 0.012, 0.06), vec3f(0.05, 0.09, 0.11), smoothstep(0.45, 0.95, a));
   var eye = 0.0;
-  if (kind < 3 || kind == 6) {
+  if (kind < 3) {
     // diamond scales
     let sq = vec2f(s * 52.0, in.st.y * 3.5);
     let cell = abs(fract(vec2f(sq.x + sq.y, sq.x - sq.y)) - 0.5);
@@ -67,7 +67,7 @@ struct TV {
     e += 0.7 * smoothstep(0.05, 0.01, c2 * c2 + pow((a - 0.52) * 4.0, 2.0)) * smoothstep(0.1, 0.25, t) * smoothstep(0.75, 0.5, t);
     e += smoothstep(0.52, 0.6, t) * smoothstep(0.35, 0.45, abs(fract(s * 6.0) - 0.5)) * 0.9 * smoothstep(0.75, 0.5, a);
     eye = smoothstep(0.0003, 0.0001, pow((t - 0.04) * 2.3, 2.0) + pow((a - 0.4) * 0.17, 2.0));
-  } else if (kind == 2 || kind == 6) {                                  // snake: chain of neon diamonds, flowing rainbow
+  } else if (kind == 2) {                                  // snake: chain of neon diamonds, flowing rainbow
     ec = hsv2rgb(vec3f(hue + s * 0.11 - time * 0.015, 0.85, 1.0));
     let dd = abs(fract(s * 3.4) - 0.5) * 2.0 + a * 4.2;
     e = exp(-pow((dd - 0.95) / 0.1, 2.0)) + 0.8 * exp(-dd * dd * 26.0);
@@ -104,8 +104,6 @@ struct TV {
   col += hsv2rgb(vec3f(hue + 0.3 + fr * 0.35 + s * 0.1, 0.7, 1.0)) * fr * 0.16;      // iridescent sheen
   col += ec * skin * 2.0 * (0.4 + 0.6 * max(n.y, 0.0));                             // own light spilling over the skin
   col += ec * e * 6.0 * breath + vec3f(3.5, 3.0, 2.2) * eye;
-  if (kind == 6) { let rb = hsv2rgb(vec3f(hue + t * 1.3 - time * 0.02, 0.95, 1.0));
-    return vec4f(rb * (0.55 + e * 2.0 + 2.4 * exp(-a * a * 14.0) + fr * 2.6) * breath + vec3f(4.0) * eye, 1.0); }   // the sky serpent is all light
   return vec4f(applyFog(col, in.w), 1.0);
 }
 

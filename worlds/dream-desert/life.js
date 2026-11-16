@@ -3,7 +3,7 @@
 import { ground, sdRock, cx, DOOR, ARCH, OASIS, DEVILS, ss } from './geo.js';
 import { makeRng } from '../../core/src/math.js';
 
-export const NLZ = 5, NSN = 5, NPR = 14, NL = 25, NLT = 12, NBT = 10;
+export const NLZ = 5, NSN = 4, NPR = 14, NL = 25, NLT = 12, NBT = 10;
 const LP = 18, GP = 5, SP = 28, TP = 36, PI = Math.PI;
 export const RINGS = [44, 10, 72, 16];                  // bodies, legs, trails, plants
 // loop centre x, z, radii x, z, wobble, wobble phase, start angle, speed (m/s), hue, size
@@ -17,7 +17,6 @@ const C = [
   [4, -84, 9, 6, 0.8, 2.6, 4.2, 0.24, 0.55, 1.1],
   [-6, -112, 14, 8, 1.4, 0.2, 2.9, 0.28, 0.16, 1.2],
   [-30, 60, 9, 6, 0.8, 5.0, 1.7, 0.25, 0.4, 0.95],
-  [0, -100, 80, 42, 5, 1.0, -8.16, 2.6, 0.78, 34],          // the sky serpent
 ];
 const BC = [];                                          // beetle loops (filled in makeLife)
 const o = new Float64Array(5);                          // x, z, tangent x, z, metres per unit u
@@ -148,8 +147,8 @@ export function makeLife(level) {
   }
   for (let i = 0; i < NSN; i++) {
     const c = C[NLZ + i], st = NLZ * 38 + i * (SP + TP);
-    tube(NLZ + i, st, SP, RINGS[0], i > 3 ? 6 : 2, c, 3.2 * c[9], i > 3 ? 0.55 : 0.86);
-    tube(NLZ + NSN + NLZ * 4 + i, st + SP, TP, RINGS[2], i > 3 ? 7 : 5, c, TP * 0.3, i > 3 ? 0.3 : 0.1);
+    tube(NLZ + i, st, SP, RINGS[0], 2, c, 3.2 * c[9], 0.86);
+    tube(NLZ + NSN + NLZ * 4 + i, st + SP, TP, RINGS[2], 5, c, TP * 0.3, 0.1);
   }
   const NP0 = NLZ * 4 * NPR, nPrints = NP0 + NBT * 8;
   for (let s = 0; s < 3; s++) tubes.set([P0 + s * TP, TP, RINGS[2], 7, [0.48, 0.85, 0.12][s], s, 5, 1, 0, 1, 0, 1], (T0 + s) * 12);   // sand-spiral ribbons
@@ -226,26 +225,20 @@ export function makeLife(level) {
   }
 
   function snake(i, t) {
-    const n = NLZ + i, c = C[n], sc = c[9], len = 3.2 * sc, u = uAt(c, t, n), sky = i > 3, D = (sky ? 0.12 : 0.3) * sc;
+    const n = NLZ + i, c = C[n], sc = c[9], len = 3.2 * sc, u = uAt(c, t, n), D = 0.3 * sc;
     path(c, u);
     const g = o[4];
-    let q = (NLZ * 38 + i * (SP + TP)) * 4, HX = 0, HY = 0, HZ = 0, FX = 0, FZ = 0;
+    let q = (NLZ * 38 + i * (SP + TP)) * 4;
     for (let j = 0; j < SP + TP; j++, q += 4) {
       const tr = j >= SP, m = j - SP;
       const s = tr ? len : j / (SP - 1) * len;
       const uj = tr ? (m === 0 ? u - len / g : (Math.floor((u - len / g) / D) - m + 1) * D) : u - s / g;
       path(c, uj);
-      const sw = (0.04 + 0.2 * ss(0, 0.9, s)) * sc * Math.sin(2 * PI * uj / (sky ? 50 : 1.5 * sc) + n);
+      const sw = (0.04 + 0.2 * ss(0, 0.9, s)) * sc * Math.sin(2 * PI * uj / (1.5 * sc) + n);
       const x = o[0] - o[3] * sw, z = o[1] + o[2] * sw, f = s / len;
-      const r = tr ? (sky ? 0 : 0.075 * sc) : j === 0 ? 0.012 : j === 1 ? (sky ? 0.09 : 0.05) * sc : j === 2 ? (sky ? 0.075 : 0.043) * sc : (0.062 * Math.pow(Math.max(1 - Math.pow(f, 2.6), 0), 0.62) + 0.004) * sc;
-      pts[q] = x; pts[q + 1] = sky ? 44 + 6 * Math.sin(uj * 0.021) + sw * 0.6 : ground(x, z) + (tr ? 0.03 : r * 0.8 + 0.09 * sc * ss(0.45, 0, s)); pts[q + 2] = z; pts[q + 3] = r;
-      if (j === 0) { HX = x; HY = pts[q + 1]; HZ = z; FX = o[2]; FZ = o[3]; }
-      if (sky && tr) {                                    // the serpent's long whiskers: one ribbon through the head
-        const v = m / (TP - 1) * 2 - 1, a = Math.abs(v), W = 0.5 * sc;
-        pts[q] = HX - FX * a * W - FZ * v * W * 0.6; pts[q + 2] = HZ - FZ * a * W + FX * v * W * 0.6;
-        pts[q + 1] = HY - a * W * 0.25 + Math.sin(t * 0.6 + a * 5) * W * 0.07; pts[q + 3] = 0.045 * sc * Math.sqrt(1 - a);
-      }
-      if (!sky && (j === 5 || j === 17)) { const li = (NLZ + i * 2 + (j === 5 ? 0 : 1)) * 8; lights[li] = x; lights[li + 1] = pts[q + 1] + 0.15; lights[li + 2] = z; lights[li + 3] = 0.7 * sc; hue(c[8] + (j === 5 ? 0 : 0.14), 0.8, lights, li + 4); }
+      const r = tr ? 0.075 * sc : j === 0 ? 0.012 : j === 1 ? 0.05 * sc : j === 2 ? 0.043 * sc : (0.062 * Math.pow(Math.max(1 - Math.pow(f, 2.6), 0), 0.62) + 0.004) * sc;
+      pts[q] = x; pts[q + 1] = ground(x, z) + (tr ? 0.03 : r * 0.8 + 0.09 * sc * ss(0.45, 0, s)); pts[q + 2] = z; pts[q + 3] = r;
+      if ((j === 5 || j === 17)) { const li = (NLZ + i * 2 + (j === 5 ? 0 : 1)) * 8; lights[li] = x; lights[li + 1] = pts[q + 1] + 0.15; lights[li + 2] = z; lights[li + 3] = 0.7 * sc; hue(c[8] + (j === 5 ? 0 : 0.14), 0.8, lights, li + 4); }
     }
   }
 
