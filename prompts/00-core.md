@@ -49,7 +49,7 @@ Your job is the **shared core**: everything the worlds have in common. Also buil
    - Controls: WASD move, mouse look (pointer lock), Q/E down/up (fly/swim), Shift faster, `E` or click to interact with a door when near, Esc menu, M mute, H perf overlay. Touch: one finger swims, a second finger speeds up.
    - Collision: a world-provided signed distance function `sdf(x,y,z)` (optional) plus soft world bounds that push back gently, never as a hard wall.
 6. **Quality presets** Low, Medium and High. Worlds read `ctx.quality` (counts, shadow on/off, step counts). The choice is remembered in localStorage with try/catch.
-7. **UI.** Calm loading screen with a progress bar driven by `init` progress callbacks, start overlay ("Vstúpiť"), and an Esc menu with: world list (jump anywhere), quality, volume, mouse sensitivity, invert Y, resume. UI text is in Slovak.
+7. **UI.** Calm loading screen with a progress bar driven by `init` progress callbacks, start overlay ("Vstúpiť"), and an Esc menu with: world list (jump anywhere), quality, volume, mouse sensitivity, invert Y, resume. UI text is in English.
 8. **Audio engine.** Master bus with a gentle limiter and a convolution reverb from a synthesized impulse response. Helpers for drones, pads, noise beds (filtered noise for wind and water), simple FM/additive voices and a scheduler for sparse random events. Audio starts only after the user clicks "Vstúpiť". It fades in and out across door transitions.
 9. **Doors and transitions** (see below).
 10. **Test harness API** on `window.__ow` for tools: `ready` promise, `setPose(i)`, `setTime(t)` (freezes animation time for deterministic shots), `startFlythrough()`, `stats()` (cpu/gpu ms, p99, resolution scale). URL params: `?pose=N&t=SECONDS&shot=1` (hide UI, skip start overlay, no audio), `?quality=low|medium|high`, `?flythrough=1`.
@@ -103,5 +103,5 @@ A simple but pleasant scene: gradient sky, gently rolling fbm ground, some insta
 ## Done when
 - `node tools/build.mjs _test` produces a working single file, and `shoot` and `perf` both work against it on the real AMD adapter.
 - The test world passes the perf gate.
-- `/core/README.md` documents the full world API, ctx contents, WGSL library function list, audio helpers, movement modes, door/postcard contract, tool commands and the rules (zero per-frame alloc, no assets, Slovak UI).
+- `/core/README.md` documents the full world API, ctx contents, WGSL library function list, audio helpers, movement modes, door/postcard contract, tool commands and the rules (zero per-frame alloc, no assets, English UI).
 - Report: API summary, test-world perf numbers, bundle size, and any limits world authors must know.

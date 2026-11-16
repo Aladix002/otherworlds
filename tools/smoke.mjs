@@ -35,7 +35,7 @@ try {
     await page.evaluate(() => { const c = window.__ow.camera; window.__ow.doorView(0, 2.2, c.eyeHeight); c.frozen = false; });
     await sleep(300);
     const hint = await page.evaluate(() => !document.getElementById('ow-hint').classList.contains('ow-hide'));
-    check(hint, 'door hint "E – otvoriť" visible near the door');
+    check(hint, 'door hint "E – open" visible near the door');
     await page.screenshot({ path: join(out, 'smoke-hint.png') });
     await page.keyboard.press('KeyE');
     await sleep(1900);

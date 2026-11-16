@@ -4,6 +4,7 @@ import { createPost } from './post.js';
 import { createDoors } from './door.js';
 import { createCamera } from './camera.js';
 import { createInput } from './input.js';
+import { createTouch, isTouchDevice } from './touch.js';
 import { createAudio } from './audio.js';
 import { createUI } from './ui.js';
 import { WORLDS, nextWorld } from './worlds.js';
@@ -162,6 +163,7 @@ async function boot(world, P, ui, canvas, gpu, flags) {
 
   // ---- camera, input, doors ----
   const input = createInput(canvas);
+  let touch = null; // created lazily on touch devices (after openMenu is defined)
   const cam = createCamera(world, movement);
   ctx.camera = cam; ctx.input = input;
   const doors = createDoors(ctx, world, POSTCARDS);
@@ -237,8 +239,9 @@ async function boot(world, P, ui, canvas, gpu, flags) {
     if (k === 'quality') { const u = new URL(location.href); u.searchParams.delete('quality'); location.replace(u.href); }
   }
   function openMenu() { if (ui.menuOpen) return; ui.openMenu(settings, onSetting, () => { input.lock(); }); ui.dot(false); }
+  if (!shot && !bench && isTouchDevice()) touch = createTouch(input, { movement, onMenu: () => { if (entered) openMenu(); } });
   input.onKey = (e) => {
-    if (e.code === 'KeyM' && ctx.audio) { const m = !ctx.audio.muted; ctx.audio.setMuted(m); store.set('muted', m); ui.message(m ? 'Zvuk stlmený' : 'Zvuk zapnutý', 1400); }
+    if (e.code === 'KeyM' && ctx.audio) { const m = !ctx.audio.muted; ctx.audio.setMuted(m); store.set('muted', m); ui.message(m ? 'Sound off' : 'Sound on', 1400); }
     if (e.code === 'KeyH') ui.togglePerf();
     if (e.code === 'Escape' && entered && performance.now() - lockChangedAt > 400) { if (ui.menuOpen) { ui.closeMenu(); input.lock(); } else { input.unlock(); openMenu(); } }
     if (entered && ctx.audio && ctx.audio.ctx.state !== 'running') ctx.audio.resume();
@@ -319,7 +322,8 @@ async function boot(world, P, ui, canvas, gpu, flags) {
     if (!playing) input.clearPressed();
     const crossed = worldReady ? doors.update(camDt, cam, interact, post.params.exposure, time, playing) : -1;
     if (doors.state.opened >= 0 && ctx.audio) ctx.audio.creak();
-    ui.hint(playing && doors.state.nearDoor >= 0, 'E – otvoriť');
+    const nearNow = playing && doors.state.nearDoor >= 0;
+    if (touch) { touch.show(playing); touch.nearDoor(nearNow); ui.hint(false); } else ui.hint(nearNow, 'E – open');
     // centering assist + exit trigger
     if (playing) for (const d of doors.doors) {
       if (d.open < 0.6 || Math.abs(d.lz) > 1.8 || Math.abs(d.lx) > 0.8 || d.ly < -0.5 || d.ly > 2.6) continue;
@@ -463,7 +467,7 @@ async function boot(world, P, ui, canvas, gpu, flags) {
   ui.loaded();
   readyResolve();
   if (shot || bench) { entered = false; }
-  else if (via) { entered = true; startAudio(); if (!ctx.audio || ctx.audio.ctx.state !== 'running') ui.message('Klikni pre zvuk a ovládanie myšou'); ui.dot(true); }
+  else if (via) { entered = true; startAudio(); if (!ctx.audio || ctx.audio.ctx.state !== 'running') ui.message(touch ? 'Tap for sound' : 'Click for sound and mouse look'); ui.dot(true); }
   else ui.showStart(enter);
   if (P.has('flythrough') && !shot) startFlythrough(true);
 }

@@ -69,15 +69,18 @@ export function createCamera(world, mode) {
     let f = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0);
     const r = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0);
     let u = (k.Space || (k.KeyE && !o.upKeyBlocked) ? 1 : 0) - (k.KeyQ || k.KeyC || k.ControlLeft ? 1 : 0);
-    if (input.touches > 0) f = 1;
-    const fast = k.ShiftLeft || k.ShiftRight || input.touches > 1;
+    // touch joystick / up-down buttons (see touch.js)
+    let r2 = r;
+    if (input.joyX || input.joyY) { f -= input.joyY; r2 += input.joyX; }
+    if (input.vert) u += input.vert;
+    const fast = k.ShiftLeft || k.ShiftRight || input.joyFast;
     const sp = cam.speed * (fast ? cam.boost : 1);
     if (mode === 'walk') {
       const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
-      set3(des, fx * f + cam.right[0] * r, 0, fz * f + cam.right[2] * r);
+      set3(des, fx * f + cam.right[0] * r2, 0, fz * f + cam.right[2] * r2);
       u = 0;
     } else {
-      set3(des, cam.fwd[0] * f + cam.right[0] * r, cam.fwd[1] * f + u, cam.fwd[2] * f + cam.right[2] * r);
+      set3(des, cam.fwd[0] * f + cam.right[0] * r2, cam.fwd[1] * f + u, cam.fwd[2] * f + cam.right[2] * r2);
     }
     const dl = Math.hypot(des[0], des[1], des[2]);
     if (dl > 1) { des[0] /= dl; des[1] /= dl; des[2] /= dl; }

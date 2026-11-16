@@ -26,12 +26,12 @@ export function createInput(canvas) {
   addEventListener('mouseup', () => { st.dragging = false; });
   canvas.addEventListener('click', (e) => { if (st.onClick) st.onClick(e); });
 
-  // touch: one finger = look + swim/walk forward, second finger = faster
+  // touch on the canvas = look only (movement comes from the joystick in touch.js)
   let lastX = 0, lastY = 0, primary = null;
+  st.joyX = 0; st.joyY = 0; st.vert = 0; st.joyFast = false; st.usedTouch = false;
   canvas.addEventListener('touchstart', (e) => {
-    e.preventDefault(); st.touches = e.touches.length;
+    e.preventDefault(); st.usedTouch = true; st.touches = e.touches.length;
     if (primary === null) { const t = e.changedTouches[0]; primary = t.identifier; lastX = t.clientX; lastY = t.clientY; }
-    if (st.onClick && e.touches.length === 1) st.onClick(e);
   }, { passive: false });
   canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
@@ -39,9 +39,7 @@ export function createInput(canvas) {
   }, { passive: false });
   const end = (e) => {
     st.touches = e.touches.length;
-    for (const t of e.changedTouches) if (t.identifier === primary) primary = e.touches.length ? null : null;
-    if (!e.touches.length) primary = null;
-    else if (primary === null) { const t = e.touches[0]; primary = t.identifier; lastX = t.clientX; lastY = t.clientY; }
+    for (const t of e.changedTouches) if (t.identifier === primary) primary = null;
   };
   canvas.addEventListener('touchend', end); canvas.addEventListener('touchcancel', end);
 

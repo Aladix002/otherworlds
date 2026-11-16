@@ -1,5 +1,6 @@
 // DOM UI: loading screen, start overlay, Esc menu, door hint, perf overlay. Slovak texts.
-import { WORLDS, isOpen } from './worlds.js';
+import { WORLDS, isOpen, titleOf } from './worlds.js';
+import { isTouchDevice } from './touch.js';
 
 const CSS = `
 html,body{margin:0;height:100%;overflow:hidden;background:#0b0d12;color:#eae6dc;font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-user-select:none;user-select:none}
@@ -34,25 +35,26 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 `;
 
 export function createUI(world, { shot, via }) {
+  const TITLE = titleOf(world.id, world.title);
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
-  document.title = world.title ? world.title + ' · OtherWorlds' : 'OtherWorlds';
+  document.title = TITLE + ' · OtherWorlds';
   const el = (id, cls, html) => { const e = document.createElement('div'); e.id = id; e.className = 'ow ' + (cls || ''); if (html) e.innerHTML = html; document.body.appendChild(e); return e; };
-  const load = el('ow-load', via ? 'ow-hide' : '', `<div class="ow-title ow-serif">${world.title || ''}</div><div class="ow-bar"><i></i></div>`);
+  const load = el('ow-load', via ? 'ow-hide' : '', `<div class="ow-title ow-serif">${TITLE}</div><div class="ow-bar"><i></i></div>`);
   const bar = load.querySelector('i');
-  const start = el('ow-start', 'ow-hide', `<div class="ow-title ow-serif">${world.title || ''}</div><button class="ow-btn ow-serif">Vstúpiť</button>
-    <div class="ow-small">WASD – pohyb · myš – rozhliadanie · Shift – rýchlejšie${world.movement !== 'walk' ? ' · Q/E – dole/hore' : ''} · E alebo klik – otvoriť dvere · M – stlmiť · Esc – menu</div>`);
-  const hint = el('ow-hint', 'ow-hide', 'E – otvoriť');
+  const start = el('ow-start', 'ow-hide', `<div class="ow-title ow-serif">${TITLE}</div><button class="ow-btn ow-serif">Enter</button>
+    <div class="ow-small">${isTouchDevice() ? `Left stick – move · drag – look${world.movement !== 'walk' ? ' · ▲/▼ – up/down' : ''} · Open – door · ≡ – menu` : `WASD – move · mouse – look · Shift – faster${world.movement !== 'walk' ? ' · Q/E – down/up' : ''} · E or click – open door · M – mute · Esc – menu`}</div>`);
+  const hint = el('ow-hint', 'ow-hide', 'E – open');
   const msg = el('ow-msg', 'ow-hide', '');
   const dot = el('ow-dot', 'ow-hide');
   const perf = el('ow-perf', 'ow-hide');
-  const menu = el('ow-menu', 'ow-hide', `<div class="ow-panel"><div class="ow-worlds"><h2 class="ow-serif">Svety</h2>${WORLDS.map((w) =>
-    isOpen(w.id) ? `<a href="${w.id}.html" class="${w.id === world.id ? 'cur' : ''}">${w.title}</a>` : `<a class="soon" style="opacity:.35;pointer-events:none">${w.title} · čoskoro</a>`).join('')}</div>
-    <div class="ow-set"><h2 class="ow-serif">Nastavenia</h2>
-    <label>Kvalita <select data-k="quality"><option value="low">Nízka</option><option value="medium">Stredná</option><option value="high">Vysoká</option></select></label>
-    <label>Hlasitosť <input type="range" min="0" max="1" step="0.01" data-k="volume"></label>
-    <label>Citlivosť myši <input type="range" min="0.2" max="3" step="0.05" data-k="sens"></label>
-    <label>Invertovať os Y <input type="checkbox" data-k="invertY"></label>
-    <p style="margin-top:26px"><button class="ow-btn ow-serif" data-k="resume">Pokračovať</button></p></div></div>`);
+  const menu = el('ow-menu', 'ow-hide', `<div class="ow-panel"><div class="ow-worlds"><h2 class="ow-serif">Worlds</h2>${WORLDS.map((w) =>
+    isOpen(w.id) ? `<a href="${w.id}.html" class="${w.id === world.id ? 'cur' : ''}">${w.title}</a>` : `<a class="soon" style="opacity:.35;pointer-events:none">${w.title} · coming soon</a>`).join('')}</div>
+    <div class="ow-set"><h2 class="ow-serif">Settings</h2>
+    <label>Quality <select data-k="quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+    <label>Volume <input type="range" min="0" max="1" step="0.01" data-k="volume"></label>
+    <label>Look sensitivity <input type="range" min="0.2" max="3" step="0.05" data-k="sens"></label>
+    <label>Invert Y <input type="checkbox" data-k="invertY"></label>
+    <p style="margin-top:26px"><button class="ow-btn ow-serif" data-k="resume">Resume</button></p></div></div>`);
   if (shot) for (const e of [load, start, hint, msg, dot, perf, menu]) e.style.display = 'none';
 
   const ui = {
@@ -82,9 +84,9 @@ export function createUI(world, { shot, via }) {
     error(kind) {
       load.classList.remove('ow-hide');
       const t = kind === 'nogpu' || kind === 'noadapter'
-        ? 'Tento prehliadač alebo zariadenie nepodporuje WebGPU.<br>Skús aktuálny Chrome, Edge alebo Safari 18+.'
-        : 'Niečo sa pokazilo pri spúšťaní sveta.<br><span class="ow-small">' + kind + '</span>';
-      load.innerHTML = `<div class="ow-title ow-serif">${world.title || ''}</div><div class="ow-err">${t}</div>`;
+        ? 'This browser or device doesn\'t support WebGPU.<br>Try a current Chrome or Edge on desktop, Safari 26+, or Chrome on a recent Android phone.<br><span class="ow-small">On Linux, enable chrome://flags → Unsafe WebGPU Support, Vulkan and Override software rendering list, and run the browser on X11.</span>'
+        : 'Something went wrong while starting this world.<br><span class="ow-small">' + kind + '</span>';
+      load.innerHTML = `<div class="ow-title ow-serif">${TITLE}</div><div class="ow-err">${t}</div>`;
     },
   };
   return ui;

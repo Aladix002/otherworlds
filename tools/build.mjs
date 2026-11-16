@@ -75,8 +75,9 @@ export async function buildWorld(id, { readable = false, quiet = false, released
   });
   const js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
   const src = readFileSync(worldFile, 'utf8');
-  const title = (src.match(/title\s*:\s*['"`]([^'"`]+)['"`]/) || [])[1] || id;
-  const html = `<!doctype html><html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(title)} · OtherWorlds</title><style>html,body{margin:0;height:100%;background:#0b0d12}</style></head><body><script>${js}</script></body></html>`;
+  const { titleOf } = await import(pathToFileURL(join(ROOT, 'core/src/worlds.js')).href);
+  const title = titleOf(id, (src.match(/title\s*:\s*['"`]([^'"`]+)['"`]/) || [])[1]);
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(title)} · OtherWorlds</title><style>html,body{margin:0;height:100%;background:#0b0d12}</style></head><body><script>${js}</script></body></html>`;
   mkdirSync(outDir, { recursive: true });
   const out = join(outDir, id + '.html');
   writeFileSync(out, html);
@@ -90,8 +91,8 @@ export async function buildIndex(built, { outDir = DIST, released = null } = {})
   const have = new Set(released || listWorlds().filter((id) => existsSync(join(outDir, id + '.html'))));
   const items = WORLDS.map((w, i) => have.has(w.id)
     ? `<a class="w" href="${w.id}.html"><span>${String(i + 1).padStart(2, '0')}</span>${esc(w.title)}</a>`
-    : `<div class="w off"><span>${String(i + 1).padStart(2, '0')}</span>${esc(w.title)}${released ? ' <small>· čoskoro</small>' : ''}</div>`).join('\n');
-  const html = `<!doctype html><html lang="sk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OtherWorlds</title>
+    : `<div class="w off"><span>${String(i + 1).padStart(2, '0')}</span>${esc(w.title)}${released ? ' <small>· coming soon</small>' : ''}</div>`).join('\n');
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OtherWorlds</title>
 <style>
 html,body{margin:0;min-height:100%;background:radial-gradient(ellipse at 50% 30%,#262a3a 0%,#0d0f15 70%) fixed;color:#ebe5d6;font:16px/1.5 system-ui,sans-serif}
 main{max-width:680px;margin:0 auto;padding:12vh 16px 10vh}
@@ -102,9 +103,9 @@ a.w:hover{background:rgba(255,255,255,.06)}
 .w span{font:12px ui-monospace,monospace;opacity:.45}
 .off{opacity:.32}
 footer{margin-top:48px;font-size:13px;opacity:.4}footer a{color:inherit}
-</style></head><body><main><h1>OtherWorlds</h1><p>Pokojné, otvorené, magické svety. Medzi nimi sa chodí cez obyčajné drevené dvere.</p>
+</style></head><body><main><h1>OtherWorlds</h1><p>Calm, open, magical worlds to drift through. You travel between them through ordinary wooden doors.</p>
 ${items}
-<footer>${released ? 'Potrebuje prehliadač s WebGPU (Chrome alebo Edge na počítači, nové Safari). Najlepšie so slúchadlami.' : have.has('_test') ? '<a href="_test.html">testovací svet</a>' : ''}</footer></main></body></html>`;
+<footer>${released ? 'Needs a browser with WebGPU: Chrome or Edge on desktop, Safari 26+, or Chrome on a recent Android phone. Best with headphones.' : have.has('_test') ? '<a href="_test.html">test world</a>' : ''}</footer></main></body></html>`;
   writeFileSync(join(outDir, 'index.html'), html);
   console.log(`index.html       ${built.length} built, ${have.size} available`);
 }

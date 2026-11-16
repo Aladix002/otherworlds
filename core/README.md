@@ -2,13 +2,13 @@
 
 This is the only core document a world author needs. You write `worlds/<id>/world.js` (default export = world module) and
 `worlds/<id>/postcard.wgsl`. The core owns the GPU, frame loop, post stack, camera and movement, doors and transitions,
-audio engine, UI (Slovak) and test harness. A complete working example is `worlds/_test/` (terrain generated in a compute
+audio engine, UI (English) and test harness. A complete working example is `worlds/_test/` (terrain generated in a compute
 shader, instanced rocks, compute particles, sky, audio). Copy patterns from it.
 
 **Rules:** raw WebGPU + WGSL + Web Audio only (no engines or libraries), everything procedural (no texture, model or audio
 files), no network, **zero per-frame JS allocations** in `update` / `render` / `computeBefore` / `renderTransparent` /
 `afterScene` (no `new`, array or object literals, closures, template strings, spread, `map`/`filter`). Preallocate typed
-arrays and reuse them. UI text is Slovak. Work only in `worlds/<id>/`.
+arrays and reuse them. UI text is English; world titles come from core/src/worlds.js. Work only in `worlds/<id>/`.
 
 ---
 
@@ -17,7 +17,7 @@ arrays and reuse them. UI text is Slovak. Work only in `worlds/<id>/`.
 ```js
 export default {
   id: 'meadow',                     // must equal the folder name
-  title: 'Čarovná lúka',            // shown on the loading/start screen (Slovak)
+  title: 'Enchanted Meadow',       // fallback only; the displayed title comes from core/src/worlds.js
   movement: 'walk',                 // 'fly' | 'swim' | 'walk'   (URL ?movement= overrides, for testing)
   spawn: { pos: [x, y, z], yaw, pitch },   // eye position. Face AWAY from your door, 15–40 m from it
   poses: [{ pos, yaw, pitch, t? }, ...6],   // fixed critic camera poses (eye positions, used verbatim). t = anim time (default 10)
