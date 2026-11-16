@@ -185,9 +185,10 @@ const MOSS_B = vec3f(0.055, 0.125, 0.022);
   } else if (m < 2.5) {
     // moss beard: ragged hanging strands
     let x = in.uv.x; let s = in.uv.y;
-    let st = nz(vec2f(x * 0.35 + in.at.w * 7.0, in.at.w * 3.0));
-    let lenK = 0.35 + 0.65 * st.x;
-    if (s > lenK * (1.0 - 0.5 * abs(x)) || (abs(fract(x * 2.5 + st.y) - 0.5) > 0.36 && s > 0.18 && dist < 22.0)) { discard; }
+    let sx = x * 3.5 + in.at.w * 20.0;
+    let st = vec3f(hash11(floor(sx) + in.at.w * 91.0), 0.0, fract(sx * 0.37));
+    let lenK = (0.3 + 0.7 * st.x) * (1.0 - 0.4 * abs(x));
+    if (s > lenK || abs(fract(sx) - 0.5) > 0.46 * (1.0 - s / lenK) + 0.03) { discard; }
     alb = mix(MOSS_A, MOSS_B * 1.3, s / lenK * 0.8 + 0.2 * st.z);
     extra = alb * (G.sunColor * mv + G.ambientSky) * 1.2;
     ao = 0.8;
