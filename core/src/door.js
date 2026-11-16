@@ -6,7 +6,7 @@ import { trsY, mul4, m4, easeInOut, clamp } from './math.js';
 import { sphere, cylinder, torus } from './mesh.js';
 import { resolveTarget, nextWorld } from './worlds.js';
 
-export const OPEN_W = 0.96, OPEN_H = 2.05, FRAME_W = 0.14, FRAME_D = 0.16;
+export const OPEN_W = 0.96, OPEN_H = 2.05, FRAME_W = 0.1, FRAME_D = 0.12;
 const MAX_DOORS = 4, OPEN_TIME = 1.6, SWING = 100 * Math.PI / 180;
 
 // Vertex: pos(3) nrm(3) o(3: box-local offset in meters, unrotated) h(3: box half extents) attr(4: part, mat, seed, rotZ)
@@ -38,12 +38,13 @@ function buildGeometry() {
   }
   const W = OPEN_W, H = OPEN_H, pw = FRAME_W, pd = FRAME_D;
   // ---- frame (part 0), door-local: opening centered on x, ground at y=0, door plane z=0 ----
-  const postH = H + 0.2;
+  // slim on purpose: a free-standing door frame, not a cabinet (reads right from the side and the back too)
+  const postH = H + 0.1;
   box(-(W / 2 + pw / 2), postH / 2 - 0.08, 0, pw, postH + 0.08, pd, 0, 0, 11);
   box(W / 2 + pw / 2, postH / 2 - 0.08, 0, pw, postH + 0.08, pd, 0, 0, 12);
-  box(0, H + 0.09, 0, W + 2 * pw + 0.16, 0.18, pd + 0.04, 0, 1, 13);          // lintel with overhang
-  box(0, H + 0.205, 0, W + 2 * pw + 0.22, 0.05, pd + 0.07, 0, 1, 15);         // cap board
-  box(0, -0.02, 0, W + 2 * pw + 0.06, 0.07, pd + 0.12, 0, 1, 14);            // threshold
+  box(0, H + 0.055, 0, W + 2 * pw + 0.05, 0.11, pd + 0.016, 0, 1, 13);        // lintel, slight overhang
+  box(0, H + 0.123, 0, W + 2 * pw + 0.1, 0.026, pd + 0.045, 0, 1, 15);        // thin cap board
+  box(0, -0.02, 0, W + 2 * pw + 0.02, 0.07, pd + 0.05, 0, 1, 14);            // threshold
   for (const hy of [0.36, 1.74]) {                                            // pintles on the hinge post
     box(-W / 2 - 0.02, hy, 0, 0.04, 0.03, 0.03, 0, 2, 1);
     geo(cylinder(0.011, 0.011, 0.05, 8), -W / 2 - 0.004, hy - 0.08, 0, 0, 2, 1);
@@ -86,13 +87,26 @@ export function createDoors(ctx, world, postcards) {
   const udata = new Float32Array(40 * MAX_DOORS);
   const doorLayout = ctx.layout(['uniform'], 'door');
   const doorBG = ctx.bindGroup(doorLayout, [ubuf]);
+  const doorModule = ctx.shader(DOOR, 'door');
   const doorPipe = ctx.pipeline({
-    code: DOOR, label: 'door', layouts: [doorLayout], cull: 'none',
+    module: doorModule, label: 'door', layouts: [doorLayout], cull: 'none',
     buffers: [{ arrayStride: VS * 4, attributes: [
       { shaderLocation: 0, offset: 0, format: 'float32x3' }, { shaderLocation: 1, offset: 12, format: 'float32x3' },
       { shaderLocation: 2, offset: 24, format: 'float32x3' }, { shaderLocation: 3, offset: 36, format: 'float32x3' },
       { shaderLocation: 4, offset: 48, format: 'float32x4' }] }],
   });
+
+  // ground decal (contact shadow + light spill from the open doorway): a small grid per door that follows heightAt
+  const DNX = 9, DNZ = 13, DSTEP = 0.35, DVERTS = DNX * DNZ;
+  const dverts = new Float32Array(MAX_DOORS * DVERTS * 3), didx = new Uint16Array((DNX - 1) * (DNZ - 1) * 6);
+  for (let j = 0, k = 0; j < DNZ - 1; j++) for (let i = 0; i < DNX - 1; i++) { const a = j * DNX + i; didx.set([a, a + DNX, a + 1, a + 1, a + DNX, a + DNX + 1], k); k += 6; }
+  const dvbuf = device.createBuffer({ label: 'door-decal-v', size: dverts.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
+  const dibuf = ctx.buffer(didx, 'index', 'door-decal-i');
+  const decalPipe = ctx.pipeline({
+    module: doorModule, label: 'door-decal', layouts: [doorLayout], cull: 'none', vs: 'vs_decal', fs: 'fs_decal', blend: 'premul', depthWrite: false,
+    buffers: [{ arrayStride: 12, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }] }],
+  });
+  const useDecal = (world.doorShadow ?? 1) > 0 || (world.doorSpill ?? 1) > 0;
 
   // postcards: one uniform slot per door + 1 for the full-screen overlay (256-byte aligned slots)
   const pcLayout = ctx.layout(['uniform'], 'postcard');
@@ -128,10 +142,19 @@ export function createDoors(ctx, world, postcards) {
         frameM: m4(), leafM: m4(), tmpM: m4(), lx: 0, ly: 0, lz: 0, prevLz: 0, near: false, pc: postcardPipes(to) };
       trsY(door.frameM, pos[0], pos[1], pos[2], door.yaw);
       doors.push(door);
+      // decal grid heights relative to the door base. If the world's heightAt disagrees with an explicit door y, stay flat.
+      const M = door.frameM, hAt = (x, z) => heightAt(M[0] * x + M[8] * z + M[12], M[2] * x + M[10] * z + M[14]) - pos[1];
+      const follow = !!heightAt && Math.abs(hAt(0, 0)) < 0.15;
+      for (let j = 0, o = i * DVERTS * 3; j < DNZ; j++) for (let k = 0; k < DNX; k++, o += 3) {
+        const x = (k - (DNX - 1) / 2) * DSTEP, z = (j - (DNZ - 1) / 2) * DSTEP, h = follow ? hAt(x, z) : 0;
+        dverts[o] = x; dverts[o + 1] = Number.isFinite(h) ? clamp(h, -0.7, 0.7) : 0; dverts[o + 2] = z;
+      }
     });
+    if (doors.length) device.queue.writeBuffer(dvbuf, 0, dverts, 0, doors.length * DVERTS * 3);
   }
 
-  const state = { doors, nearDoor: -1, crossed: -1, light: world.doorLight || [0, 0, 0] };
+  const state = { doors, nearDoor: -1, crossed: -1, light: world.doorLight || [0, 0, 0],
+    moss: clamp(world.doorMoss ?? 0.15, 0, 1), shadow: clamp(world.doorShadow ?? 1, 0, 1), spill: clamp(world.doorSpill ?? 1, 0, 2), expInv: 1 };
 
   function writeUniforms() {
     for (const d of doors) {
@@ -141,7 +164,8 @@ export function createDoors(ctx, world, postcards) {
       trsY(d.tmpM, -OPEN_W / 2, 0, 0, ang);
       mul4(d.leafM, d.frameM, d.tmpM);
       udata.set(d.frameM, o); udata.set(d.leafM, o + 16);
-      udata[o + 32] = d.open; udata[o + 33] = d.side;
+      udata[o + 32] = d.open; udata[o + 33] = d.side; udata[o + 34] = state.moss; udata[o + 35] = state.shadow;
+      udata[o + 39] = state.spill * state.expInv;   // doorway light, in display-referred units like the postcard
       udata[o + 36] = state.light[0]; udata[o + 37] = state.light[1]; udata[o + 38] = state.light[2];
     }
     if (doors.length) device.queue.writeBuffer(ubuf, 0, udata, 0, doors.length * 40);
@@ -149,7 +173,7 @@ export function createDoors(ctx, world, postcards) {
 
   // per-frame logic. cam: camera, interact: bool (E/click). Returns index of door crossed this frame or -1.
   function update(dt, cam, interact, exposure, time, allowOpen) {
-    state.nearDoor = -1; state.crossed = -1;
+    state.nearDoor = -1; state.crossed = -1; state.expInv = 1 / Math.max(exposure, 1e-3);
     let best = 1e9;
     for (const d of doors) {
       const dx = cam.pos[0] - d.pos[0], dz = cam.pos[2] - d.pos[2], c = Math.cos(d.yaw), s = Math.sin(d.yaw);
@@ -192,7 +216,12 @@ export function createDoors(ctx, world, postcards) {
 
   function draw(pass) {
     if (!doors.length) return;
-    pass.setPipeline(doorPipe); pass.setBindGroup(1, doorBG);
+    pass.setBindGroup(1, doorBG);
+    if (useDecal) {   // before the door itself, so the door always covers it
+      pass.setPipeline(decalPipe); pass.setVertexBuffer(0, dvbuf); pass.setIndexBuffer(dibuf, 'uint16');
+      for (const d of doors) pass.drawIndexed(didx.length, 1, 0, d.index * DVERTS, d.index);
+    }
+    pass.setPipeline(doorPipe);
     pass.setVertexBuffer(0, vbuf); pass.setIndexBuffer(ibuf, 'uint16');
     pass.drawIndexed(geo.count, doors.length);
     for (const d of doors) {
@@ -216,8 +245,8 @@ export function createDoors(ctx, world, postcards) {
       const dx = x - d.pos[0], dz = z - d.pos[2], c = Math.cos(d.yaw), s = Math.sin(d.yaw);
       const lx = c * dx - s * dz, lz = s * dx + c * dz, ly = y - d.pos[1];
       if (Math.abs(lx) > 3 || Math.abs(lz) > 3) { r = Math.min(r, Math.hypot(lx, lz) - 1.2); continue; }
-      r = Math.min(r, boxD(lx, ly, lz, -(OPEN_W / 2 + FRAME_W / 2), 1.15, 0, FRAME_W / 2, 1.2, FRAME_D / 2), boxD(lx, ly, lz, OPEN_W / 2 + FRAME_W / 2, 1.15, 0, FRAME_W / 2, 1.2, FRAME_D / 2));
-      r = Math.min(r, boxD(lx, ly, lz, 0, OPEN_H + 0.12, 0, OPEN_W / 2 + 0.25, 0.12, 0.1));
+      r = Math.min(r, boxD(lx, ly, lz, -(OPEN_W / 2 + FRAME_W / 2), 1.05, 0, FRAME_W / 2, 1.1, FRAME_D / 2), boxD(lx, ly, lz, OPEN_W / 2 + FRAME_W / 2, 1.05, 0, FRAME_W / 2, 1.1, FRAME_D / 2));
+      r = Math.min(r, boxD(lx, ly, lz, 0, OPEN_H + 0.07, 0, OPEN_W / 2 + FRAME_W + 0.05, 0.07, FRAME_D / 2 + 0.025));
       if (d.open < 0.5) r = Math.min(r, boxD(lx, ly, lz, 0, OPEN_H / 2, 0, OPEN_W / 2, OPEN_H / 2, 0.03));
     }
     return r;

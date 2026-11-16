@@ -130,7 +130,7 @@ async function boot(world, P, ui, canvas, gpu, flags) {
   // ---- stats & dynamic resolution ----
   const N = 1 << 15;
   const S = { gpu: new Float32Array(N), cpu: new Float32Array(N), frame: new Float32Array(N), scale: new Float32Array(N), ng: 0, nc: 0, rec: false, scaleHist: [], lastHist: 0 };
-  const fixedScale = P.has('scale') ? clamp(+P.get('scale'), 0.25, 1) : shot ? 1 : 0;
+  let fixedScale = P.has('scale') ? clamp(+P.get('scale'), 0.25, 1) : shot ? 1 : 0;
   let scale = fixedScale || Q.maxScale, gpuEma = 0, frameEma = 16.7, dynAcc = 0;
   function onGpuTime(ms) {
     ctx.gpuMs = ms;
@@ -394,15 +394,25 @@ async function boot(world, P, ui, canvas, gpu, flags) {
   function beginExit(d) {
     if (trans.mode === 'exit') return;
     const side = Math.sign(d.lz || d.prevLz) || 1;
-    trans.mode = 'exit'; trans.t = 0; trans.door = d; trans.pc = d.pc;
+    trans.mode = 'exit'; trans.t = 0; trans.door = d; trans.pc = d.pc; trans.alpha = 0;
     trans.yaw = d.yaw + (side < 0 ? Math.PI : 0);
     if (ctx.audio) { ctx.audio.whoosh({ dur: 2.2, f0: 220, f1: 900, gain: 0.05, reverb: 0.6 }); ctx.audio.fadeOut(1.3); }
     ui.hint(false); ui.dot(false);
   }
+  const throughAlpha = (d) => (Math.abs(d.lx) < 0.6 ? 1 - smoothstep(0.2, 0.5, Math.abs(d.lz)) : 0);
   function updateTransition(dt) {
     if (trans.mode === 'exit') {
       trans.t += dt;
-      trans.alpha = smoothstep(0, 0.3, trans.t);
+      // The overlay comes up with proximity: by the time it is visible the doorway (which shows the same postcard) fills
+      // the screen, so the frame never shows through half-faded. The time ramp is only a fallback (never decreases).
+      trans.alpha = Math.max(trans.alpha, throughAlpha(trans.door), smoothstep(0.25, 0.6, trans.t));
+      // input is off during the exit: glide the rest of the way into the doorway, centering on it
+      const d = trans.door, c = Math.cos(d.yaw), sn = Math.sin(d.yaw);
+      if (!shot && !cam.frozen && Math.abs(d.lz) > 0.05 && Math.abs(d.lz) < 1 && Math.abs(d.lx) < 0.6) {
+        const st = Math.min(1.8 * dt, Math.abs(d.lz) - 0.04) * Math.sign(d.lz), k = math.damp(0.15, dt) * d.lx;
+        cam.pos[0] -= sn * st + c * k; cam.pos[2] -= c * st - sn * k;
+        cam.vel[0] = cam.vel[1] = cam.vel[2] = 0;
+      }
       if (trans.t > 1.5 && !trans.navigated && !shot) {
         trans.navigated = true;
         const d = trans.door, rel = wrapAngle(cam.yaw - trans.yaw);
@@ -427,10 +437,21 @@ async function boot(world, P, ui, canvas, gpu, flags) {
     unfreeze() { frozen = false; },
     settle(t, sec = 2) { time = t - sec; settle = Math.max(1, Math.round(sec * 60)); frozen = false; return new Promise((r) => { settleResolve = r; }); },
     flyAt(s) { fly.active = false; flyAt(s); },
-    setScale(s) { scale = clamp(s, 0.25, 1); },
+    setScale(s, pin = false) { scale = clamp(s, 0.25, 1); if (pin) fixedScale = scale; },   // pin: disable dynamic resolution
+    spawnView() {   // the camera as a player arrives (spawn pose, on the ground in walk mode)
+      cam.set(spawn.pos, spawn.yaw || 0, spawn.pitch || 0);
+      if (heightAt && movement === 'walk') { cam.pos[1] = heightAt(cam.pos[0], cam.pos[2]) + cam.eyeHeight; cam.eye[1] = cam.pos[1]; }
+      cam.frozen = shot || bench;
+    },
+    // camera `dist` m in front of open door i with the walk-through overlay exactly as the exit transition shows it there
+    through(i = 0, dist = 0.35, height = 1.5) {
+      const d = doors.doors[i]; if (!d || !window.__ow.doorView(i, dist, height)) return false;
+      trans.mode = 'shot'; trans.pc = d.pc; trans.yaw = d.yaw; trans.alpha = 1 - smoothstep(0.2, 0.5, dist); return true;
+    },
     door(i, open) { const d = doors.doors[i]; if (d) { d.target = open > 0 ? 1 : 0; d.phase = open; d.open = math.easeInOut(open); d.side = 1; } },
     transition(alpha, i = 0) { const d = doors.doors[i]; if (!d) return; trans.mode = alpha > 0 ? 'shot' : 'none'; trans.pc = d.pc; trans.alpha = alpha; trans.yaw = d.yaw; },
-    arrival(alpha) { trans.mode = alpha > 0 ? 'shot' : 'none'; trans.pc = doors.postcardPipes(world.id); trans.alpha = alpha; trans.yaw = cam.yaw; },
+    // returns a Promise that resolves when this world's own postcard pipeline has compiled (await it before a screenshot)
+    arrival(alpha) { trans.mode = alpha > 0 ? 'shot' : 'none'; trans.pc = doors.postcardPipes(world.id); trans.alpha = alpha; trans.yaw = cam.yaw; return trans.pc.promise.then(() => trans.pc.ready); },
     // camera `dist` meters in front of door i (front side), looking at it
     // angle: 0 = front, PI/2 = side, PI = back (orbit around the door, looking at it)
     doorView(i = 0, dist = 3.2, height = 1.55, angle = 0) {

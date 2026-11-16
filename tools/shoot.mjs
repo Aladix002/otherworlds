@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // node tools/shoot.mjs <id> [--quality medium] [--no-build] [--params "movement=fly&x=1"] [--t 10]
-// Writes shots/<id>/pose-0..5.png (1920x1080, deterministic time), motion-00..23.png (fly-through clips),
-// sheet.png (contact sheet) and console.txt. Safe to run in parallel with other shoots.
+// node tools/shoot.mjs <id> ... [--motion-at 0.3] [--motion-step 0.2]
+// Writes shots/<id>/pose-0..5.png (1920x1080, deterministic time), door-*.png, motion-00..23.png (ONE continuous
+// fly-through window: 24 frames, 0.2 s apart = 4.6 s, starting at 30 % of the fly-through), sheet.png (contact sheet)
+// and console.txt. Safe to run in parallel with other shoots.
 import { mkdirSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -44,22 +46,29 @@ async function main() {
       await shot('open', () => { window.__ow.doorView(0, 3.2); window.__ow.door(0, 1); });
       await shot('open-side', () => window.__ow.doorView(0, 3.4, 1.6, 0.7));
       await shot('near', () => { window.__ow.doorView(0, 0.9, 1.5); });
-      await shot('through', () => { window.__ow.doorView(0, 0.5, 1.5); window.__ow.transition(0.6, 0); });
-      await shot('arrival', () => { window.__ow.transition(0); window.__ow.door(0, 0); window.__ow.setPose(0); window.__ow.arrival(0.55); });
-      await page.evaluate(() => window.__ow.arrival(0));
+      // mid walk-through, with the overlay alpha the real exit transition has at that distance
+      await shot('through', () => { window.__ow.through(0, 0.35, 1.5); });
+      // arrival dissolve as a player sees it: at the spawn pose/yaw, once this world's own postcard pipeline has compiled
+      await shot('arrival', async () => {
+        window.__ow.transition(0); window.__ow.door(0, 0); window.__ow.spawnView();
+        const ok = await window.__ow.arrival(0.55);
+        if (!ok) console.error('door-arrival: postcard pipeline not ready');
+      });
+      await page.evaluate(() => { window.__ow.arrival(0); });
     }
-    // motion clips: 3 clips x 8 frames at 1/15 s spacing along the fly-through
+    // motion: one continuous window of the fly-through (no cuts): 24 frames, `step` s apart, simulated at 30 fps in between
     const dur = info.flythroughDuration;
-    let k = 0;
-    for (const f of [0.15, 0.5, 0.82]) {
-      const s0 = dur * f;
-      await page.evaluate((s) => { window.__ow.flyAt(s); return window.__ow.settle(s, 1); }, s0);
-      for (let j = 0; j < 8; j++, k++) {
-        const s = s0 + j / 15;
-        await page.evaluate((s) => { window.__ow.flyAt(s); window.__ow.setTime(s); return window.__ow.frames(2); }, s);
-        await page.screenshot({ path: join(outDir, `motion-${String(k).padStart(2, '0')}.png`) });
-      }
+    const step = Math.max(1 / 30, +(args['motion-step'] ?? 0.2)), sub = Math.max(1, Math.round(step * 30));
+    const s0 = Math.max(0, Math.min(dur - 23 * step, dur * +(args['motion-at'] ?? 0.3)));
+    await page.evaluate((s) => { window.__ow.flyAt(s); return window.__ow.settle(s, 1); }, s0);
+    for (let k = 0; k < 24; k++) {
+      if (k) await page.evaluate(async (a, b, n) => {
+        for (let i = 1; i <= n; i++) { const s = a + (b - a) * i / n; window.__ow.flyAt(s); window.__ow.setTime(s); await window.__ow.frames(1); }
+      }, s0 + (k - 1) * step, s0 + k * step, sub);
+      await page.evaluate(() => window.__ow.frames(1));
+      await page.screenshot({ path: join(outDir, `motion-${String(k).padStart(2, '0')}.png`) });
     }
+    console.log(`motion: fly-through ${s0.toFixed(1)}–${(s0 + 23 * step).toFixed(1)} s of ${dur} s, continuous, ${step} s between frames`);
   } finally {
     await close();
     writeFileSync(join(outDir, 'console.txt'), logs.join('\n') + '\n');

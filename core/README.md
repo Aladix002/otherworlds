@@ -31,6 +31,8 @@ export default {
   // optional tuning
   fov: 62, near: 0.05, eyeHeight: 1.6, radius: 0.3, speed: 1 /* multiplier */, seed: 1337,
   doorLight: [r, g, b],                    // extra fill light on the doors (use in dark worlds so the door is findable)
+  doorMoss: 0.15,                          // 0..1 moss in the damp patches at the door's foot (0 for snow/desert/indoors, ~0.6 jungle)
+  doorSpill: 1, doorShadow: 1,             // 0..2 warm light from the open doorway on the ground / 0..1 contact shadow at the base
 
   heightAt(x, z) { return h; },            // walk: ground height. fly/swim: keeps you >= 0.6 m above it. Optional
   sdf(x, y, z) { return d; },              // collision distance (positive outside). Optional
@@ -269,16 +271,24 @@ Vector functions write into `out` and return it.
 ## 10. Doors and postcards
 
 The core builds, lights, animates and collides the door. You only place it: `doors: [{ pos, yaw, to }]`.
-- `pos` = ground point at the centre of the threshold (`y: null` → `heightAt`). The opening is 0.96 × 2.05 m, the frame about
-  1.4 m wide (lintel), 2.3 m tall and 0.2 m deep. `yaw` = the camera yaw of someone standing in front of it looking through
+- `pos` = ground point at the centre of the threshold (`y: null` → `heightAt`). The opening is 0.96 × 2.05 m, the frame is slim: about
+  1.25 m wide (cap board), 2.2 m tall and 0.17 m deep. `yaw` = the camera yaw of someone standing in front of it looking through
   it (`yaw: 0` → the front faces +Z and you look toward −Z through it). It works from both sides.
 - The leaf swings ~100° **toward the viewer** around the hinge on door-local −X (the left post seen from the front), so keep about 1.2 m
   clear around it, flat ground within ~2.5 m, and make sure your `sdf`/terrain leave the walk-through corridor free
   (|x| < 0.5 m, 0–2.2 m high, ±2 m in front and behind).
-- The door is lit by `G.sunDir/sunColor/ambient*` and fogged with your fog. In dark worlds set `doorLight: [r,g,b]` (e.g.
-  `[0.05, 0.06, 0.08]`) so it stays findable, and give it a pleasant open spot.
+- The door is old silver-grey weathered wood with dark matte iron, grimy toward the ground. It is lit by
+  `G.sunDir/sunColor/ambient*`, picks up `G.fogColor`/`ambientSky` as soft ambient and rim, and is fogged with your fog. In
+  dark worlds set `doorLight: [r,g,b]` (e.g. `[0.05, 0.06, 0.08]`) so it stays findable, and give it a pleasant open spot.
+- Look options: `doorMoss` (0..1, default 0.15: a hint of moss at the foot; set 0 in snow, desert and indoor worlds, higher
+  in wet green ones), `doorShadow` (0..1, default 1: soft contact shadow on the ground around the frame) and `doorSpill`
+  (0..2, default 1: warm light from the open doorway on the ground on both sides and on the inner frame faces).
+  Shadow and spill are one small blended decal (2.8 × 4.2 m) drawn just before the door. It follows `heightAt` (flat at the
+  door's y if there is no `heightAt` or it disagrees with an explicit door y) and fades where the ground is more than
+  ~0.5 m off the door base, so keep the ground there opaque and drawn in `render` (not in `renderTransparent`), or set both to 0.
 - Flow: near and looking at it → hint "E – otvoriť" → E/click → 1.6 s eased swing with a synthesized creak → the doorway
-  shows the target's postcard → walking into it fades the postcard to full screen, fades audio, navigates to
+  shows the target's postcard → walking into it glides the camera into the doorway while the postcard comes up full
+  screen with proximity (so the frame never shows through half-faded), fades audio, navigates to
   `<to>.html?via=door&dy=..&dp=..` → the next world starts with ITS postcard full screen (rendered while it loads) and
   dissolves into the real view at `spawn` over ~3 s while its audio fades in.
 
@@ -338,10 +348,15 @@ npm install                                  # once (esbuild, puppeteer-core)
 node tools/build.mjs <id> [--readable]       # -> dist/<id>.html, prints size (+gzip); `all` builds every world + dist/index.html
 node tools/shoot.mjs <id> [--quality medium] [--params "movement=fly"] [--no-build]
      # -> shots/<id>/pose-0..5.png, door-{closed,side,back,open,open-side,near,through,arrival}.png,
-     #    motion-00..23.png (3 clips x 8 frames, 1/15 s apart), sheet.png (contact sheet), console.txt. Fails on console errors.
+     #    motion-00..23.png (ONE continuous fly-through window, no cuts: 24 frames 0.2 s apart = 4.6 s starting at 30 %;
+     #    `--motion-at 0.6 --motion-step 0.1` to move/zoom it), sheet.png (contact sheet), console.txt. Fails on console errors.
+     #    door-through = 0.35 m before the doorway with the real exit overlay; door-arrival = the dissolve at the spawn
+     #    pose/yaw (what a player sees), taken after this world's own postcard pipeline has compiled.
 node tools/perf.mjs <id> [--quality medium] [--series] [--no-build]
      # 60 s fly-through at 1920x1080 with GPU timestamps -> perf/<id>.json (avg/p50/p99/max GPU ms, CPU ms, scale history)
      # PASS = avg <= 12, p99 <= 16.7, scale >= 0.6. Takes an exclusive lock (perf/.lock): runs queue up, never overlap.
+     # Afterwards it probes spawn and every door (closed / open / near / far) at scale 1 and prints the GPU ms there
+     # (`doors`, `doorMaxMs` in the JSON; WARN above 16.7 ms, not part of the gate): the fly-through may never pass the door.
 node tools/probe.mjs <id> [--at 0,10,20] [--params "..."]  # GPU ms at scale 1 at fly-through times (finds the heavy spot; locked)
 node tools/smoke.mjs <id> [--movement walk]  # interactive e2e: enter, WASD, Esc menu, open door, walk through, arrival
 node tools/debug.mjs <id> ["shot=1&pose=2"] [--wait 6] [--png out.png]   # print console output of a page
@@ -356,8 +371,9 @@ render scale), `?bench=1`, `?post.<param>=value`, `?via=door` (arrival).
 
 **Harness `window.__ow`:** `ready` (Promise), `info`, `stats(series?)`, `resetStats()`, `frames(n)`, `setPose(i)`,
 `setTime(t)` (freeze), `unfreeze()`, `settle(t, sec = 2)` (run time from t−sec to t at 1/60 s, then freeze),
-`flyAt(seconds)`, `startFlythrough()` (Promise → stats), `setScale(s)`, `door(i, open01)`, `doorView(i, dist, height, angle)`,
-`transition(alpha, doorIndex)`, `arrival(alpha)`, `camera`, `ctx`.
+`flyAt(seconds)`, `startFlythrough()` (Promise → stats), `setScale(s, pin?)` (pin = no dynamic resolution), `door(i, open01)`,
+`doorView(i, dist, height, angle)`, `spawnView()`, `transition(alpha, doorIndex)`, `through(doorIndex, dist)` (walk-through
+view with the real overlay alpha), `arrival(alpha)` (Promise → own postcard pipeline ready), `camera`, `ctx`.
 
 ---
 

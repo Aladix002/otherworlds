@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // node tools/perf.mjs <id> [--quality medium] [--no-build] [--warmup 3]
 // Runs the world's scripted fly-through (60 s by default) at 1920x1080 with GPU timestamp queries and writes
-// perf/<id>.json. Takes an exclusive lock on perf/.lock (flock) so parallel runs on the shared GPU never overlap.
+// perf/<id>.json. Then probes spawn and every door (closed/open/near/far) at scale 1 and reports the GPU ms there (`doors` in
+// the JSON, WARN line if > 16.7 ms; not part of the gate). Takes an exclusive lock on perf/.lock (flock) so parallel runs on the shared GPU never overlap.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -38,6 +39,23 @@ async function main() {
     await page.evaluate(() => window.__ow.startFlythrough());
     res = await page.evaluate((s) => window.__ow.stats(s), !!args.series);
     res.adapterString = adapter;
+    // door probes: GPU ms at full resolution (scale pinned to 1) looking at each door, closed / open / close-up open.
+    // The fly-through may never pass the door, so a heavy door area would otherwise go unnoticed.
+    res.doors = await page.evaluate(async () => {
+      const ow = window.__ow, out = [];
+      ow.setScale(1, true);
+      const ms = async () => { await ow.frames(45); return +ow.stats().gpuNow.toFixed(2); };
+      for (let i = 0; i < ow.ctx.doors.length; i++) {
+        const r = { door: i, to: ow.ctx.doors[i].to };
+        ow.door(i, 0); ow.doorView(i, 3.2); r.closed = await ms();
+        ow.door(i, 1); r.open = await ms();
+        ow.doorView(i, 1.2, 1.5); r.near = await ms();
+        ow.doorView(i, 6, 1.7, 0.6); r.far = await ms();
+        ow.door(i, 0); out.push(r);
+      }
+      if (ow.spawnView) { ow.spawnView(); out.push({ spawn: await ms() }); }   // (older builds lack spawnView)
+      return out;
+    }).catch((e) => { console.error('door probe failed: ' + e.message); return []; });
   } finally { await close(); }
   const g = res.gpu;
   res.gate = GATE;
@@ -51,6 +69,10 @@ async function main() {
   console.log(`GPU ms  avg ${g.avg}  p50 ${g.p50}  p99 ${g.p99}  max ${g.max}  (${g.n} frames)`);
   console.log(`CPU ms  avg ${res.cpu.avg}  p99 ${res.cpu.p99}   frame interval avg ${res.frame.avg} p99 ${res.frame.p99}`);
   console.log(`scale   avg ${res.scale.avg}  min ${res.scale.min ?? '-'}  max ${res.scale.max}  final ${r2(res.scale.current)}`);
+  const dmax = Math.max(0, ...res.doors.flatMap((d) => [d.spawn, d.closed, d.open, d.near, d.far].filter((v) => v !== undefined)));
+  res.doorMaxMs = dmax; res.doorHeavy = dmax > GATE.p99GpuMs;
+  for (const d of res.doors) console.log(d.spawn !== undefined ? `spawn   ${d.spawn} ms at scale 1` : `door ${d.door}  closed ${d.closed}  open ${d.open}  near ${d.near}  far ${d.far} ms at scale 1 (-> ${d.to})`);
+  if (res.doorHeavy) console.log(`WARN: ${dmax} ms at scale 1 near a door/spawn (> ${GATE.p99GpuMs} ms): dynamic resolution will drop there; lighten that area`);
   console.log(`${res.pass ? 'PASS' : 'FAIL'} (gate: avg <= ${GATE.avgGpuMs} ms, p99 <= ${GATE.p99GpuMs} ms at 1920x1080, scale floor ${GATE.minScale})  -> ${file}`);
   if (res.consoleErrors.length) console.error('console errors:\n' + res.consoleErrors.join('\n'));
   process.exit(res.pass ? 0 : 1);
