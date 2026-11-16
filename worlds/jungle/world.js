@@ -145,7 +145,7 @@ export default {
   },
   sdf(x, y, z) {
     const [rc, am, edge] = cliffInfo(x, z);
-    let d = (edge + 0.9 - rc) + (1 - am) * 30;
+    let d = (edge + 0.9 - rc) + (1 - am) * (30 + rc);   // only the cliff arc blocks; away from it the term stays positive at any distance
     const cx = Math.floor(x / 12) + 32, cz = Math.floor(z / 12) + 32, T = this.treeCol;
     for (let a = cx - 1; a <= cx + 1; a++) for (let b = cz - 1; b <= cz + 1; b++) {
       const cell = this.treeGrid[(a & 63) * 64 + (b & 63)];

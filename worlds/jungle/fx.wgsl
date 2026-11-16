@@ -79,7 +79,7 @@ fn skyRefl(rd: vec3f) -> vec3f {
   let sp = nz(p.xz * 1.7 + vec2f(t * 0.02, 0.0));
   e += mix(U.slot[3].rgb, U.slot[0].rgb, sp.y) * smoothstep(0.86, 0.95, sp.x) * (tw * 2.0 + rippleE + 0.12 + 0.2 * pl) * fd * 0.6;
   let col = refl * F + body * (1.0 - F) + e;
-  let a = clamp(mix(0.66 + 0.24 * (1.0 - T), 1.0, F), 0.0, 1.0);
+  let a = clamp(mix(0.66 + 0.24 * (1.0 - T), 1.0, F), 0.0, 1.0) * smoothstep(0.0, 0.09, depth);   // soft shoreline, no stair-steps against the terrain grid
   return vec4f(col, a);
 }
 

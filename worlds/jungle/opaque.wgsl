@@ -288,7 +288,15 @@ struct VII { @location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2
       let gill = 0.55 + 0.45 * cos(in.uv.x * 6.2832 * 20.0 * gk);
       alb = sl * 0.3;
       e = (sl * 1.0 + 0.1) * gill * (0.4 + 0.6 * g);
-      if (gk > 1.5) { let gl2 = mix(0.4, pow(gill, 3.0), smoothstep(45.0, 14.0, distance(p, G.camPos))); alb = sl * 0.06; e = mix(sl, vec3f(1.0, 0.75, 0.4), 0.35 * (1.0 - g)) * (0.04 + gl2 * (0.34 - 0.2 * g)); }
+      if (gk > 1.5) {
+        // thin luminous lamellae, short ones filling in toward the rim, dark gaps, light pooling around the stem
+        let u = in.uv.x * 64.0; let fw = fwidth(u);
+        let r1 = 1.0 - smoothstep(0.04, 0.2 + fw, abs(fract(u) - 0.5));
+        let r2 = (1.0 - smoothstep(0.03, 0.16 + fw, abs(fract(u + 0.5) - 0.5))) * smoothstep(0.4, 0.6, g);
+        let lam = mix(max(r1, r2 * 0.75), 0.3, smoothstep(0.25, 0.9, fw));
+        alb = sl * 0.03;
+        e = mix(sl, vec3f(1.0, 0.75, 0.4), 0.4 * (1.0 - g)) * (0.012 + lam * (0.42 - 0.26 * g) * (0.5 + 0.5 * ndv) + 0.3 * exp(-g * 6.0));
+      }
     }
   } else if (ty < 3.5) {
     // rosette leaf: glowing midrib and side veins, brighter toward the heart of the plant

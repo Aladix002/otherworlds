@@ -75,3 +75,9 @@ koi absorbed along the view path through the water.
 Not done: the cave behind the waterfall (needs non-heightfield rock and would change the hero view).
 Perf after the pass (Medium, 80 s fly-through through all places): avg 8.2 ms, p99 10.2 ms, scale 1. Bundle 214 KB dev build
 (base with all postcards is 192 KB before this pass).
+
+## Door fix
+`sdf` used `(edge + 0.9 - rc) + (1 - am) * 30` for the cliff, which went negative everywhere more than ~45 m from the lagoon centre
+(z > ~9), so the walker was pushed back north and could never reach the door (or anything south of the clearing). The term is now
+`(1 - am) * (30 + rc)`: only the cliff arc blocks. `tools/smoke.mjs jungle` passes all checks.
+Also: the water alpha fades in over the first 9 cm of depth (soft shoreline), giant mushroom gills are thin lamellae with light at the stem.
