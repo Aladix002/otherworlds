@@ -1,6 +1,7 @@
 // Procedural meshes for aurora-fjord. uv.x = free parameter, uv.y = material id + fraction (see scene.wgsl):
-// 0 painted boards, 1 white trim, 2 snow, 3 window, 4 dark wood, 5 stone, 6 door, 7 lamp, 8 boat hull, 10 spruce, 11 bark.
-import { box, cylinder, rock, merge, transform, computeNormals } from '../../core/src/mesh.js';
+// 0 painted boards, 1 white trim, 2 snow, 3 window, 4 dark wood, 5 stone, 6 door, 7 lamp, 8 boat hull, 9 rock, 10 spruce, 11 bark,
+// 12 ice, 13 fur / cloth (uv.y fraction = palette index / 12, uv.x = body part for the creature animation).
+import { box, cylinder, rock, merge, transform, computeNormals, sphere, tube, torus, scale } from '../../core/src/mesh.js';
 import { snoise2, pcg, u2f } from '../../core/src/noise.js';
 
 const mk = (nv, ni) => ({ pos: new Float32Array(nv * 3), nrm: new Float32Array(nv * 3), uv: new Float32Array(nv * 2), idx: new Uint32Array(ni) });
@@ -72,8 +73,9 @@ function house(o, sd) {
     P.push(g);
     for (const sx of [1, -1]) P.push(bx(0.17, hw, 0.17, 1, sx * w / 2, 0, z));
     // roof side: slab, snow blanket, white barge boards
-    const L = (w / 2 + 0.45) / Math.cos(p), r = merge([bx(L, 0.1, l + 0.8, 4, L / 2), mv(blanket(L + 0.1, l + 1.0, 0.27, 0.3, sd + sg, 1), 0, 0.1, 0),
+    const L = (w / 2 + 0.45) / Math.cos(p); let r = merge([bx(L, 0.1, l + 0.8, 4, L / 2), mv(blanket(L + 0.1, l + 1.0, 0.27, 0.3, sd + sg, 1), 0, 0.1, 0),
       bx(L, 0.2, 0.07, 1, L / 2, -0.13, l / 2 + 0.4), bx(L, 0.2, 0.07, 1, L / 2, -0.13, -l / 2 - 0.4)]);
+    if (o.ladder && sg > 0) { const R = [r]; for (const dz of [0.2, -0.2]) R.push(bx(L * 0.85, 0.05, 0.05, 4, L * 0.45, 0.4, dz - l * 0.22)); for (let x = 0.25; x < L * 0.85; x += 0.36) R.push(bx(0.05, 0.04, 0.4, 4, x, 0.4, -l * 0.22)); r = merge(R); }
     rz(r, -p, 0, hw + rh + 0.02, 0);
     P.push(sg < 0 ? mirX(r) : r);
   }
@@ -85,14 +87,21 @@ function house(o, sd) {
     chim = [cx, top + 0.1, cz];
   }
   const place = (parts, glow, x, y, z, a) => { P.push(ry(merge(parts), a, x, y, z)); if (glow) G.push(ry(glow, a, x, y, z)); };
-  const win = (x, y, z, a, ww = 0.95, wh = 1.15) => {
+  const win = (x, y, z, a, ww = 0.95, wh = 1.15, sh = 0) => {
     const id = wid++;
-    place([quad(ww, wh, id * 4, 3, 0.02), bx(ww + 0.22, 0.1, 0.08, 1, 0, -0.1, 0.04), bx(ww + 0.22, 0.1, 0.08, 1, 0, wh, 0.04), bx(0.1, wh, 0.08, 1, ww / 2 + 0.05, 0, 0.04), bx(0.1, wh, 0.08, 1, -ww / 2 - 0.05, 0, 0.04),
+    place([...(sh ? [bx(0.3, wh, 0.045, 6, ww / 2 + 0.28, 0, 0.02), bx(0.3, wh, 0.045, 6, -ww / 2 - 0.28, 0, 0.02)] : []),
+      quad(ww, wh, id * 4, 3, 0.02), bx(ww + 0.22, 0.1, 0.08, 1, 0, -0.1, 0.04), bx(ww + 0.22, 0.1, 0.08, 1, 0, wh, 0.04), bx(0.1, wh, 0.08, 1, ww / 2 + 0.05, 0, 0.04), bx(0.1, wh, 0.08, 1, -ww / 2 - 0.05, 0, 0.04),
       mv(blanket(ww + 0.3, 0.24, 0.085, 0.1, id, 0, 0.3), -ww / 2 - 0.15, 0, 0.1)], mv(quad(ww * 3.4, wh * 2.8, id * 4, 0, 0.1), 0, -wh * 0.9, 0), x, y, z, a);
     wins.push({ p: [x, y + wh / 2, z], n: [Math.sin(a), Math.cos(a)], id });
   };
   const door = (x, z, a, dw = 0.92) => {
-    place([bx(dw, 1.98, 0.06, 6, 0, 0, 0.02), bx(dw + 0.22, 0.11, 0.08, 1, 0, 1.98, 0.04), bx(0.11, 1.98, 0.08, 1, dw / 2 + 0.055, 0, 0.04), bx(0.11, 1.98, 0.08, 1, -dw / 2 - 0.055, 0, 0.04),
+    // a small gabled canopy on two posts over the steps
+    const cn = [];
+    if (dw < 1.5) for (const sg of [1, -1]) {
+      const r = rz(merge([bx(1.0, 0.06, 1.0, 4, 0.5, 0, 0.52), mv(blanket(1.05, 1.1, 0.13, 0.15, sd + sg + 20, 1, 0.4), 0, 0.06, 0.52), bx(1.0, 0.14, 0.05, 1, 0.5, -0.1, 1.02)]), -0.6, 0, 2.82, 0);
+      cn.push(sg < 0 ? mirX(r) : r, bx(0.09, 2.5, 0.09, 1, sg * 0.66, -0.2, 0.92));
+    }
+    place([...cn, bx(dw, 1.98, 0.06, 6, 0, 0, 0.02), bx(dw + 0.22, 0.11, 0.08, 1, 0, 1.98, 0.04), bx(0.11, 1.98, 0.08, 1, dw / 2 + 0.055, 0, 0.04), bx(0.11, 1.98, 0.08, 1, -dw / 2 - 0.055, 0, 0.04),
       bx(dw + 0.5, 0.18, 0.75, 4, 0, -0.2, 0.42), bx(dw + 0.7, 0.2, 0.5, 4, 0, -0.45, 1.0), mv(blanket(dw + 0.7, 0.5, 0.08, 0.12, 5, 0, 0.3), -dw / 2 - 0.35, -0.26, 1.0), mv(blanket(dw + 0.5, 0.75, 0.09, 0.14, 3, 0, 0.3), -dw / 2 - 0.25, -0.03, 0.42),
       bx(0.14, 0.18, 0.14, 7, dw / 2 + 0.34, 1.86, 0.1), bx(0.2, 0.04, 0.2, 4, dw / 2 + 0.34, 2.04, 0.1)], mv(quad(3.4, 3.4, 60, 0, 0.09), dw / 2 + 0.34, 0.25, 0), x, 0, z, a);
     const c = Math.cos(a), s = Math.sin(a), lx = dw / 2 + 0.34;
@@ -100,7 +109,7 @@ function house(o, sd) {
   };
   for (let r = 0; r < rows; r++) {
     const y = 0.95 + r * 2.35;
-    for (let i = 0; i < sw; i++) for (const sx of [1, -1]) win(sx * w / 2, y, -l / 2 + l * (i + 0.5) / sw + (sw === 1 ? sx * 0.6 : 0), sx * Math.PI / 2);
+    for (let i = 0; i < sw; i++) for (const sx of [1, -1]) win(sx * w / 2, y, -l / 2 + l * (i + 0.5) / sw + (sw === 1 ? sx * 0.6 : 0), sx * Math.PI / 2, 0.95, 1.15, 1);
     if (r) { win(-w * 0.22, y, -l / 2, Math.PI); win(w * 0.22, y, l / 2, 0); }
   }
   if (naust) { door(0, -l / 2, Math.PI, 2.3); win(w / 2, 1.0, 0.8, Math.PI / 2, 0.7, 0.7); }
@@ -120,10 +129,11 @@ function house(o, sd) {
   return { geo: merge(P), glow: merge(G), w, l, h: hw + rh, chim, wins, lamp };
 }
 export const HOUSE = [
-  house({ w: 4.4, l: 6.2, hw: 2.45, p: 0.72, sw: 1, deck: 1 }, 1),
+  house({ w: 4.4, l: 6.2, hw: 2.45, p: 0.72, sw: 1, deck: 1, ladder: 1 }, 1),
   house({ w: 5.0, l: 8.4, hw: 2.55, p: 0.68, sw: 2, deck: 1 }, 2),
   house({ w: 6.0, l: 8.6, hw: 4.9, p: 0.62, sw: 2, rows: 2 }, 3),
   house({ w: 4.0, l: 6.4, hw: 2.2, p: 0.76, naust: 1, chimney: 0 }, 4),
+  house({ w: 3.4, l: 4.4, hw: 2.1, p: 0.62, sw: 1, deck: 1 }, 5),          // sauna
 ];
 
 // ---- boat: double-ended Nordic rowing boat, filled with snow. Along x, keel at y = 0 ----
@@ -147,7 +157,7 @@ function boat(len = 5.4, B = 0.82) {
 
 // ---- static village dressing in world space: pier, lamp posts, boats, drying rack, snow drifts at the door ----
 const ss = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
-export function village(pier, lamps, hAt, door, dyaw, posts) {
+export function village(pier, lamps, hAt, door, dyaw, posts, X) {
   const P = [], [px, z1, z0, ph] = pier, len = z1 - z0, zc = (z0 + z1) / 2, bulbs = [];
   P.push(bx(2.5, 0.16, len, 4, px, ph - 0.16, zc, 1), mv(blanket(2.16, len - 0.1, 0.11, 0.13, 3), px - 1.08, ph - 0.01, zc));
   for (const sx of [1, -1]) {
@@ -175,21 +185,26 @@ export function village(pier, lamps, hAt, door, dyaw, posts) {
     const r = Math.hypot(x, z), u = Math.abs(x) - 0.84, k = 1 + 0.25 * snoise2(x * 1.9, z * 1.9);
     return ss(2.4, 1.1, r) * (0.3 * k * Math.exp(-u * u / (u < 0 ? 0.035 : 0.3) - z * z / 0.22) * ss(0.52, 0.74, Math.abs(x)) + 0.05 * (1 + snoise2(x * 0.8 + 3, z * 0.8)) * ss(0.4, 1.3, r)) + 0.012;
   }), dyaw, door[0], door[1], door[2]));
+  for (const [x, y, z, a, sc] of X.snowmen) P.push(ry(snowman(sc), a, x, y - 0.05, z), ry(sled(), a + 1.9, x + 1.5 * Math.cos(a), hAt(x + 1.5 * Math.cos(a), z - 1.5 * Math.sin(a)) + 0.07, z - 1.5 * Math.sin(a)));
+  P.push(ry(bench(), X.bench[3], X.bench[0], X.bench[1] - 0.06, X.bench[2]), mv(cairn(), ...X.cairn), mv(camp(), ...X.camp), ry(lean(), X.lean[3], X.lean[0], X.lean[1] - 0.08, X.lean[2]), X.ice);
+  for (const [x, y, z] of X.owlPosts) P.push(bx(0.13, 1.5, 0.13, 4, x, y - 0.1, z));
   for (const [x, y, z] of posts) P.push(bx(0.11, 1.15, 0.11, 4, x, y - 0.15, z), cap(0.2, 0.2, 0.08, x, y + 0.99, z, x));
   return { geo: merge(P), bulbs };
 }
 
 // ---- spruce: drooping tiers heavy with snow. uv.x = snow weight, height 9 at scale 1 ----
 export function spruce(lod, seed) {
-  const tiers = [9, 6, 3][lod], segs = [16, 10, 6][lod], nr = [6, 5, 3][lod], H = 9, P = [setMat(cylinder(0.19, 0.05, H * 0.95, [6, 5, 4][lod], 1), 11, 0)];
+  const tiers = [12, 6, 3][lod], segs = [26, 10, 6][lod], nr = [6, 5, 3][lod], H = 9, P = [setMat(cylinder(0.19, 0.05, H * 0.95, [6, 5, 4][lod], 1), 11, 0)];
   for (let k = 0; k < tiers; k++) {
     const f = k / (tiers - 1), y0 = 1.25 + f * (H - 3.1), R = 2.3 * Math.pow(1 - f, 0.8) + 0.4, th = (H - 1.2) / tiers * 1.8 + 0.5;
-    const g = mk(nr * segs, (nr - 1) * segs * 6), a0 = h1(seed * 31 + k) * 6;
+    const g = mk(nr * segs, (nr - 1) * segs * 6), a0 = h1(seed * 31 + k) * 6, nb = 5 + (k * 2 + seed) % 3;
     let n = 0;
     for (let j = 0; j < nr; j++) for (let i = 0; i < segs; i++) {
       // rings run from the tip of the tier out along the bough, the last one closes the underside
       const under = lod < 2 && j === nr - 1, q = under ? 0.32 : j / (nr - (lod < 2 ? 2 : 1)), v = j * segs + i;
-      const jr = 0.72 + 0.5 * h1(seed * 977 + k * 37 + i), jd = 0.4 + 1.2 * h1(seed * 613 + k * 91 + i);
+      // near trees: each tier is a whorl of nb separate boughs (deep notches between them, tips droop)
+      const lb = Math.pow(Math.abs(Math.cos(nb * i / segs * 3.1416 + a0)), 0.6) * (0.8 + 0.4 * h1(seed * 53 + k * 7 + Math.floor(nb * i / segs + a0 / 3.1416 + 0.5)));
+      const jr = lod ? 0.72 + 0.5 * h1(seed * 977 + k * 37 + i) : 0.5 + 0.72 * lb, jd = lod ? 0.4 + 1.2 * h1(seed * 613 + k * 91 + i) : 0.3 + 1.5 * lb;
       const a = a0 + (i + (h1(seed * 211 + k * 17 + i) - 0.5) * 0.5 * q) / segs * 6.2832, rr = Math.max(R * Math.pow(q, 0.85) * (1 + (jr - 1) * q * q), 0.03);
       g.pos[v * 3] = Math.cos(a) * rr; g.pos[v * 3 + 2] = Math.sin(a) * rr;
       g.pos[v * 3 + 1] = under ? y0 + 0.12 : y0 + th * Math.pow(1 - q, 1.5) - 0.3 * R * q * q * q * jd;
@@ -201,3 +216,105 @@ export function spruce(lod, seed) {
   return merge(P);
 }
 export const boulder = (seed) => setMat(rock(seed, 2, 0.4), 9, 0);
+
+// ---- small things: snowman, sled, bench, cairn, campfire, lean-to ----
+const fur = (g, part, c) => { for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = part; g.uv[i + 1] = 13 + (c + 0.5) / 12; } return g; };
+const el = (a, b, c, x, y, z, part = 0, col = 0, sub = 2) => fur(mv(scale(sphere(1, sub), a, b, c), x, y, z), part, col);
+const lim = (path, r, part, col, segs = 6) => fur(tube(path, r, segs), part, col);
+const ball = (r, mat, x, y, z, sub = 1) => mv(setMat(sphere(r, sub), mat, 0), x, y, z);
+const log = (r, len) => merge([rx(setMat(cylinder(r, r, len, 10), 4, 0), Math.PI / 2, 0, r * 0.8, -len / 2), ...[1, -1].map((s) => mv(setMat(scale(sphere(1, 1), r, r, 0.02), 4, 0), 0, r * 0.8, s * len / 2))]);
+function snowman(s) {
+  const P = [ball(0.44, 2, 0, 0.3, 0, 2), ball(0.31, 2, 0, 0.92, 0, 2), ball(0.21, 2, 0, 1.36, 0, 2),
+    fur(rx(cylinder(0.035, 0.004, 0.22, 6), Math.PI / 2, 0, 1.37, 0.19), 0, 0),
+    mv(setMat(cylinder(0.15, 0.13, 0.2, 10), 4), 0, 1.53, 0), mv(setMat(cylinder(0.22, 0.22, 0.025, 10), 4), 0, 1.52, 0), cap(0.3, 0.3, 0.06, 0, 1.72, 0, 3),
+    fur(mv(scale(torus(0.2, 0.05, 12, 6), 1, 1.2, 1), 0, 1.17, 0), 0, 10), fur(bx(0.09, 0.3, 0.04, 0, 0.12, 0.85, 0.2), 0, 10)];
+  for (const sg of [1, -1]) P.push(ball(0.028, 4, sg * 0.075, 1.43, 0.185), setMat(tube([[sg * 0.27, 0.98, 0], [sg * 0.55, 1.2, 0.05], [sg * 0.72, 1.42, 0.02]], 0.014, 4), 4, 0));
+  for (let i = 0; i < 3; i++) P.push(ball(0.026, 4, 0, 0.78 + i * 0.14, 0.3 - Math.abs(i - 1) * 0.02));
+  return scale(merge(P), s);
+}
+function sled() {
+  const P = [bx(0.44, 0.03, 0.85, 0, 0, 0.2, 0, 1), mv(blanket(0.44, 0.5, 0.05, 0.08, 7, 0, 0.3), -0.22, 0.23, 0.12)];
+  for (const sg of [1, -1]) {
+    P.push(bx(0.035, 0.04, 1.05, 4, sg * 0.2, 0, 0), rx(bx(0.035, 0.04, 0.3, 4), 0.6, sg * 0.2, 0.07, -0.62));
+    for (const z of [-0.3, 0.3]) P.push(bx(0.03, 0.18, 0.03, 4, sg * 0.2, 0.03, z));
+  }
+  return merge(P);
+}
+function bench() {
+  const P = [bx(1.7, 0.06, 0.44, 4, 0, 0.44, 0), rx(bx(1.7, 0.4, 0.05, 4), -0.2, 0, 0.62, -0.24), mv(blanket(0.9, 0.44, 0.07, 0.1, 4, 0, 0.3), -0.85, 0.5, 0)];
+  for (const sx of [1, -1]) P.push(bx(0.07, 0.44, 0.4, 4, sx * 0.7, 0, 0), bx(0.07, 0.62, 0.07, 4, sx * 0.7, 0.44, -0.24));
+  return merge(P);
+}
+const cairn = () => merge([0.1, 0.42, 0.7, 0.93, 1.1].map((y, i) => mv(scale(boulder(i + 11), 0.5 - i * 0.085, 0.3 - i * 0.05, 0.5 - i * 0.085), (i % 2) * 0.05, y, 0)));
+function camp() {
+  const P = [bx(0.5, 0.07, 0.5, 7, 0, 0.02, 0)];
+  for (let i = 0; i < 9; i++) { const a = i * 0.7; P.push(mv(scale(boulder(i + 3), 0.17, 0.13, 0.17), Math.cos(a) * 0.62, 0.06, Math.sin(a) * 0.62)); }
+  for (let i = 0; i < 5; i++) { const a = i * 1.257; P.push(setMat(tube([[Math.cos(a) * 0.5, 0.03, Math.sin(a) * 0.5], [-Math.cos(a) * 0.08, 0.5, -Math.sin(a) * 0.08]], 0.05, 6), 4, 0)); }
+  for (const [x, z, a] of [[1.9, 0.6, 0.3], [-0.3, -2.0, 1.4]]) P.push(ry(merge([log(0.2, 1.6), mv(blanket(0.3, 1.6, 0.07, 0.1, 6, 0, 0.4), -0.15, 0.33, 0)]), a, x, 0, z));
+  return merge(P);
+}
+function lean() {   // open toward +z
+  const P = [rx(merge([bx(3.4, 0.07, 3.0, 4, 0, 0, -1.5, 1), mv(blanket(3.5, 3.1, 0.2, 0.25, 8), -1.75, 0.07, -1.5)]), -0.68, 0, 1.95, 0.05), bx(3.5, 0.1, 0.1, 4, 0, 1.9, 0)];
+  for (const sx of [1, -1]) P.push(bx(0.1, 2.0, 0.1, 4, sx * 1.6, -0.1, 0), rx(bx(0.08, 0.08, 3.0, 4, sx * 1.6, 0, -1.5), -0.68, 0, 1.9, 0));
+  P.push(el(0.3, 0.12, 0.8, 0.5, 0.1, -0.9, 0, 3, 1), el(0.2, 0.2, 0.28, -0.8, 0.18, -0.6, 0, 10, 1));   // a bedroll and a pack
+  return merge(P);
+}
+// frozen waterfall draped over the rock face: flows along +x from the top of the rib. hAt = the rendered terrain height
+export function icefall(hAt, [x0, z0]) {
+  const xs = [], us = [];
+  for (let i = 0; i <= 30; i++) xs.push(x0 - 4.5 + i * 0.33);
+  for (let j = -6; j <= 6; j++) us.push(j / 6);
+  const g = grid(xs, us, () => 0, 12);
+  for (let v = 0; v < g.pos.length / 3; v++) {
+    const x = g.pos[v * 3], u = g.pos[v * 3 + 2], f = (x - xs[0]) / 10, w = (1.0 + 2.8 * f * f + 0.45 * snoise2(x * 0.7, 3 + Math.sign(u))) * (1 + 0.5 * ss(0.85, 1, f)), z = z0 + u * w + 0.6 * snoise2(x * 0.3, 1);
+    g.pos[v * 3 + 2] = z; g.pos[v * 3 + 1] = hAt(x, z) - 0.1 + Math.sqrt(Math.max(1 - u * u, 0)) * ss(0, 0.12, f) * (0.5 + 0.3 * Math.abs(Math.sin(u * 5 + x * 0.25)) + 0.35 * snoise2(x * 0.8, u * 2) + 0.5 * f);
+    g.uv[v * 2] = u * w;
+  }
+  return computeNormals(g);
+}
+
+// ---- creatures. All face -z; part ids (uv.x): 0 body, 1 head + neck, 2..5 legs, 6 tail. Animated in vsLife ----
+export function fox() {
+  const P = [el(0.1, 0.11, 0.29, 0, 0.34, 0.02), el(0.085, 0.09, 0.12, 0, 0.31, -0.17, 0, 1),
+    lim([[0, 0.36, -0.2], [0, 0.44, -0.33]], 0.065, 1, 0), el(0.075, 0.07, 0.085, 0, 0.47, -0.37, 1, 0),
+    lim([[0, 0.455, -0.42], [0, 0.44, -0.56]], (t) => 0.045 - 0.03 * t, 1, 1), el(0.016, 0.014, 0.016, 0, 0.445, -0.565, 1, 2, 1)];
+  for (const s of [1, -1]) {
+    P.push(lim([[s * 0.045, 0.51, -0.35], [s * 0.065, 0.62, -0.335]], (t) => 0.034 - 0.03 * t, 1, 2, 5), el(0.011, 0.011, 0.008, s * 0.036, 0.485, -0.44, 1, 2, 1));
+    [-0.19, 0.2].forEach((z, k) => P.push(lim([[s * 0.06, 0.3, z], [s * 0.06, 0.14, z + (k ? 0.03 : 0)], [s * 0.06, 0, z]], (t) => 0.032 - 0.012 * t, 2 + k * 2 + (s < 0), 2, 5)));
+  }
+  P.push(el(0.065, 0.065, 0.2, 0, 0.33, 0.46, 6, 0), el(0.045, 0.045, 0.09, 0, 0.33, 0.63, 6, 1));
+  return merge(P);
+}
+export function deer() {
+  const P = [el(0.25, 0.29, 0.62, 0, 1.02, 0, 0, 3), el(0.2, 0.22, 0.25, 0, 1.0, 0.45, 0, 4),
+    lim([[0, 0.98, -0.42], [0, 1.25, -0.72], [0, 1.5, -0.95]], (t) => 0.2 - 0.09 * t, 1, 4, 8),
+    el(0.095, 0.105, 0.17, 0, 1.56, -1.08, 1, 3), lim([[0, 1.54, -1.18], [0, 1.5, -1.36]], (t) => 0.075 - 0.02 * t, 1, 3), el(0.03, 0.02, 0.02, 0, 1.5, -1.375, 1, 2, 1),
+    el(0.05, 0.06, 0.1, 0, 0.98, 0.66, 6, 1, 1)];
+  for (const s of [1, -1]) {
+    P.push(el(0.03, 0.06, 0.025, s * 0.115, 1.63, -1.0, 1, 3, 1), el(0.014, 0.014, 0.012, s * 0.07, 1.6, -1.2, 1, 2, 1));
+    const A = [[s * 0.06, 1.64, -1.02], [s * 0.2, 1.9, -0.86], [s * 0.36, 2.2, -0.9], [s * 0.4, 2.42, -1.08], [s * 0.34, 2.52, -1.25]];
+    P.push(lim(A, (t) => 0.03 - 0.018 * t, 1, 5, 5));
+    for (const [k, dx, dy, dz] of [[1, 0.02, 0.2, 0.12], [2, 0.1, 0.22, 0.08], [3, 0.12, 0.14, 0.0], [0, 0.05, 0.04, -0.3]])
+      P.push(lim([A[k], [A[k][0] + s * dx, A[k][1] + dy, A[k][2] + dz]], (t) => 0.02 - 0.014 * t, 1, 5, 4));
+    [-0.4, 0.42].forEach((z, k) => P.push(lim([[s * 0.14, 0.9, z], [s * 0.14, 0.45, z + (k ? 0.06 : 0)], [s * 0.14, 0, z]], (t) => 0.075 - 0.04 * t, 2 + k * 2 + (s < 0), k ? 3 : 2, 6)));
+  }
+  return merge(P);
+}
+export function seal() {
+  const P = [el(0.26, 0.21, 0.55, 0, 0.19, 0.1, 0, 6), el(0.16, 0.13, 0.42, 0, 0.13, 0.62, 0, 6),
+    el(0.2, 0.18, 0.3, 0, 0.22, -0.38, 1, 6), el(0.13, 0.125, 0.16, 0, 0.27, -0.66, 1, 6), el(0.07, 0.055, 0.07, 0, 0.245, -0.8, 1, 4, 1), el(0.02, 0.015, 0.015, 0, 0.26, -0.865, 1, 2, 1)];
+  for (const s of [1, -1]) P.push(el(0.018, 0.018, 0.012, s * 0.07, 0.31, -0.775, 1, 2, 1), el(0.08, 0.025, 0.17, s * 0.27, 0.04, -0.12, 0, 6, 1), el(0.07, 0.02, 0.15, s * 0.08, 0.05, 1.05, 6, 6, 1));
+  return merge(P);
+}
+export function owl() {
+  const P = [el(0.13, 0.19, 0.12, 0, 0.19, 0.01, 0, 7), el(0.105, 0.09, 0.1, 0, 0.42, 0, 1, 7), el(0.02, 0.03, 0.02, 0, 0.405, -0.1, 1, 2, 1), el(0.06, 0.03, 0.12, 0, 0.06, 0.1, 0, 7, 1)];
+  for (const s of [1, -1]) P.push(el(0.045, 0.16, 0.1, s * 0.115, 0.2, 0.03, 0, 7, 1), el(0.024, 0.024, 0.012, s * 0.042, 0.435, -0.09, 1, 8, 1), el(0.011, 0.011, 0.008, s * 0.042, 0.435, -0.1, 1, 2, 1));
+  return merge(P);
+}
+// the drifting fishing boat: lantern on a pole at the bow, a bundled-up fisher with a rod. Lantern at FISH_L (local)
+export const FISH_L = [1.9, 1.88, 0.36];
+export function fisher() {
+  return merge([boat(4.6, 0.78), bx(0.05, 1.5, 0.05, 4, 1.9, 0.6, 0), bx(0.05, 0.05, 0.4, 4, 1.9, 2.05, 0.18), bx(0.14, 0.2, 0.14, 7, 1.9, 1.78, 0.36), bx(0.2, 0.03, 0.2, 4, 1.9, 1.98, 0.36),
+    el(0.2, 0.3, 0.19, -0.5, 0.95, 0, 0, 9), el(0.1, 0.11, 0.1, -0.46, 1.33, 0, 0, 11, 1), el(0.105, 0.07, 0.105, -0.46, 1.4, 0, 0, 10, 1), el(0.03, 0.03, 0.03, -0.46, 1.48, 0, 0, 1, 1),
+    lim([[-0.4, 1.05, 0.15], [-0.1, 1.3, 0.8], [0.1, 1.5, 1.9]], 0.012, 0, 2, 4)]);
+}

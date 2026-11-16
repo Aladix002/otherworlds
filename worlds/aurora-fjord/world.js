@@ -1,12 +1,12 @@
 // Aurora over a winter fjord. See NOTES.md.
 import { pcg, u2f } from '../../core/src/noise.js';
-import { ss, DOOR, DOOR_YAW, PIER, SPAWN, MOON, VN, buildLayout, buildTerrain, buildMap, heightAt, makeSdf } from './terrain.js';
-import { HOUSE, village, spruce, boulder } from './geo.js';
+import { ss, DOOR, DOOR_YAW, PIER, SPAWN, MOON, VN, KNOLL, CLR, ICE, HERD, height, buildLayout, buildTerrain, buildMap, heightAt, makeSdf } from './terrain.js';
+import { HOUSE, village, spruce, boulder, icefall, fox, deer, seal, owl, fisher, FISH_L } from './geo.js';
 import COMMON from './common.wgsl';
 import SCENE from './scene.wgsl';
 import FX from './fx.wgsl';
 
-const NPRINT = 48, EYE = 1.62;
+const NPRINT = 48, EYE = 1.62, FOX0 = 4.7, TAU = Math.PI * 2;
 const yawTo = (x, z, tx, tz) => Math.atan2(-(tx - x), -(tz - z));
 // pose from eye xz (+ height above ground) looking at a target
 const pose = (x, up, z, tx, ty, tz, t) => { const y = heightAt(x, z) + up; return { pos: [x, y, z], yaw: yawTo(x, z, tx, tz), pitch: Math.atan2(ty - y, Math.hypot(tx - x, tz - z)), t }; };
@@ -53,17 +53,18 @@ export default {
   poses: [
     pose(-1.5, 1.7, 21, -1, 5, -60, 12),                 // village around the cove, aurora mirrored in the fjord
     pose(1.4, 1.75, -16.5, -70, 170, -420, 31),            // peaks with aurora curtains, from the pier head
-    pose(-70, 2.1, -93, -175, 66, -168, 22),                  // forest slope swaying
+    pose(CLR[0] + 10.5, 1.65, CLR[1] - 7, -63, 9, 33.5, 22),   // forest clearing: campfire, lean-to, owl, frozen fall on the rock rib
     pose(-8.5, 1.6, 9.5, -15.5, 3.0, -1.5, 17),            // close house: warm window, snow on the roof
-    pose(-3, 1.6, 30, -3.5, 60, 14, 44),                 // looking up into the aurora
+    pose(KNOLL[0] + 1.5, 1.9, KNOLL[1] + 3.6, 10, 30, -60, 44),   // the bench on the view hill: the fjord, the herd, the aurora above
     pose(10.2, 1.55, 42.6, DOOR[0], DY + 1.25, DOOR[2], 27),   // the door on the snowy shore
   ],
   flythrough: [
     [-1.5, 21, -1, -60], [0.5, 15, 2, -40], [2, 8, 2, -60], [2, 0, -10, -80], [2, -9, -30, -90], [2, -15, 30, -70], [2.2, -8, 40, -20], [2, 2, 20, 10], [0, 13, -20, 5],
     [-9, 15, -26, 0], [-19, 6, -34, -24], [-27, -8, -30, -40], [-31, -18, 0, -30], [-25, -4, 10, 20], [-13, 14, 9, 37], [-2, 24, 9, 37], [5, 31, 9, 37], [8.5, 39.5, 9.3, 36],
-    [11.5, 41, 9, 37], [13, 36, -30, -40], [8, 28, -10, -60], [2, 23, -1, -60], [-1.5, 21, -1, -60],
+    [11.5, 41, 9, 37], [13, 36, 30, 40], [21, 37.8, 40, 50], [30, 38, 42, 50], [38, 46, 30, 0], [42.5, 51.5, 8, -60], [41, 44, 50, 15], [31, 37, 0, 0], [15, 31, -20, 10],
+    [-2, 22, -30, 20], [-14, 13, -40, 22], [-28, 11, -50, 30], [-39, 21, -55, 31], [-45, 27, -62, 33], [-46.5, 33, -53, 29], [-41, 25, -20, 5], [-25, 9, 0, -30], [-10, 16, -1, -40], [-1.5, 21, -1, -60],
   ].map(([x, z, tx, tz]) => pose(x, EYE, z, tx, heightAt(x, z) + 1.5 + Math.hypot(tx - x, tz - z) * 0.04, tz)),
-  flythroughDuration: 60,
+  flythroughDuration: 84,
   doors: [{ pos: [DOOR[0], DY, DOOR[2]], yaw: DOOR_YAW, to: 'crystal-cave' }],
   doorLight: [0.05, 0.06, 0.085],
   bounds: { center: [0, 2, -12], radius: 92 },
@@ -121,7 +122,9 @@ export default {
     await progress(0.55);
 
     // ---------- meshes + instances ----------
-    const V = village(PIER, L.lamps, heightAt, [DOOR[0], DY, DOOR[2]], DOOR_YAW, L.posts);
+    // the terrain as rendered (1 m grid), so the ice hugs the rock face
+    const hG = (x, z) => { const i = Math.floor(x), j = Math.floor(z), u = x - i, v = z - j; return (height(i, j) * (1 - u) + height(i + 1, j) * u) * (1 - v) + (height(i, j + 1) * (1 - u) + height(i + 1, j + 1) * u) * v; };
+    const V = village(PIER, L.lamps, heightAt, [DOOR[0], DY, DOOR[2]], DOOR_YAW, L.posts, { ...L, ice: icefall(hG, ICE) });
     const inst = (a) => ctx.buffer(Float32Array.from(a), 'vertex');
     this.objs = [{ m: M.upload(V.geo), i: inst([0, 0, 0, 1, 0, 0.5, 1, 0]), n: 1 }];
     this.glows = [];
@@ -131,14 +134,22 @@ export default {
       const ib = inst(L.houses[v]);
       this.objs.push({ m: M.upload(H.geo), i: ib, n }); this.glows.push({ m: M.upload(H.glow), i: ib, n });
     });
+    // creatures (0 = the fox, moved every frame) and the drifting fishing boat
+    this.fox = L.fox; this.foxD = Float32Array.of(0, 0, 0, 1, 0, 15.5, 0, 0); this.foxV = 1; this.foxLag = 0;
+    this.life = [fox, deer, seal, owl].map((f, k) => ({ m: M.upload(f()), i: inst(k ? L.life[k] : this.foxD), n: k ? L.life[k].length / 8 : 1 }));
+    this.boatD = Float32Array.of(0, -0.14, -44, 1, 0, 0.5, 1, 0); this.boatI = inst(this.boatD);
+    this.objs.push({ m: M.upload(fisher()), i: this.boatI, n: 1 });
+    this.campY = L.camp[1]; this.owlPos = L.owlPosts[0];
     await progress(0.65);
     this.trees = makeBatch(ctx, [0, 1, 2].map((l) => M.upload(spruce(l, 3))), L.trees, [42, 150, 1000]);
     const lamps = []; for (let i = 0; i < V.bulbs.length; i += 3) lamps.push(V.bulbs[i], V.bulbs[i + 1], V.bulbs[i + 2], 0);
-    this.lampI = inst(lamps); this.nLamp = lamps.length / 4;
+    lamps.push(CLR[0], L.camp[1] + 0.35, CLR[1], 0, 0, 0, 0, 0);                        // fire glow, then the boat lantern (moved every frame)
+    this.lampI = inst(lamps); this.nLamp = lamps.length / 4; this.lampD = new Float32Array(4);
     const sm = [];
     L.chim.forEach((c, i) => sm.push(c[0], c[1], c[2], (i * 0.618) % 1 * 0.99));
     this.nChim = L.chim.length;
     L.puffs.slice(0, 14).forEach((p, i) => sm.push(p[0], p[1], p[2], 1 + (i * 0.381) % 1 * 0.99));
+    sm.push(CLR[0], L.camp[1], CLR[1], 2.3, CLR[0], L.camp[1], CLR[1], 2.7, CLR[0], L.camp[1], CLR[1], 3.5);
     this.smokeI = inst(sm); this.nSmoke = sm.length / 4;
     // footprints: baked trails + a ring buffer for the player's own
     const pr = new Float32Array((L.prints.length / 3 + NPRINT) * 4);
@@ -167,7 +178,7 @@ export default {
     const defs = [
       { vs: 'vsTer', fs: 'fsTer', buffers: [M.layout] }, { buffers: [M.layout, IL] }, { vs: 'vsTree', fs: 'fsTree', buffers: [M.layout, IL], cull: 'none' },
       { fs: 'fsGlow', buffers: [M.layout, IL], blend: 'add' }, { vs: 'vsSky', fs: 'fsSky', depthWrite: false, cull: 'none' }, { vs: 'vsAur', fs: 'fsAur', blend: 'add', cull: 'none' },
-      { module: fx, vs: 'vsLamp', fs: 'fsLamp', buffers: [I4], blend: 'add', cull: 'none' },
+      { module: fx, vs: 'vsLamp', fs: 'fsLamp', buffers: [I4], blend: 'add', cull: 'none' }, { vs: 'vsLife', buffers: [M.layout, IL] },
     ];
     const all = await Promise.all([
       ...defs.map((d) => P(d)), ...defs.map((d) => P({ ...d, cull: d.cull === 'none' ? 'none' : 'front', constants: mir })),
@@ -176,8 +187,8 @@ export default {
       P({ module: fx, vs: 'vsSmoke', fs: 'fsSmoke', buffers: [I4], blend: 'premul', cull: 'none' }),
       P({ module: fx, vs: 'vsPrint', fs: 'fsPrint', buffers: [I4], blend: 'multiply', cull: 'none' }),
     ]);
-    this.pm = all.slice(0, 7); this.pr2 = all.slice(7, 14);
-    [this.pWater, this.pSnow, this.pSmoke, this.pPrint] = all.slice(14);
+    this.pm = all.slice(0, 8); this.pr2 = all.slice(8, 16);
+    [this.pWater, this.pSnow, this.pSmoke, this.pPrint] = all.slice(16);
     await progress(1);
   },
 
@@ -187,6 +198,8 @@ export default {
     for (let i = 0; i < 4; i++) this.ter[i].draw(pass);
     pass.setPipeline(p[1]);
     for (let i = 0; i < this.objs.length; i++) { const o = this.objs[i]; pass.setVertexBuffer(1, o.i); o.m.draw(pass, o.n); }
+    pass.setPipeline(p[7]);
+    for (let i = 0; i < 4; i++) { const o = this.life[i]; pass.setVertexBuffer(1, o.i); o.m.draw(pass, o.n); }
     pass.setPipeline(p[2]); drawBatch(this.trees, pass);
     pass.setPipeline(p[3]);
     for (let i = 0; i < this.glows.length; i++) { const o = this.glows[i]; pass.setVertexBuffer(1, o.i); o.m.draw(pass, o.n); }
@@ -201,6 +214,22 @@ export default {
     P[0] = 0.92 + 0.2 * Math.sin(t * 0.021) + 0.12 * Math.sin(t * 0.053 + 1.3);          // aurora activity
     P[1] = 0.62 + 0.28 * Math.sin(t * 0.017 + 2) + 0.1 * Math.sin(t * 0.041);           // snowfall density
     P[2] = ctx.doors[0] ? ctx.doors[0].open : 0;
+    // the fox trots its round; it waits and watches while the visitor is close
+    const F = this.fox, D = this.foxD, tot = F[1082];
+    this.foxV += ((cam.frozen ? 1 : ss(3, 7, Math.hypot(cam.pos[0] - D[0], cam.pos[2] - D[2]))) - this.foxV) * (1 - Math.exp(-dt / 0.6));
+    this.foxLag += (1 - this.foxV) * 1.1 * dt;
+    let s = (t * 1.1 + FOX0 - this.foxLag) % tot, lo = 0, hi = 360;
+    if (s < 0) s += tot;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (F[mid * 3 + 2] <= s) lo = mid; else hi = mid; }
+    const ff = (s - F[lo * 3 + 2]) / (F[hi * 3 + 2] - F[lo * 3 + 2]), dx = F[hi * 3] - F[lo * 3], dz = F[hi * 3 + 1] - F[lo * 3 + 1];
+    D[0] = F[lo * 3] + dx * ff; D[2] = F[lo * 3 + 1] + dz * ff; D[1] = heightAt(D[0], D[2]) - 0.03; D[4] = Math.atan2(-dx, -dz);
+    D[5] = 0.5 + Math.round(this.foxV * 15); D[7] = (s * 10.5) % TAU;
+    ctx.queue.writeBuffer(this.life[0].i, 0, D);
+    // the fishing boat drifts on the fjord, its lantern with it
+    const B = this.boatD, by = 0.9 + 0.5 * Math.sin(t * 0.006 + 2), bc = Math.cos(by), bs = Math.sin(by), LD = this.lampD;
+    B[0] = 1 + 10 * Math.sin(t * 0.013 + 1); B[1] = -0.14 + 0.012 * Math.sin(t * 0.7); B[2] = -44 + 7 * Math.sin(t * 0.009); B[4] = by;
+    LD[0] = B[0] + FISH_L[0] * bc + FISH_L[2] * bs; LD[1] = B[1] + FISH_L[1]; LD[2] = B[2] - FISH_L[0] * bs + FISH_L[2] * bc;
+    ctx.queue.writeBuffer(this.boatI, 0, B); ctx.queue.writeBuffer(this.lampI, (this.nLamp - 1) * 16, LD);
     // the player's own footprints + crunch
     if (!cam.frozen && cam.mode === 'walk') {
       this.walked += Math.hypot(cam.vel[0], cam.vel[2]) * dt;
@@ -258,6 +287,14 @@ export default {
         a.whoosh({ dur: 0.13, f0: 500, f1: 900, q: 2.5, gain: 0.008, when: w, pan, reverb: 0.95 });
       }
     }, { startDelay: 70 });
+    // the campfire in the clearing, the owl by the door path, a bell in the herd
+    const fire = a.spatial({ pos: [CLR[0], this.campY + 0.3, CLR[1]], ref: 4, rolloff: 1.4, reverb: 0.15, gain: 1 });
+    a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 320, gain: 0.05, mod: 0.5, modRate: 0.2, bus: fire });
+    a.every(0.12, 0.8, (when) => a.whoosh({ dur: 0.03 + 0.03 * a.rng(), f0: 1800 + 2500 * a.rng(), f1: 900, q: 3, gain: 0.018 + 0.02 * a.rng(), peak: 0.1, when, bus: fire }));
+    const hoot = a.spatial({ pos: this.owlPos, ref: 9, rolloff: 1, reverb: 0.7, gain: 1 });
+    a.every(40, 90, (when) => { for (let i = 0; i < 3; i++) a.chirp({ f0: 335 - i * 8, f1: 300, dur: i ? 0.22 : 0.4, gain: 0.014, when: when + i * 0.55 + (i ? 0.25 : 0), bus: hoot }); }, { startDelay: 12 });
+    const herd = a.spatial({ pos: [HERD[0], 4, HERD[1]], ref: 10, rolloff: 1.2, reverb: 0.5, gain: 1 });
+    a.every(7, 26, (when) => { for (let i = 0, n = 1 + a.rng.int(3); i < n; i++) a.bell({ freq: a.hz(88) * (1 + 0.01 * a.rng()), gain: 0.007, decay: 0.9, ratio: 2.76, index: 1.3, when: when + i * (0.3 + 0.2 * a.rng()), bus: herd }); }, { startDelay: 5 });
     const notes = a.scale(74, 'pentatonic', 2);
     a.every(18, 44, (when) => a.bell({ freq: a.hz(a.rng.pick(notes)), gain: 0.005, decay: 7, when, pan: a.rng.range(-0.6, 0.6), reverb: 0.95 }), { startDelay: 9 });
   },

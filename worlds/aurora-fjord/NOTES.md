@@ -36,6 +36,22 @@ Lower/pulled-back peaks with altitude snow and triplanar rock, irregular droopin
 stars, softer bluish flakes, pink hem + violet tops and per-band fold scales on the aurora (faded edge-on/overhead), sky now drawn
 in the mirror pass (it was culled), radial snow mound at the door, boulders + marker posts, wind ridges in the snow normal.
 
+## Variety and life pass
+Places (all inside the walk bounds, joined by trodden paths in `PATHS`):
+- **Village and pier** — porch canopies, shutters, roof ladders on the houses; three snowmen with sleds (`SNOWMEN`); a tarred **sauna**
+  (house variant 4, paint 5) with steam between the west-arm houses; seals on the ice shelf by the pier; a **fishing boat** with a
+  lantern and a fisher drifting on the fjord (`boatD`, moved in `update`, lantern = last lamp halo).
+- **Forest clearing** (`CLR`, west) — grove of spruces, campfire (flames/sparks = smoke kinds 2/3, light pool in `L.pools`), lean-to,
+  log seats, an owl on a post, and the **frozen waterfall** (`icefall`, material 12) on the rock rib (`cliffD`, also in the sdf).
+- **View hill** (`KNOLL`, east) — bench, lantern, cairn, a view down the fjord; the **reindeer herd** (`HERD`) grazes below.
+- A **fox** trots a closed round at the cove head (`FOXP` -> `loopPath`, position is a function of time minus the time it waited),
+  leaving baked paw prints (print yaw + 100 = small print). It stops and watches while the visitor is within ~5 m.
+Creatures share one pipeline (`vsLife`, kinds 0 fox, 1 reindeer, 2 seal, 3 owl): body-part id in `uv.x`, palette index in the
+fraction of `uv.y` (material 13). Heads turn toward the visitor when close; reindeer lift their heads, seals raise theirs, owls
+swivel. Sounds: campfire crackle, owl hoot, a herd bell (all positional).
+Also: near spruces are whorls of separate boughs with a ragged needle fringe (discard in `fsTree`), the far terrain level is 32 m
+cells (was 64) with gradient-noise crags in the normal.
+
 ## Known issues
 - The water position is reconstructed from the view ray (interpolating the 80 km quad gave 0.5 m steps).
 - Objects have no moon shadow on each other; house/tree shadows on the ground are baked per terrain vertex (1 m).

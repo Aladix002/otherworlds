@@ -1,5 +1,5 @@
 // Transparent effects: snowfall, chimney smoke + snow sliding off boughs, lamp halos, footprints.
-struct PO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) a: vec4f };
+struct PO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) a: vec4f, @location(2) e: f32 };
 fn corner(vi: u32) -> vec2f {
   var cs = array<vec2f, 6>(vec2f(-1, -1), vec2f(1, -1), vec2f(-1, 1), vec2f(-1, 1), vec2f(1, -1), vec2f(1, 1));
   return cs[vi % 6u];
@@ -26,11 +26,11 @@ fn corner(vi: u32) -> vec2f {
   let r2 = dot(in.c, in.c);
   return vec4f(in.a.rgb * (exp(-r2 * 3.2) * max(1.0 - r2, 0.0) * in.a.a), 0.0);
 }
-// ---- smoke (kind 0) and powder falling from a bough (kind 1). instance: (pos, kind + seed) ----
+// ---- smoke (kind 0), powder falling from a bough (1), campfire flames (2) and sparks (3). instance: (pos, kind + seed) ----
 @vertex fn vsSmoke(@builtin(vertex_index) vi: u32, @location(3) a: vec4f) -> PO {
   let j = f32(vi / 6u); let kind = floor(a.w); let sd = fract(a.w); let t = G.time;
   let h = hash22(vec2f(j + 1.0, floor(sd * 991.0)));
-  var p = a.xyz; var sz = 0.0; var al = 0.0; var col = vec3f(0.0);
+  var p = a.xyz; var sz = 0.0; var al = 0.0; var col = vec3f(0.0); var em = 0.0;
   if (kind < 0.5) {
     let age = fract(t * 0.045 + j / 16.0 + sd);
     let k = floor(t * 0.045 + j / 16.0 + sd);
@@ -39,23 +39,34 @@ fn corner(vi: u32) -> vec2f {
     sz = 0.45 + 3.4 * age;
     al = smoothstep(0.0, 0.05, age) * (1.0 - age) * (1.0 - age) * 0.3;
     col = (G.sunColor * 0.5 + G.ambientSky * 1.6 + AUR * 0.03 * G.params.x) * 0.55 + WARM * 0.22 * exp(-age * 9.0);
-  } else {
+  } else if (kind < 1.5) {
     let P = 46.0 + 70.0 * sd; let lt = fract(t / P + sd * 7.0) * P; let age = lt / 5.0;
     p += vec3f((h.x - 0.5) * 1.6 + 0.4 * age, -(1.0 + 3.0 * h.y) * age - 3.0 * age * age - j * 0.25, (h.y - 0.5) * 1.6);
     sz = 0.3 + 1.1 * age;
     al = smoothstep(0.0, 0.08, age) * max(1.0 - age, 0.0) * 0.4;
     col = vec3f(0.8, 0.86, 0.96) * (G.sunColor * 0.6 + G.ambientSky * 1.5);
+  } else if (kind < 2.5) {
+    let age = fract(t * (0.42 + 0.25 * h.x) + j / 16.0 + h.y);
+    p += vec3f((h.x - 0.5) * 0.5 * (1.0 - age) + 0.05 * sin(t * 1.7 + j), 0.1 + age * (0.65 + 0.5 * h.y), (h.y - 0.5) * 0.5 * (1.0 - age));
+    sz = 0.3 * (1.0 - 0.7 * age);
+    al = smoothstep(0.0, 0.2, age) * (1.0 - age) * 0.8;
+    col = mix(vec3f(1.0, 0.5, 0.1), vec3f(0.9, 0.1, 0.02), age) * 1.5; em = 1.0;
+  } else {
+    let age = fract(t * 0.1 * (0.6 + h.x) + h.y + j / 16.0);
+    p += vec3f(sin(age * 9.0 + j) * 0.25 + (h.x - 0.5) * 0.5 + age * 0.9, 0.3 + age * 3.4, cos(age * 7.0 + j * 2.0) * 0.25 + (h.y - 0.5) * 0.5 + age * 0.4);
+    sz = 0.03; al = smoothstep(0.0, 0.05, age) * (1.0 - age) * (1.0 - age);
+    col = vec3f(1.0, 0.45, 0.12) * 5.0; em = 1.0;
   }
   let c = corner(vi);
   var o: PO;
   o.pos = G.viewProj * vec4f(billboard(p, c, vec2f(sz)), 1.0);
-  o.c = c; o.a = vec4f(col, al * distFade(p, 300.0, 500.0));
+  o.c = c; o.a = vec4f(col, al * distFade(p, 300.0, 500.0)); o.e = em;
   return o;
 }
 @fragment fn fsSmoke(in: PO) -> @location(0) vec4f {
   let r2 = dot(in.c, in.c);
   let a = exp(-r2 * 4.5) * max(1.0 - r2, 0.0) * in.a.a;
-  return vec4f(in.a.rgb * a, a);
+  return vec4f(in.a.rgb * a, a * (1.0 - in.e));
 }
 // ---- lamp halos: small hot core, wide soft falloff ----
 @vertex fn vsLamp(@builtin(vertex_index) vi: u32, @location(3) a: vec4f) -> PO {
@@ -69,10 +80,11 @@ fn corner(vi: u32) -> vec2f {
   let r2 = dot(in.c, in.c);
   return vec4f(WARM * ((exp(-r2 * 50.0) * 1.2 + exp(-r2 * 8.0) * 0.16 + exp(-r2 * 2.5) * 0.03) * (1.0 - smoothstep(0.6, 1.0, r2)) * in.a.a), 0.0);
 }
-// ---- footprints: soft multiply decals. instance: (x, y, z, yaw) ----
+// ---- footprints: soft multiply decals. instance: (x, y, z, yaw; + 100 = small paw print) ----
 @vertex fn vsPrint(@builtin(vertex_index) vi: u32, @location(3) a: vec4f) -> PO {
   let c = corner(vi);
-  let w = a.xyz + rotY(a.w) * vec3f(c.x * 0.1, 0.035, c.y * 0.19);
+  let sm = step(50.0, a.w); let k = 1.0 - 0.68 * sm;
+  let w = a.xyz + rotY(a.w - 100.0 * sm) * vec3f(c.x * 0.1 * k, 0.035, c.y * 0.19 * k * (1.0 - 0.35 * sm));
   var o: PO;
   o.pos = G.viewProj * vec4f(w, 1.0);
   o.c = c; o.a = vec4f(distFade(w, 16.0, 34.0));

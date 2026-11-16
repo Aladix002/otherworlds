@@ -13,7 +13,10 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   // rock on steep faces, broken up by noise
   let big = nl(vec2f(wp.x + wp.z * 0.3, wp.y * 2.0 + wp.z * 0.5), 0.0035, d);
   let big2 = nl(wp.xz, 0.0011, d);
-  let rk = smoothstep(0.74, 0.5, n.y + (big.a - 0.5) * 0.5 + (big2.a - 0.5) * 0.5 + (a.a - 0.5) * 0.2 + (b.a - 0.5) * 0.1 + 0.3 * smoothstep(180.0, 520.0, wp.y)) * smoothstep(6.0, 30.0, wp.y);
+  // far slopes: crags from the noise gradient, so the coarse far mesh does not shade as flat facets
+  let mid = nl(wp.xz, 0.0043, d);
+  n = normalize(n + (vec3f(big2.g - 0.5, 0.0, big2.b - 0.5) * 1.3 + vec3f(mid.g - 0.5, 0.0, mid.b - 0.5) * 0.7) * smoothstep(200.0, 800.0, d) * smoothstep(20.0, 120.0, wp.y));
+  let rk = smoothstep(0.74, 0.5, n.y + (big.a - 0.5) * 0.5 + (big2.a - 0.5) * 0.5 + (a.a - 0.5) * 0.2 + (b.a - 0.5) * 0.1 + 0.3 * smoothstep(180.0, 520.0, wp.y)) * smoothstep(4.0, 12.0, wp.y);
   let dn = drift(n, wp, d, m.b); n = dn.xyz;
   var col = snow(n, wp, in.m.x, dn.w, m) * (1.0 - 0.28 * m.b);
   // rock: triplanar grain + cracks, lifted by sky and aurora fill so the walls are not flat navy
@@ -47,6 +50,7 @@ fn paint(ci: f32) -> vec3f {
   if (ci < 1.5) { return vec3f(0.6, 0.36, 0.06); }         // ochre
   if (ci < 2.5) { return vec3f(0.62, 0.62, 0.57); }        // white
   if (ci < 3.5) { return vec3f(0.07, 0.24, 0.38); }        // blue
+  if (ci > 4.5) { return vec3f(0.075, 0.05, 0.035); }      // tarred (the sauna)
   return vec3f(0.1, 0.29, 0.17);                           // green
 }
 fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id)) & 1u) == 1u; }
@@ -107,6 +111,26 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
       let dn = drift(n, wp, d, 0.0);
       col = mix(alb * light(n, 1.0, 0.8, m.r, 0.0), snow(dn.xyz, wp, 1.0, dn.w, m), cap);
       return vec4f(fogged(col, wp), 1.0);
+    } else if (mat == 12.0) {
+      // ice: vertical organ-pipe streaks, sky and aurora in the glaze
+      let v = normalize(wp - G.camPos);
+      let st = nl(vec2f(u * 2.2, wp.y * 0.13 + wp.x * 0.1), 1.0, d);
+      let ni = normalize(n + vec3f(0.0, 0.0, (st.g - 0.5) * 1.3) + (nl(wp.zy, 0.3, d).gbg - 0.5) * 0.5);
+      let F = 0.05 + 0.95 * pow(1.0 - max(dot(-v, ni), 0.0), 4.0);
+      let frost = smoothstep(0.35, 0.7, nl(wp.zy + wp.x, 0.21, d).r + 0.25 * n.y);
+      col = mix(vec3f(0.13, 0.3, 0.4), vec3f(0.6, 0.7, 0.8), frost) * (0.45 + st.a) * (light(ni, 1.0, 1.0, m.r * 2.0, 0.0) + G.ambientSky * 0.9 + AURL * (0.14 * G.params.x))
+        + skyCol(reflect(v, ni)) * F * 1.6 + G.sunColor * (pow(max(dot(ni, normalize(G.sunDir - v)), 0.0), 60.0) * 1.2);
+      return vec4f(fogged(col, wp), 1.0);
+    } else if (mat == 13.0) {
+      // fur, feathers, cloth: palette index in the fraction
+      let pi = u32(fv * 12.0);
+      var pal = array<vec3f, 12>(vec3f(0.62, 0.2, 0.04), vec3f(0.6, 0.56, 0.5), vec3f(0.012, 0.01, 0.01), vec3f(0.17, 0.125, 0.09), vec3f(0.5, 0.47, 0.42), vec3f(0.42, 0.36, 0.27),
+        vec3f(0.2, 0.21, 0.23), vec3f(0.62, 0.62, 0.6), vec3f(1.0, 0.7, 0.1), vec3f(0.03, 0.06, 0.14), vec3f(0.5, 0.04, 0.03), vec3f(0.5, 0.3, 0.2));
+      let fz = nl(in.l.xz * 3.0 + in.l.y * 1.7, 1.0, d);
+      alb = pal[pi] * (0.75 + 0.5 * fz.a) * 1.25;
+      if (pi == 6u) { alb *= 0.5 + 0.9 * smoothstep(0.35, 0.6, nl(in.l.xz + in.l.y, 2.5, d).a); }
+      if (pi == 7u) { alb *= 0.5 + 0.5 * smoothstep(0.05, 0.3, abs(fract(in.l.y * 13.0 + fz.a * 0.8) - 0.5) + step(0.33, in.l.y)); }
+      if (pi == 8u) { return vec4f(fogged(alb * 0.7, wp), 1.0); }
     } else if (mat == 8.0) {
       let st = fv / 0.98;
       alb = mix(vec3f(0.07, 0.045, 0.03) * (0.6 + 0.4 * smoothstep(0.5, 0.38, abs(fract(st * 5.0) - 0.5))), mix(vec3f(0.5, 0.07, 0.04), vec3f(0.6, 0.6, 0.55), step(0.86, st)), step(0.72, st)) * (0.7 + 0.6 * nz.a);
@@ -141,6 +165,45 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
   o.pos = clip(w);
   return o;
 }
+// ---- creatures: head turns to the visitor, legs trot, tails sway. instance b = (yaw, seed + 15 * walk, kind, gait phase) ----
+@vertex fn vsLife(v: VI) -> VO {
+  let kind = v.b.z; let sd = fract(v.b.y); let walk = floor(v.b.y) / 15.0; let ph = v.b.w; let part = v.uv.x; let t = G.time;
+  let R = rotY(v.b.x);
+  var p = v.p; var n = v.n;
+  // per kind: neck pivot (y, z), hip height, reach of the look, idle look, attention radius, tail root
+  var piv = vec2f(0.36, -0.22); var hip = 0.3; var mx = 1.1; var idle = 0.25; var rad = 8.0; var tz = 0.28;
+  if (kind == 1.0) { piv = vec2f(1.0, -0.42); hip = 0.9; mx = 0.7; idle = 0.0; rad = 15.0; tz = 0.6; }
+  else if (kind == 2.0) { piv = vec2f(0.15, -0.2); mx = 0.9; idle = 0.3; rad = 13.0; tz = 0.9; }
+  else if (kind == 3.0) { piv = vec2f(0.33, 0.0); mx = 2.5; idle = 0.9; rad = 13.0; tz = 9.0; }
+  let lc = (G.camPos - v.a.xyz) * R;                    // the visitor in the creature's frame
+  let near = 1.0 - smoothstep(rad * 0.5, rad, length(lc));
+  let slow = sin(t * 0.11 + sd * 40.0) + 0.6 * sin(t * 0.047 + sd * 90.0);
+  let ang = atan2(-lc.x, -lc.z);
+  let look = mix(slow * idle, clamp(ang, -mx, mx) * (1.0 - smoothstep(2.4, 3.1, abs(ang))), near);
+  var pitch = 0.0;
+  if (kind == 1.0) { pitch = 1.3 * smoothstep(-0.5, 0.1, slow) * (1.0 - near); }             // grazing, lifts the head when you come close
+  if (kind == 2.0) { pitch = -0.1 - 0.4 * max(near, smoothstep(0.8, 1.3, slow)); }
+  if (part == 1.0) {
+    let o = vec3f(0.0, piv.x, piv.y); let cp = cos(pitch); let sp = sin(pitch); let ca = cos(look); let sa = sin(look);
+    var q = p - o;
+    q = vec3f(q.x, q.z * sp + q.y * cp, q.z * cp - q.y * sp); q = vec3f(q.x * ca + q.z * sa, q.y, q.z * ca - q.x * sa);
+    n = vec3f(n.x, n.z * sp + n.y * cp, n.z * cp - n.y * sp); n = vec3f(n.x * ca + n.z * sa, n.y, n.z * ca - n.x * sa);
+    p = q + o;
+  } else if (part > 5.5) {
+    p.x += sin(t * 0.7 + sd * 20.0) * 0.3 * max(p.z - tz, 0.0);
+  } else if (part > 1.5) {
+    let lp = ph + PI * step(abs(part - 3.5), 0.6);
+    let k = clamp((hip - p.y) / hip, 0.0, 1.0) * walk * hip;
+    p.z += sin(lp) * 0.5 * k; p.y += max(-cos(lp), 0.0) * 0.14 * k;
+  } else {
+    p.y *= 1.0 + 0.015 * sin(t * 1.1 + sd * 30.0);
+  }
+  p.y += 0.012 * sin(ph * 2.0) * walk;
+  var o: VO;
+  o.w = v.a.xyz + R * (p * v.a.w); o.n = R * n; o.m = v.uv; o.k = vec3f(0.0, 1.0, 0.0); o.l = p;
+  o.pos = clip(o.w);
+  return o;
+}
 @fragment fn fsTree(in: VO, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
   let wp = in.w;
   if (MIR < 0.0 && wp.y < 0.0) { discard; }
@@ -149,6 +212,12 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
   let d = distance(wp, G.camPos);
   let nz = nl(vec2f(atan2(in.l.z, in.l.x) * 2.3 + in.k.x * 9.0, length(in.l.xz) * 0.1 + in.l.y * 0.35), 0.16, d * 0.3);
   let m = vmap(wp.xz);
+  // near trees: the bough tips break up into a ragged needle fringe instead of straight polygon edges
+  let q = (1.0 - in.m.x) / 0.7;
+  if (in.m.y < 11.0 && q > 0.8 && d < 48.0 && in.n.y > -0.3) {
+    let fr = nl(vec2f(atan2(in.l.z, in.l.x) * 7.0 + in.l.y, in.l.y * 0.8 + length(in.l.xz) * 0.6), 1.1, d * 0.15).a;
+    if (fr < (q - 0.8) * 4.5 * (1.0 - d / 48.0)) { discard; }
+  }
   n = normalize(n + vec3f(nz.g - 0.5, 0.0, nz.b - 0.5) * 0.6);
   let ao = mix(0.62, 1.0, clamp(length(in.l.xz) / (2.5 * (1.0 - in.l.y / 9.0) + 0.5), 0.0, 1.0));
   var col = vec3f(0.05, 0.035, 0.028) * (0.5 + nz.a) * light(n, in.k.y, 0.6, m.r, 0.0);
