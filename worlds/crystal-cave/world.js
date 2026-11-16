@@ -274,36 +274,55 @@ export default {
   },
 
   audio(ctx, a) {
+    // identity: C lydian augmented (C D E F# G# A B), glass harmonica + singing bowls, pitched water drips for an irregular pulse
     a.setReverb({ seconds: 6.5, damp: 0.5, wet: 0.95, predelay: 0.04 });
-    a.drone({ freq: a.hz(26), partials: [1, 2, 3, 4.02, 6.01], amps: [1, 0.6, 0.3, 0.12, 0.05], detune: 5, cutoff: 260, gain: 0.05, attack: 6 });
+    const R = a.rng, S = a.scale(60, 'lydianAug', 3);          // 21 degrees, C4..
+    a.drone({ freq: a.hz(24), partials: [1, 2, 3, 4.02, 6.01], amps: [1, 0.6, 0.3, 0.12, 0.05], detune: 5, cutoff: 260, gain: 0.05, attack: 6 });
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 150, gain: 0.035, mod: 0.4, modRate: 0.03 });
     a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 900, q: 1.5, gain: 0.006, mod: 0.6, modRate: 0.02 });
-    a.pad({ chords: [[62, 69, 74, 81], [60, 67, 74, 79], [57, 64, 72, 76], [55, 62, 69, 74]], gain: 0.012, attack: 8, change: [22, 40], cutoff: 1600, type: 'sine', reverb: 0.8 });
-    // crystal singing: bowl-like inharmonic tones, louder when you stand near crystals
-    const notes = a.scale(62, 'pentatonic', 2);
-    a.every(7, 17, (when) => a.additive({ freq: a.hz(a.rng.pick(notes)), partials: [1, 0.45, 0.22, 0.08], ratios: [1, 2.76, 5.4, 8.93], attack: 1.4, decay: 8,
-      gain: 0.012 + 0.026 * this.near, reverb: 0.85, pan: a.rng.range(-0.6, 0.6), when }), { startDelay: 5 });
+    // drips: water falling into pools somewhere in the dark; clustered, then long gaps
+    const dsc = a.scale(72, 'lydianAug', 2);
+    a.every(0.9, 5.5, (when) => {
+      const f = a.hz(R.pick(dsc)), pan = R.range(-0.8, 0.8), g = 0.015 + 0.01 * this.near;
+      a.drip({ freq: f, gain: g, pan, reverb: 0.8, dir: R() < 0.5 ? 1 : -1, when });
+      if (R() < 0.3) a.drip({ freq: f * (R() < 0.5 ? 1.5 : 0.75), gain: g * 0.5, pan: -pan, reverb: 0.9, when: when + 0.28 + R() * 0.3 });
+    }, { startDelay: 3 });
+    // singing bowls: beating partials, near the crystals they speak louder
+    const bw = [S[0], S[2], S[4], S[5], S[7], S[9]];
+    a.every(9, 24, (when) => a.singingBowl({ midi: R.pick(bw), decay: 14, gain: 0.016 + 0.018 * this.near, reverb: 0.85, pan: R.range(-0.6, 0.6), when }), { startDelay: 6 });
+    // glass harmonica motif (C-E-F#-E... in degrees), every ~40-80 s, with variations
+    const MOT = [[2, 4, 3, 5], [2, 4, 3, 1], [4, 2, 3, 0, 1], [2, 5, 4, 3]];
+    let last = -99, n = 0;
+    a.every(40, 80, (when) => {
+      const base = MOT[n++ % 2 ? (R.int(MOT.length)) : 0], sh = R.pick([0, 0, 2, 7, -2]);
+      const seq = R() < 0.35 ? base.slice(0, -1) : base.slice();
+      const notes = [];
+      for (const d of seq) { notes.push({ deg: Math.min(20, Math.max(0, d + 7 + sh)), dur: 1 }); if (R() < 0.4) notes.push({ rest: true, dur: 0.5 }); }
+      last = a.phrase({ notes, inst: a.glassHarmonica, opts: { gain: 0.022, reverb: 0.85, pan: R.range(-0.3, 0.3), durMul: 1.8 }, tempo: 26, humanize: 0.03, scale: S, when });
+    }, { startDelay: 12 });
+    // lone glass tones between
+    a.every(14, 34, (when) => { if (a.now() > last + 8) a.glassHarmonica({ midi: R.pick(S.slice(7, 17)), dur: 4 + R() * 3, gain: 0.014, reverb: 0.9, pan: R.range(-0.7, 0.7), when }); }, { startDelay: 22 });
     // the waterfall and the stream
     const wf = a.spatial({ pos: [FALL[0], 1, FALL[2]], ref: 4, rolloff: 1.5, reverb: 0.5 });
     a.noiseBed({ color: 'white', filter: 'bandpass', freq: 1500, q: 0.6, gain: 0.045, mod: 0.2, modRate: 0.2, bus: wf });
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 420, gain: 0.05, bus: wf });
     a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 800, q: 0.8, gain: 0.02, mod: 0.4, modRate: 0.15, bus: a.spatial({ pos: [1, -0.3, -44], ref: 3.5, rolloff: 1.6, reverb: 0.5 }) });
     // mushroom grotto: soft hollow plops
-    const gb = a.spatial({ pos: [-22, 1.5, -34], ref: 6, rolloff: 1.6, reverb: 0.7 }), low = a.scale(50, 'pentatonic', 1);
-    a.every(4, 11, (when) => a.additive({ freq: a.hz(a.rng.pick(low)), partials: [1, 0.25, 0.06], attack: 0.04, decay: 1.6, gain: 0.03, bus: gb, when }), { startDelay: 3 });
+    const gb = a.spatial({ pos: [-22, 1.5, -34], ref: 6, rolloff: 1.6, reverb: 0.7 }), low = a.scale(48, 'lydianAug', 1);
+    a.every(4, 11, (when) => a.additive({ freq: a.hz(R.pick(low)), partials: [1, 0.25, 0.06], attack: 0.04, decay: 1.6, gain: 0.03, bus: gb, when }), { startDelay: 3 });
     // citrine chamber: warm glassy tones; the sleeper purrs and breathes
-    const cb = a.spatial({ pos: [44, 3, 21], ref: 6, rolloff: 1.6, reverb: 0.8 }), hi = a.scale(69, 'pentatonic', 2);
-    a.every(5, 13, (when) => a.bell({ freq: a.hz(a.rng.pick(hi)), gain: 0.022, decay: 6, ratio: 2, index: 0.5, bus: cb, when }), { startDelay: 4 });
+    const cb = a.spatial({ pos: [44, 3, 21], ref: 6, rolloff: 1.6, reverb: 0.8 }), hi = a.scale(72, 'lydianAug', 1);
+    a.every(5, 13, (when) => a.bell({ freq: a.hz(R.pick(hi)), gain: 0.022, decay: 6, ratio: 2, index: 0.5, bus: cb, when }), { startDelay: 4 });
     const sb = a.spatial({ pos: [SAL[0], 0.6, SAL[1]], ref: 3, rolloff: 1.7, reverb: 0.4 });
     this.breath = a.noiseBed({ color: 'pink', filter: 'lowpass', freq: 300, gain: 0.02, mod: 0.15, gainMod: 0, bus: sb });
-    a.drone({ freq: a.hz(38), partials: [1, 2, 3], amps: [1, 0.4, 0.12], detune: 4, cutoff: 200, gain: 0.03, bus: sb });
+    a.drone({ freq: a.hz(36), partials: [1, 2, 3], amps: [1, 0.4, 0.12], detune: 4, cutoff: 200, gain: 0.03, bus: sb });
     // the crystal jellyfish sing: long glassy vowels, two voices a fifth apart
     a.every(9, 21, (when) => {
-      const f = a.hz(a.rng.pick(hi)), pan = a.rng.range(-0.7, 0.7);
+      const m = R.pick(a.scale(72, 'lydianAug', 2)), f = a.hz(m), pan = R.range(-0.7, 0.7);
       a.additive({ freq: f, partials: [1, 0.3, 0.08], attack: 2, decay: 6, gain: 0.011, reverb: 0.9, pan, when });
-      a.additive({ freq: f * 1.498, partials: [1, 0.2], attack: 2.6, decay: 5, gain: 0.006, reverb: 0.9, pan: -pan, when: when + 0.7 });
+      a.additive({ freq: a.hz(m + 7), partials: [1, 0.2], attack: 2.6, decay: 5, gain: 0.006, reverb: 0.9, pan: -pan, when: when + 0.7 });
     }, { startDelay: 8 });
     // far drips somewhere in the dark
-    a.every(5, 13, (when) => a.chirp({ f0: a.rng.range(1700, 2600), f1: 900, dur: 0.05, gain: 0.008, reverb: 0.95, pan: a.rng.range(-0.9, 0.9), when }));
+    a.every(5, 13, (when) => a.chirp({ f0: R.range(1700, 2600), f1: 900, dur: 0.05, gain: 0.008, reverb: 0.95, pan: R.range(-0.9, 0.9), when }));
   },
 };
