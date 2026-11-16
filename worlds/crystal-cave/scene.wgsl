@@ -43,6 +43,9 @@ fn caustic(p: vec3f) -> vec3f {
   let gm = (1.0 - smoothstep(0.9, 1.3, length(gq))) * smoothstep(23.5, 25.5, p.z);
   let ag = 1.0 - smoothstep(0.05, 0.16, abs(fract(length(gq) * 7.0 + h1 * 1.6) - 0.5));
   alb = mix(alb, mix(vec3f(0.05, 0.045, 0.065), vec3f(0.3, 0.26, 0.36), ag * 0.5), gm);
+  // the mushroom grotto: damp moss on everything that faces up
+  let moss = (1.0 - smoothstep(9.0, 14.0, distance(p.xz, vec2f(-22.0, -34.0)))) * smoothstep(0.35, 0.8, ng.y) * smoothstep(0.25, 0.6, h1 + 0.3 * h2);
+  alb = mix(alb, vec3f(0.035, 0.1, 0.055) * (0.6 + 0.8 * h2), moss * 0.8);
 
   let V = normalize(G.camPos - p);
   let px = prox(p);
@@ -61,6 +64,16 @@ fn caustic(p: vec3f) -> vec3f {
   let cw = in.m.y;
   if (cw > 0.015) { col += alb * caustic(p) * cw * (0.3 + 1.1 * luminance(L)) * (1.0 - smoothstep(18.0, 34.0, dist)); }
   if (p.y < WL) { col *= exp((p.y - WL) * vec3f(2.2, 1.0, 0.8)); }
+  // slow rings of colour: two breathe out of the floating heart of the hall, one answers the crystal flower you woke (G.params2)
+  let dc = distance(p, OC); let df = distance(p, G.params2.xyz); let age = G.time - G.params2.w;
+  var rg = vec3f(0.0);
+  for (var i = 0; i < 2; i++) {
+    let ph = fract(G.time / 18.0 + 0.5 * f32(i)); let x = dc - 3.0 - ph * 34.0;
+    rg += spectrum(0.6 + 0.35 * f32(i) + floor(G.time / 18.0 + 0.5 * f32(i)) * 0.21) * exp(-x * x * 0.7) * smoothstep(0.0, 0.1, ph) * (1.0 - ph) * (1.0 - ph);
+  }
+  let xf = df - age * 1.7;
+  rg += spectrum(df * 0.12 + G.params2.w * 0.37) * exp(-xf * xf * 3.0) * exp(-age * 0.4) * step(0.0, age) * 0.9;
+  col += (alb * 2.5 + 0.012) * rg * 0.9;
   return vec4f(applyFog(col, p), 1.0);
 }
 // cheap version for the reflection pass
@@ -79,12 +92,21 @@ struct CV {
   @location(3) @interpolate(flat) base: vec4f, @location(4) @interpolate(flat) q: vec4f, @location(5) @interpolate(flat) col: vec4f,
   @location(6) @interpolate(flat) misc: vec4f, @location(7) @interpolate(flat) env: vec4f, @location(8) @interpolate(flat) fl: f32,
 };
-@vertex fn vsCry(@location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f, @location(3) i0: vec4f, @location(4) q: vec4f,
-  @location(5) i2: vec4f, @location(6) i3: vec4f, @location(7) i4: vec4f) -> CV {
+@vertex fn vsCry(@location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f, @location(3) i0: vec4f, @location(4) q0: vec4f,
+@location(5) i2: vec4f, @location(6) i3: vec4f, @location(7) i4: vec4f) -> CV {
   let len = i0.w; let r = i3.x; let seed = i3.y; let ty = i3.z;
+  var q = q0; var ip = i0.xyz;
+  if (ORBIT > 0.5) {
+    // phase 0 = the heart (turns in place), others drift around it at their own pace and bob a little
+    let ph = i3.w; let a = G.time * (0.035 + 0.03 * sin(ph * 7.0)) * step(0.5, ph) + G.time * 0.05 * (1.0 - step(0.5, ph));
+    let s = sin(a * 0.5); let c = cos(a * 0.5);
+    q = vec4f(c * q0.x + s * q0.z, c * q0.y + s * q0.w, c * q0.z - s * q0.x, c * q0.w - s * q0.y);
+    let rel = ip - OC;
+    ip = OC + vec3f(rel.x * cos(a) + rel.z * sin(a), rel.y + 0.35 * sin(G.time * 0.21 + ph * 3.0) * step(0.5, ph), rel.z * cos(a) - rel.x * sin(a));
+  }
   let axis = quatRotate(q, vec3f(0.0, 1.0, 0.0));
   // never thinner than ~1.3 px: widen and dim instead of breaking into dotted aliasing
-  let px = distance(i0.xyz + axis * len * 0.5, G.camPos) * 2.0 * G.tanHalfFov / G.resolution.y;
+  let px = distance(ip + axis * len * 0.5, G.camPos) * 2.0 * G.tanHalfFov / G.resolution.y;
   let r2 = max(r, px * 1.3);
   let tf = fract(seed * 7.3);
   let tipL = min(r * mix(mix(0.3, 2.3, tf * tf), mix(0.25, 1.7, tf), ty), len * 0.45);
@@ -96,10 +118,10 @@ struct CV {
   var nl = vec3f(n.x / r2, 0.0, n.z / (r2 * i4.w));
   if (n.y > 0.01) { nl.y = (0.3 * n.y - sh * n.x) / tipL; }
   var o: CV;
-  o.w = mir(i0.xyz + quatRotate(q, l));
+  o.w = mir(ip + quatRotate(q, l));
   o.n = mirN(normalize(quatRotate(q, nl)));
   o.lp = p;
-  o.base = vec4f(mir(i0.xyz), r2);
+  o.base = vec4f(mir(ip), r2);
   o.q = q;
   o.col = i2;
   o.misc = vec4f(seed, ty, i3.w, r / r2);
@@ -161,7 +183,9 @@ struct CV {
   let wi = rel + r * (R * (0.4 + thick));
   let veil = mix(0.7, 0.55, ty) + mix(0.3, 0.45, ty) * vnoise3(vec3f(dot(wi, ex), dot(wi, ax) * mix(0.45, 0.12, ty), dot(wi, ez)) * (1.5 / max(R, 0.07)) + seed * 17.0);
   let tint = in.col.rgb;
-  let glow = in.col.a * pulse(in.misc.z) * (1.0 + 0.8 * prox(in.base.xyz));
+  // crystal flowers (glow >= 8) wake up when you stand next to them
+  let fw = step(8.0, in.col.a);
+  let glow = (in.col.a - 8.0 * fw) * pulse(in.misc.z) * mix(1.0 + 0.8 * prox(in.base.xyz), 0.6 + 1.5 * (1.0 - smoothstep(2.0, 6.5, distance(in.base.xyz, G.camPos))), fw);
   let milk = mix(tint, vec3f(1.0), 0.55);
   let deep = tint * tint * vec3f(0.9, 0.8, 1.0);
   // a dim saturated body with the light living inside it: hot milky core near the base, deep colour in the point
@@ -177,21 +201,24 @@ struct CV {
   let frac = pow(1.0 - abs(sin(ws.x * 2.3 + ws.y * 0.55 + ws.z * 1.1 + veil * 2.0 + seed * 9.0)), 14.0);
   let grad = mix(1.3, 0.6, hh) * (0.85 + 0.15 * sin(along * 0.45 + in.misc.z));
   let sel = lt * glow * grad * (0.14 + 0.55 * thin * thin + 0.5 * veil * veil * thick * facet + 0.25 * frac * thick) * 1.35 + (lt * 0.7 + 0.12) * F * 0.8;
+  // amethyst and citrine: every face carries its own depth of colour, pale near the root and darkest in the point
+  let fid = floor(sec) + step(0.7, in.lp.y) * 7.0;
+  col *= (0.35 + 1.1 * hash21(vec2f(fid + 3.0, seed * 77.0))) * mix(1.25, 0.45, smoothstep(0.2, 1.0, hh));
   col = mix(col, sel, ty);
   // back edges seen through the crystal, split into colours
   col += (spectrum(kb * 0.17 + ub * 0.5 + seed * 3.0) * 0.5 + 0.5) * tint * backEdge * (0.35 + 0.5 * thick) * glow * mix(0.35, 0.1, ty);
   // fresnel rim, facet reflections of a soft cave "environment", dispersion fringes on the bevels
   let rf = reflect(-V, n);
-  col += mix(tint, vec3f(1.0), 0.25) * F * (0.05 + 0.2 * glow) * (1.0 - ty);
+  col += mix(tint, vec3f(1.0), 0.15) * F * (0.03 + 0.12 * glow) * (1.0 - ty);
   col += (vec3f(0.012, 0.018, 0.035) + in.env.rgb * 0.25) * (0.1 + 0.9 * smoothstep(-0.3, 0.9, rf.y)) * (0.1 + F);
   let dsp = spectrum(dot(r, ax) * 1.2 + e * 0.6 + seed * 5.0);
   col += dsp * bev * ndv * 0.13 * (0.15 + 0.6 * glow) * mix(1.0, 0.4, ty);
   // facet flashes: a whole face lights up when its reflection lines up with a per-face direction
-  let fid = floor(sec) + step(0.7, in.lp.y) * 7.0;
   let sd = normalize(hash33(vec3f(seed * 91.0 + 1.0, fid, 3.0)) * 2.0 - 1.0);
-  col += mix(tint, vec3f(1.0), 0.7) * pow(abs(dot(rf, sd)), 28.0) * 1.6 * glow * (1.0 - smoothstep(20.0, 55.0, dist));
+  col += mix(tint, vec3f(1.0), mix(0.4, 0.7, ty)) * pow(abs(dot(rf, sd)), mix(80.0, 28.0, ty)) * 1.6 * glow * (1.0 - smoothstep(20.0, 55.0, dist));
   // light picked up from neighbouring crystals
   col += in.env.rgb * (0.03 + 0.4 * veil * core * thick * facet) * 0.5 + tint * 0.008;
-  return vec4f(applyFog(col, in.w) * in.misc.w, 1.0);
+  col = mix(vec3f(luminance(col)), col, 1.3 - 0.3 * ty);
+  return vec4f(applyFog(max(col, vec3f(0.0)), in.w) * in.misc.w, 1.0);
 }
 @fragment fn fsPre() -> @location(0) vec4f { return vec4f(0.0); }

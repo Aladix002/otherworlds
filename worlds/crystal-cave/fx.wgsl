@@ -27,6 +27,17 @@ fn ripple(p: vec2f) -> vec2f {
   }
   return g;
 }
+// the pool does not only mirror the cave: deep down a small galaxy turns slowly
+fn galaxy(q: vec2f) -> vec3f {
+  let r = length(q); let a = atan2(q.y, q.x) + G.time * 0.012;
+  let arm = 0.5 + 0.5 * cos(2.0 * a - 5.5 * log(r + 0.12));
+  let n = fbm2(q * 3.2 + vec2f(3.0, G.time * 0.004), 3) * 0.5 + 0.5;
+  let disk = exp(-r * 1.5);
+  var c = vec3f(0.45, 0.22, 0.85) * arm * n * disk * 1.5 + vec3f(1.0, 0.8, 0.6) * exp(-r * r * 16.0) + vec3f(0.08, 0.35, 0.5) * n * n * exp(-r * 0.8) * 0.6;
+  let g = q * 30.0; let h = hash22(floor(g)); let f = fract(g) - 0.5 - (h - 0.5) * 0.6;
+  c += vec3f(0.8, 0.9, 1.0) * step(0.84, h.x) * exp(-dot(f, f) * 70.0) * (0.5 + 0.5 * sin(G.time * (0.5 + h.y) + h.y * 40.0)) * (0.5 + 1.5 * disk);
+  return c;
+}
 @fragment fn fsWater(in: WV) -> @location(0) vec4f {
   let g = ripple(in.w.xz);
   let n = normalize(vec3f(-g.x, 1.0, -g.y));
@@ -39,7 +50,9 @@ fn ripple(p: vec2f) -> vec2f {
   let T = exp(-max(in.depth, 0.0) * 1.6);
   let edge = smoothstep(0.0, 0.16, in.depth);
   let a = (F + (1.0 - F) * (1.0 - T) * 0.9) * edge;
-  var col = (refl * F + vec3f(0.006, 0.03, 0.042) * (1.0 - F) * (1.0 - T)) * edge;
+  let rr = refract(-V, n, 0.75);
+  let gal = galaxy((in.w.xz - POOLC) * 0.11 + rr.xz / (abs(rr.y) + 0.4) * 0.45);
+  var col = (refl * F * 0.8 + (vec3f(0.006, 0.03, 0.042) + gal * 0.55) * (1.0 - F) * (1.0 - T)) * edge;
   let fa = fogAmount(dist);
   col = mix(col, G.fogColor * a, fa);
   return vec4f(col, a);
@@ -126,4 +139,53 @@ struct HV { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   let f = max(exp(-r2 * 3.2) - 0.0408, 0.0);
   let col = in.col * f * f * (1.0 + (ign(in.pos.xy) - 0.5) * 0.08);
   return vec4f(col, 0.0);
+}
+
+// the stream: a ribbon at the stream level; where the bed is above it the water is simply not there
+struct TV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) q: vec3f };
+@vertex fn vsStream(@location(0) a: vec4f) -> TV {
+  var o: TV;
+  o.w = vec3f(a.x, SW, a.y); o.q = vec3f(a.z, a.w, SW - floorY(a.xy));
+  o.pos = G.viewProj * vec4f(o.w, 1.0);
+  return o;
+}
+@fragment fn fsStream(in: TV) -> @location(0) vec4f {
+  let edge = smoothstep(0.0, 0.14, in.q.z);
+  if (edge <= 0.0) { discard; }
+  let t = G.time; let u = in.q.x; let s = in.q.y;
+  let n1 = snoise2(vec2f(u * 1.3, s * 0.7 + t * 0.45));         // it runs toward the pond, where the waterfall climbs back up
+  let n2 = snoise2(vec2f(u * 3.1 + 7.0, s * 1.9 + t * 0.8));
+  // rings where the waterfall lands
+  let rv = in.w.xz - G.params.xz; let rf = length(rv);
+  let ring = sin(rf * 7.0 + t * 3.0) * exp(-rf * 0.6);
+  let V = normalize(G.camPos - in.w);
+  let g = vec2f(0.07 * n1 + 0.04 * n2, 0.05 * n2 - 0.04 * n1) + rv / (rf + 0.2) * ring * 0.12;
+  let n = normalize(vec3f(g.x, 1.0, g.y));
+  let F = 0.04 + 0.96 * pow(1.0 - max(dot(n, V), 0.0), 4.0);
+  let dist = distance(in.w, G.camPos);
+  let moon = 1.0 - smoothstep(1.0, 4.4, shaftRad(in.w).x);
+  let env = mix(vec3f(0.03, 0.13, 0.075), vec3f(0.03, 0.05, 0.09), smoothstep(-16.0, -4.0, in.w.x)) + vec3f(0.45, 0.65, 0.95) * moon * 0.7;
+  let glint = exp(-n1 * n1 * 40.0) * (0.55 + 0.45 * n2) * (1.0 - smoothstep(14.0, 30.0, dist));
+  // the water carries its own faint light: glints run with the current and rings close in on the rising column
+  let col = (env * (0.3 + 1.6 * F + 4.0 * glint + 3.0 * max(ring, 0.0) + 2.5 * exp(-rf * 0.9))) * edge * exp(-dist * G.fogDensity);
+  return vec4f(col, edge * (0.4 + 0.5 * F));
+}
+// the waterfall sheet: it rises out of the pond and pours up into the spout
+struct FV { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) v: f32 };
+@vertex fn vsFall(@location(0) a: vec4f) -> FV {
+  var o: FV;
+  o.w = a.xyz + vec3f(0.04 * sin(G.time * 0.9 + a.y * 1.7), 0.0, 0.04 * sin(G.time * 0.7 + a.y * 1.3)); o.v = a.w;
+  o.pos = G.viewProj * vec4f(o.w, 1.0);
+  return o;
+}
+@fragment fn fsFall(in: FV) -> @location(0) vec4f {
+  let t = G.time;
+  let u = (in.w.x + in.w.z) * 6.0;
+  let s1 = vnoise2(vec2f(u, in.w.y * 1.6 - t * 1.5)) * 0.5 + 0.5;                  // the streaks run upward
+  let s2 = vnoise2(vec2f(u * 2.6 + 3.0, in.w.y * 3.0 - t * 2.4)) * 0.5 + 0.5;
+  let V = normalize(G.camPos - in.w);
+  let rim = 1.0 - abs(dot(normalize(cross(dpdx(in.w), dpdy(in.w))), V));
+  let a = (0.22 + 0.45 * s1 * s2 + 0.45 * rim * rim) * smoothstep(0.0, 0.04, in.v);
+  let col = vec3f(0.05, 0.2, 0.14) + vec3f(0.4, 0.8, 0.65) * (pow(s1 * s2, 1.5) * 1.5 + 0.7 * rim * rim * rim);
+  return vec4f(col * a * exp(-distance(in.w, G.camPos) * G.fogDensity), a * 0.8);
 }

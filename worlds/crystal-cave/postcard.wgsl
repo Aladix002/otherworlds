@@ -46,5 +46,10 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
     max(pcCave_bar(pm, vec2f(-0.4, 0.9), vec2f(0.1, -0.28), 0.05), pcCave_bar(pm, vec2f(0.9, 0.7), vec2f(0.45, -0.28), 0.04))));
   let bb = b * smoothstep(-0.3, -0.19, el);
   c = mix(c, vec3f(0.42, 0.5, 0.68) * (0.35 + 0.75 * bb), clamp(bb * 2.5, 0.0, 1.0));
+  // the floating heart of the hall and its ring of drifting shards
+  let hc = p - vec2f(0.0, 0.36); let hr = length(hc);
+  let ha = atan2(hc.y, hc.x) + t * 0.03;
+  c += vec3f(0.8, 0.6, 1.0) * (exp(-hr * hr * 90.0) * 1.6 + exp(-hr * 9.0) * 0.35 * breathe
+    + pow(abs(cos(ha * 5.0)), 30.0) * exp(-hr * 16.0) * 1.2 + step(0.55, hash21(floor(vec2f(ha * 5.0, hr * 30.0)))) * exp(-pow((hr - 0.17) * 22.0, 2.0)) * 0.5 * (0.5 + 0.5 * cos(ha * 31.0)));
   return c * vec3f(0.48, 0.52, 0.66);
 }
