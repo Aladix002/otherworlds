@@ -20,13 +20,14 @@ struct TV {
   var P = 0.5 * (2.0 * p1 + c1 * u + c2 * u * u + c3 * u * u * u);
   let tg = normalize((c1 + 2.0 * c2 * u + 3.0 * c3 * u * u).xyz + vec3f(0.0, 1e-5, 0.0));
   let kind = T.a.w;
-  if (kind > 2.5 && kind < 4.5) {                          // plants sway a little in the night wind
+  if ((kind > 2.5 && kind < 4.5) || kind > 7.5) {                          // plants sway a little in the night wind
     let s = t * t * T.b.z * 0.045;
     P = vec4f(P.x + s * sin(G.time * 0.7 + T.b.y * 40.0), P.y, P.z + s * sin(G.time * 0.53 + T.b.y * 70.0), P.w);
   }
   let B = normalize(cross(T.c.xyz, tg)); let N = cross(tg, B);
   let sn = sin(th); let fl = T.b.w * select(0.8, 1.0, sn > 0.0 || (kind > 0.5 && kind < 1.5));
-  let r = max(P.w, 0.0);
+  var r = max(P.w, 0.0);
+  if (kind < 0.5) { r *= 1.0 + 0.3 * pow(max(sn, 0.0), 6.0) * smoothstep(0.1, 0.2, t) * smoothstep(0.62, 0.4, t); }   // dorsal crest
   var o: TV;
   o.w = P.xyz + (B * cos(th) + N * sn * fl) * r;
   o.n = normalize(B * cos(th) + N * sn / max(fl, 0.2));
@@ -74,7 +75,8 @@ struct TV {
     e *= smoothstep(0.02, 0.06, t);
     eye = smoothstep(0.0003, 0.0001, pow((t - 0.034) * 3.3, 2.0) + pow((a - 0.42) * 0.15, 2.0));
   } else if (kind == 1) {                                  // legs: glowing bands and toes
-    e = smoothstep(0.3, 0.45, abs(fract(t * 3.5 + 0.2) - 0.5)) * 0.7 * smoothstep(0.2, 0.35, t) + smoothstep(0.8, 0.95, t) * 0.9;
+    e = smoothstep(0.3, 0.45, abs(fract(t * 3.5 + 0.2) - 0.5)) * 0.5 * smoothstep(0.2, 0.35, t) * smoothstep(0.7, 0.6, t)
+      + smoothstep(0.66, 0.74, t) * smoothstep(0.1, 0.5, cos(in.st.y * 5.0));                     // splayed glowing toes
   } else if (kind == 3) {                                  // whip stalk: dark stem, nodes, bulb glowing from within
     skin = mix(vec3f(0.03, 0.05, 0.06), vec3f(0.08, 0.05, 0.1), t);
     let bulb = smoothstep(0.84, 0.93, t);
@@ -83,11 +85,14 @@ struct TV {
     skin = mix(vec3f(0.03, 0.07, 0.05), vec3f(0.3, 0.25, 0.4), smoothstep(0.5, 0.75, t));
     e = smoothstep(0.5, 1.0, t) * (0.5 + 0.5 * pow(0.5 + 0.5 * cos(in.st.y * 5.0), 2.0)) * 0.4;
     ec = hsv2rgb(vec3f(hue, 0.55, 1.0));
+  } else if (kind == 9) {                                  // palms and reeds: silhouettes with a faint sheen
+    skin = vec3f(0.012, 0.035, 0.03);
   } else {                                                 // lantern cactus: glowing ribs, bright head
     skin = vec3f(0.035, 0.07, 0.075);
     let rib = pow(0.5 + 0.5 * cos(in.st.y * 9.0), 10.0);
-    let head = smoothstep(0.78, 0.9, t);
-    e = rib * (0.25 + 0.75 * t) * (0.7 + 0.3 * sin(t * 30.0 - time * 0.6)) + head * (1.3 + 1.0 * pow(max(dot(n, V), 0.0), 2.0));
+    let head = smoothstep(0.8, 0.95, t);
+    skin *= 0.6 + 0.4 * (1.0 - rib);
+    e = rib * (0.3 + 0.7 * t) * (0.7 + 0.3 * sin(t * 30.0 - time * 0.6)) * 1.3 + head * 0.45 * (0.4 + pow(max(dot(n, V), 0.0), 2.0));
     ec = hsv2rgb(vec3f(hue + 0.08 * t, 0.8, 1.0));
   }
   // plants brighten a little when you come close
@@ -97,7 +102,8 @@ struct TV {
   col += hsv2rgb(vec3f(hue + 0.3 + fr * 0.35 + s * 0.1, 0.7, 1.0)) * fr * 0.16;      // iridescent sheen
   col += ec * skin * 2.0 * (0.4 + 0.6 * max(n.y, 0.0));                             // own light spilling over the skin
   col += ec * e * 6.0 * breath + vec3f(3.5, 3.0, 2.2) * eye;
-  if (kind == 6) { return vec4f(ec * (0.7 + e * 2.5 + 1.6 * exp(-a * a * 9.0) + fr * 0.6) * breath + vec3f(3.0) * eye, 1.0); }   // the sky serpent is all light
+  if (kind == 6) { let rb = hsv2rgb(vec3f(hue + t * 1.3 - time * 0.02, 0.95, 1.0));
+    return vec4f(rb * (0.3 + e * 2.0 + 2.4 * exp(-a * a * 14.0) + fr * 2.6) * breath + vec3f(4.0) * eye, 1.0); }   // the sky serpent is all light
   return vec4f(applyFog(col, in.w), 1.0);
 }
 
@@ -160,7 +166,7 @@ struct HV { @builtin(position) pos: vec4f, @location(0) uv: vec2f, @location(1) 
 
 // the lantern caravan: paper lanterns with a flame inside, drawn into the same quad as their halo
 @fragment fn fsLant(in: HV) -> @location(0) vec4f {
-  let p = in.uv * 4.2;
+  let p = in.uv * 3.4;
   let k = (p.x * p.x) / 0.5 + p.y * p.y;
   let body = smoothstep(1.0, 0.85, k) * (0.55 + 0.45 * cos(p.y * 11.0)) * (1.2 - 0.6 * k) + 2.5 * exp(-dot(p - vec2f(0.0, -0.3), p - vec2f(0.0, -0.3)) * 7.0);
   let tassel = smoothstep(0.07, 0.02, abs(p.x)) * step(p.y, -1.0) * step(-1.9, p.y) * 0.5;

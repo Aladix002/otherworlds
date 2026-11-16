@@ -6,8 +6,8 @@ fn beamF(i: i32) -> vec3f { var a = BF; return a[i]; }
 fn beamD(i: i32) -> vec3f { var a = BD; return a[i]; }
 // the canyon light ramp: deep violet shade -> magenta -> hot pink -> orange -> gold
 fn ramp(L: f32) -> vec3f {
-  var c = mix(vec3f(0.018, 0.006, 0.06), vec3f(0.16, 0.012, 0.2), smoothstep(0.0, 0.2, L));
-  c = mix(c, vec3f(0.62, 0.035, 0.16), smoothstep(0.14, 0.4, L));
+  var c = mix(vec3f(0.01, 0.003, 0.045), vec3f(0.1, 0.008, 0.17), smoothstep(0.0, 0.2, L));
+  c = mix(c, vec3f(0.55, 0.03, 0.15), smoothstep(0.14, 0.4, L));
   c = mix(c, vec3f(1.35, 0.3, 0.03), smoothstep(0.36, 0.66, L));
   c = mix(c, vec3f(2.4, 1.15, 0.3), smoothstep(0.62, 1.0, L));
   return c * (1.0 + max(L - 1.0, 0.0) * 1.4);
@@ -18,13 +18,13 @@ fn beamSpot(p: vec3f) -> f32 {
   for (var i = 0; i < NB; i++) {
     let q = p - beamF(i); let d = beamD(i); let h = dot(q, d);
     let R = mix(BR0, BR1, clamp(h / BLEN, 0.0, 1.0));
-    s += exp(-(dot(q, q) - h * h) / (R * R) * 2.2) * step(-1.5, h);
+    s += exp(-(dot(q, q) - h * h) / (R * R) * 1.3) * step(-1.5, h);
   }
   return s;
 }
 // night sky colours shared by the sky pass and the fog
 fn duskCol(rd: vec3f) -> vec3f {
   let y = max(rd.y, 0.0);
-  let c = mix(vec3f(0.8, 0.16, 0.42), vec3f(1.7, 0.6, 0.3), smoothstep(0.0, 0.5, y));
+  let c = mix(HORIZ, vec3f(1.7, 0.6, 0.3), smoothstep(0.25, 0.6, y));
   return mix(c, vec3f(2.6, 1.4, 0.6), smoothstep(0.35, 1.0, y));
 }

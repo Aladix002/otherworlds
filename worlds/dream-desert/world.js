@@ -8,10 +8,10 @@ import BAKE from './bake.wgsl';
 import LIFE from './life.wgsl';
 import FX from './fx.wgsl';
 
-const HORIZ = [0.032, 0.022, 0.07], WARMFOG = [0.3, 0.05, 0.1];
+const HORIZ = [0.032, 0.022, 0.07], WARMFOG = [0.2, 0.03, 0.08];
 const v3 = (a) => `vec3f(${a[0].toFixed(4)}, ${a[1].toFixed(4)}, ${a[2].toFixed(4)})`;
 const PER = [900, 1700, 2600];
-const hdr = (lv) => `const PER = ${PER[lv]}u; const OASP = ${v3(OASIS)}; const ARCHP = vec4f(${ARCH}); const MF = array<vec3f, 6>(${BEAMS.map((b) => v3(b.f))}, ${DEVILS.map(v3)});
+const hdr = (lv) => `const PER = ${PER[lv]}u; const OASP = ${v3(OASIS)}; const ARCHP = vec4f(${ARCH}); const MF = array<vec3f, 7>(${BEAMS.map((b) => v3(b.f))}, ${DEVILS.map(v3)}, OASP);
 const NB = 3; const BLEN = ${BLEN}.0; const DOORP = ${v3(DOOR)}; const HORIZ = ${v3(HORIZ)};
 const BF = array<vec3f, 3>(${BEAMS.map((b) => v3(b.f))}); const BD = array<vec3f, 3>(${BEAMS.map((b) => v3(b.d))});\n` + COMMON;
 
@@ -49,7 +49,7 @@ export default {
     look(cx(18.5) + 0.2, eye(cx(18.5), 18.5), 18.5, B0[0], 2.6, B0[2]),                 // beam and dancing dust
     look(cx(1.5), eye(cx(1.5), 1.5), 1.5, cx(-3) + 2.6, 3.6, -3),                       // flowing strata, close
     look(cx(-32.5) + 0.3, eye(cx(-32.5), -32.5), -32.5, cx(-39) + 1.5, 3.2, -46),                      // canyon exit onto the dunes
-    look(OASIS[0] + 4, OASIS[1] + 2.6, OASIS[2] + 12.5, OASIS[0] - 3, OASIS[1] + 3.2, OASIS[2] - 8),   // hidden oasis under the Milky Way
+    look(OASIS[0] + 4, eye(OASIS[0] + 4, OASIS[2] + 13, 1.7), OASIS[2] + 13, OASIS[0] - 2, OASIS[1] + 2.2, OASIS[2] - 6),   // hidden oasis under the Milky Way
     lizPose(),                                                                          // glowing lizard and its tracks
     look(DOOR[0] + 2.6, DOOR[1] + 1.5, DOOR[2] - 6.6, DOOR[0], DOOR[1] + 1.25, DOOR[2]), // the door on its dune
   ],
@@ -57,11 +57,11 @@ export default {
   flythroughDuration: 60,
   doors: [{ pos: DOOR, yaw: Math.PI, to: 'light-library' }],
   bounds: { center: [0, 0, -15], radius: 150 },
-  env: { sunDir: [0.35, 0.4, -0.78], sunColor: [0.2, 0.19, 0.42], fogColor: HORIZ, fogDensity: 0.0035,
-    ambientSky: [0.035, 0.04, 0.11], ambientGround: [0.012, 0.035, 0.05] },
+  env: { sunDir: [0.45, 0.3, -0.8], sunColor: [0.34, 0.31, 0.7], fogColor: HORIZ, fogDensity: 0.0035,
+    ambientSky: [0.022, 0.026, 0.08], ambientGround: [0.008, 0.022, 0.035] },
   post: { exposure: 1.25, bloom: 0.15, bloomThreshold: 0.9, bloomKnee: 0.6, bloomRadius: 1.1, vignette: 0.3, saturation: 1.1 },
   clearColor: HORIZ,
-  doorLight: [0.16, 0.11, 0.2],
+  doorLight: [0.3, 0.22, 0.36],
   eyeHeight: 1.6,
 
   heightAt(x, z) { return ground(x, z); },
@@ -73,7 +73,7 @@ export default {
     await progress(0.04);
     const ter = terrain([320, 448, 520][lv], life.glows);
     await progress(0.2);
-    const mesa = await meshBox(-37.5, -1.6, -44, 37.5, 21, 44, [0.4, 0.34, 0.3][lv], (f) => progress(0.2 + 0.6 * f));
+    const mesa = await meshBox(-39, -1.6, -45, 39, 23.5, 45, [0.4, 0.34, 0.3][lv], (f) => progress(0.2 + 0.6 * f));
     const arch = await meshBox(ARCH[0] - 11, ARCH[1] - 3, ARCH[2] - 11, ARCH[0] + 11, ARCH[1] + 9.5, ARCH[2] + 11, 0.3);
     await progress(0.85);
     const up = (m) => ({ vb: ctx.buffer(m.verts, 'vertex'), ib: ctx.buffer(m.idx, 'index'), n: m.idx.length });
@@ -126,7 +126,7 @@ export default {
       P({ module: lifeM, vs: 'vsHalo', fs: 'fsHalo', buffers: [v4(2, 'instance')], ...add, label: 'halo' }),
       P({ module: fx, vs: 'vsMote', fs: 'fsMote', ...add, label: 'mote' }),
       P({ module: fx, vs: 'vsBeam', fs: 'fsBeam', layouts: [this.dL], blend: 'add', depthFormat: null, label: 'beam' }),
-      P({ module: sky, vs: 'vsWater', fs: 'fsWater', layouts: [sL], cull: 'none', label: 'water' }),
+      P({ module: sky, vs: 'vsWater', fs: 'fsWater', layouts: [sL], cull: 'none', blend: 'alpha', label: 'water' }),
       P({ module: lifeM, vs: 'vsHalo', fs: 'fsLant', buffers: [v4(2, 'instance')], ...add, label: 'lantern' }),
     ]);
     this.nm = PER[lv] * 3;
@@ -150,7 +150,7 @@ export default {
     env.params[0] = k;
     env.params[1] = ss(34, 9, Math.hypot(e[0] - ARCH[0], e[2] - ARCH[2]));
     for (let i = 0; i < 3; i++) env.fogColor[i] = HORIZ[i] + (WARMFOG[i] - HORIZ[i]) * k;
-    env.fogDensity = 0.0035 + 0.005 * k;
+    env.fogDensity = 0.0035 + 0.0015 * k;
     this.inside = Math.abs(e[0]) < 75 && Math.abs(e[2]) < 85;
     if (ctx.audio && this.aCan && Math.abs(k - this.ka) > 0.03) { this.ka = k; this.aCan.set(k, 1.5); this.aDun.set(1 - 0.85 * k, 1.5); }
   },
@@ -163,7 +163,6 @@ export default {
     for (let i = 0; i < 2; i++) { const g = this.geo[i]; pass.setVertexBuffer(0, g.vb); pass.setIndexBuffer(g.ib, 'uint32'); pass.drawIndexed(g.n); }
     const g = this.ter;
     pass.setPipeline(this.pTer); pass.setVertexBuffer(0, g.vb); pass.setIndexBuffer(g.ib, 'uint32'); pass.drawIndexed(g.n);
-    pass.setPipeline(this.pWater); pass.setBindGroup(1, this.sBG); pass.draw(6);
     pass.setPipeline(this.pTube); pass.setBindGroup(1, this.tBG);
     pass.draw(RINGS[0] * 60, NLZ + NSN, 0, 0);
     pass.draw(RINGS[1] * 60, NLZ * 4, 0, NLZ + NSN);
@@ -172,13 +171,14 @@ export default {
 
   renderTransparent(ctx, pass) {
     const L = this.life;
+    pass.setPipeline(this.pWater); pass.setBindGroup(1, this.sBG); pass.draw(6);
     pass.setPipeline(this.pPrint); pass.setVertexBuffer(0, this.printBuf); pass.draw(6, L.nPrints);
     pass.setPipeline(this.pTrail); pass.setBindGroup(1, this.tBG); pass.draw(RINGS[2] * 60, NSN, 0, NLZ * 5 + NSN);
     pass.setPipeline(this.pHalo); pass.setVertexBuffer(0, this.haloBuf); pass.draw(6, L.halos.length / 8);
     pass.setPipeline(this.pLant); pass.setVertexBuffer(0, this.lantBuf); pass.draw(6, NLT);
     pass.setPipeline(this.pMote);
     if (this.inside) pass.draw(6, this.nm);
-    pass.draw(6, this.nm, 0, this.nm);
+    pass.draw(6, this.nm / 3 * 4, 0, this.nm);
   },
 
   afterScene(ctx, enc) {

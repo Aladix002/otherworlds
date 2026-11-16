@@ -30,7 +30,7 @@ export function hw(z) {                                 // half width at the flo
 }
 const mesa2 = (x, z) => { const qx = Math.abs(x) - 16, qz = Math.abs(z) - 22; return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - 14; };
 // 1 deep in the canyon (dusk light), 0 out on the night dunes
-export const warm = (x, z) => { const w = hw(z), d = Math.abs(x - cx(z)); return ss(43, 30, Math.abs(z)) * ss(w + 6, w + 3.5, d); };
+export const warm = (x, z) => { const w = hw(z), d = Math.abs(x - cx(z)); return ss(38, 27, Math.abs(z)) * ss(w + 9, w + 2, d); };
 export const dusk = (x, z) => ss(34, 24, Math.abs(z)) * ss(8, 4, Math.abs(x - cx(z)) - hw(z));
 
 export const DOOR = [-4, 0, 56];
@@ -41,20 +41,20 @@ export const BLEN = 24;
 
 // ---------------------------------------------------------------- ground
 function crest(s) {                                     // asymmetric dune profile, 0..1, C1
-  const f = s - Math.floor(s), a = 0.68;
+  const f = s - Math.floor(s), a = 0.74;
   const c = f < a ? 0.5 - 0.5 * Math.cos(Math.PI * f / a) : 0.5 + 0.5 * Math.cos(Math.PI * (f - a) / (1 - a));
-  return 1 - Math.pow(1 - c, 0.62);
+  return 1 - Math.pow(1 - c, 0.5);
 }
 function ground0(x, z) {
-  const dm = mesa2(x, z), m = ss(3, 34, dm);
+  const dm = mesa2(x, z), m = ss(3, 28, dm);
   const dl = Math.abs(x - cx(z)), w = hw(z);
   let h = 0.1 * fbm2(x * 0.09, z * 0.09, 2);
-  if (dm < 4) h += 0.45 * ss(w - 1.5, w + 0.4, dl);                         // sand banked against the canyon walls
+  if (dm < 4) h += 0.8 * ss(w - 2.3, w + 0.5, dl);                         // sand banked against the canyon walls
   if (dm > -3) h += 1.5 * Math.exp(-Math.max(dm, 0) / 4.5) * ss(-3, 0, dm) * (0.55 + 0.45 * snoise2(x * 0.06, z * 0.06)) * ss(5, 12, dl);   // drifts at the mesa foot
   if (m > 0) {
     const wx = x + 28 * snoise2(x * 0.004 + 3.1, z * 0.004), wz = z + 28 * snoise2(x * 0.004 - 7.3, z * 0.004 + 2.2);
-    const A = (3.6 + 7 * ss(20, 170, dm)) * (0.7 + 0.3 * snoise2(x * 0.003 + 9, z * 0.003 + 5));
-    h += m * (A * (crest((wx * 0.8 + wz * 0.6) * 0.0088) - 0.45) + 2.2 * Math.sin((wz * 0.94 - wx * 0.35) * 0.021 + 1.3)
+    const A = (5.5 + 8 * ss(15, 120, dm)) * (0.7 + 0.3 * snoise2(x * 0.003 + 9, z * 0.003 + 5));
+    h += m * (A * (crest((wx * 0.8 + wz * 0.6) * 0.012) - 0.45) + 2.2 * Math.sin((wz * 0.94 - wx * 0.35) * 0.021 + 1.3)
       + 0.7 * crest((wx * 0.5 - wz * 0.86) * 0.027 + 0.3) + 0.4 * fbm2(x * 0.021, z * 0.021, 3) + 1.2);
   }
   const dd = Math.hypot(x - DOOR[0], z - DOOR[2]);
@@ -62,12 +62,12 @@ function ground0(x, z) {
 }
 DOOR[1] = ground0(DOOR[0], DOOR[2]);
 export const OASIS = [-66, 0, -30];                     // hidden pool; y = water level
-OASIS[1] = ground0(OASIS[0], OASIS[2]) - 1.25;
+OASIS[1] = ground0(OASIS[0], OASIS[2]) - 2.3;
 export function ground(x, z) {
   const lx = Math.abs(x - DOOR[0]), lz = z - DOOR[2], dd = Math.hypot(lx, lz), od = Math.hypot(x - OASIS[0], z - OASIS[2]);
   let h = ground0(x, z);
-  if (od < 16) h += (OASIS[1] + 0.25 - 0.9 * Math.max(0, 1 - od * od / 36) - h) * ss(16, 6, od);     // the oasis bowl
-  if (dd < 7) h = DOOR[1] + (h - DOOR[1]) * ss(2.6, 7, dd) + 0.17 * Math.exp(-((lx - 1.05) ** 2) / 0.1 - lz * lz / 0.45);   // flat sill, drifts by the posts
+  if (od < 24) h += (OASIS[1] + 0.3 - 1.6 * Math.max(0, 1 - od * od / 49) - h) * ss(24, 8, od);     // the oasis bowl
+  if (dd < 7) h = DOOR[1] + (h - DOOR[1]) * ss(2.6, 7, dd) + 0.3 * Math.exp(-((lx - 1.1) ** 2) / 0.16 - lz * lz / 0.6);   // flat sill, drifts by the posts
   return h;
 }
 for (const b of BEAMS) b.f[1] = ground(b.f[0], b.f[2]);
@@ -81,14 +81,13 @@ export function sdRock(x, y, z) {
   const ax = x - ARCH[0], az = z - ARCH[2];
   if (ax * ax + az * az < 260) {                         // the lone arch
     const lx = ax * AC + az * AS, lz = az * AC - ax * AS, yy = y - ARCH[1];
-    const q = Math.hypot(lx * (1 + 0.07 * lx / 6), yy * 1.12) - 6.3;
-    const r = 1.2 + 0.5 * vn3(x * 0.3, y * 0.3, z * 0.3) + 0.22 * vn3(x * 0.9, y * 0.9, z * 0.9) + 1.1 * ss(3.5, -1, yy) + 0.25 * Math.sin(yy * 1.5 + lx);
-    return (Math.hypot(q, lz * 0.8) - r) * 0.75;
+    const q = Math.abs(yy < 2.5 ? Math.abs(lx) - 4.6 : Math.hypot(lx, yy - 2.5) - 4.6) - 0.95, e = Math.abs(lz) - 1;   // a gate: two piers, round top, flat faces
+    return (Math.min(Math.max(q, e), 0) + Math.hypot(Math.max(q, 0), Math.max(e, 0)) - 0.22 + 0.16 * vn3(x * 0.5, y * 0.5, z * 0.5)) * 0.8;
   }
   const d2 = mesa2(x, z);
   if (d2 > 9) return d2 - 4;
-  const top = HM + 1.6 * vn3(x * 0.05, 0.5, z * 0.05);
-  let dm = d2 - (HM - y) * 0.1 + 2.4 * vn3(x * 0.055, y * 0.07, z * 0.055) + 0.22 * Math.sin(y * 1.1 + 2.5 * vn3(x * 0.1, y * 0.1, z * 0.1));
+  const top = HM + 3.5 * vn3(x * 0.045, 0.5, z * 0.045);
+  let dm = d2 - (HM - y) * 0.16 + 3.4 * vn3(x * 0.055, y * 0.05, z * 0.055) + 0.5 * Math.sin(y * 0.9 + 2.5 * vn3(x * 0.1, y * 0.1, z * 0.1));
   dm = smax(dm, y - top, 2);
   const c = cx(z);
   if (Math.abs(x - c) > 13) return dm;

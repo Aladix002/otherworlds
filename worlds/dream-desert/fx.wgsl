@@ -65,7 +65,7 @@ fn figure(k: u32, u: f32, v: f32, j: u32, tt: f32) -> vec3f {
 struct MO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) @interpolate(flat) col: vec3f };
 @vertex fn vsMote(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> MO {
   var cs = array<vec2f, 6>(vec2f(-1, -1), vec2f(1, -1), vec2f(-1, 1), vec2f(-1, 1), vec2f(1, -1), vec2f(1, 1));
-  let b = ii / PER; let j = ii % PER; let dune = b >= u32(NB);
+  let b = ii / PER; let j = ii % PER; let dune = b >= u32(NB); let fly = b == 6u;
   let h = hash3u(vec3u(j, b, 7u)); let h2 = hash3u(vec3u(j, b, 19u));
   let lt = G.time + f32(b) * (MT + 3.0) + 17.0;
   let cyc = floor(lt / MT); let ph = lt - cyc * MT;
@@ -74,20 +74,23 @@ struct MO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) @
   var cloud = vec3f(cos(ca) * cr, fract(h.z - G.time * 0.006 * (0.5 + h2.y)) * 7.5 + 0.1, sin(ca) * cr);
   cloud += 0.12 * vec3f(sin(G.time * 0.21 + h2.z * 40.0), sin(G.time * 0.17 + h2.x * 50.0), sin(G.time * 0.19 + h2.y * 60.0));
   let del = h2.z * 5.0;
-  var w = smoothstep(del, del + 6.0, ph) * (1.0 - smoothstep(22.0 + del, 28.0 + del, ph)) * step(h2.x, 0.72);
+  var w = smoothstep(del, del + 6.0, ph) * (1.0 - smoothstep(22.0 + del, 28.0 + del, ph)) * step(h2.x, select(0.62, 0.9, dune)) * select(1.0, 0.0, fly);
+  w *= 0.8 + 0.2 * sin(G.time * 0.13 + h2.y * 9.0);                        // figures stay loose, never quite finished
   var fk = (u32(cyc) + b * 2u) % 5u;
   if (dune) { fk = (fk * 3u + 3u) % 5u; cloud = vec3f(cloud.x, cloud.y * 0.5, cloud.z); }     // sand spirals: funnel, helix, vortices
-  let fig = figure(fk, h.x, h.y, j, lt) + (h2 - 0.5) * 0.035;
+  var fig = figure(fk, h.x, h.y, j, lt) + (h2 - 0.5) * select(0.1, 0.05, dune);
+  fig += 0.09 * vec3f(sin(fig.y * 2.3 + G.time * 0.31), 0.0, cos(fig.y * 1.9 + G.time * 0.27));       // the whole figure sways like smoke
+  if (fly) { cloud = cloud * vec3f(8.0, 0.8, 8.0) + vec3f(0.0, 0.4, 0.0); }                             // fireflies over the oasis
   let L = mix(cloud, fig, w) * select(1.0, 1.5, dune);
   var mf = MF; let d = select(vec3f(0.0, 1.0, 0.0), beamD(i32(b) % NB), !dune); let U = normalize(cross(d, vec3f(0.0, 0.0, 1.0))); let W = cross(d, U);
   let R = mix(BR0, BR1, clamp(L.y / BLEN, 0.0, 1.0));
   let wp = mf[b] + d * L.y + (U * L.x + W * L.z) * (R / BR0);
   let rr = (L.x * L.x + L.z * L.z) / (BR0 * BR0);
-  let lit = select(exp(-rr * 1.6) * 0.92 + 0.08, 0.5, dune);
+  let lit = select(exp(-rr * 1.6) * 0.92 + 0.08, select(0.35, 1.0 * step(h2.y, 0.12), fly), dune);
   let tw = 0.55 + 0.45 * sin(G.time * (0.8 + h2.y * 1.7) + h.z * 50.0);
   let dist = distance(wp, G.camPos);
   let px = dist * G.tanHalfFov * 2.0 * G.invResolution.y;      // world size of a pixel at the mote
-  let sz = (0.007 + 0.012 * h2.z * h2.z) * (1.0 + 0.6 * w) * select(1.0, 1.8, dune);
+  let sz = (0.007 + 0.012 * h2.z * h2.z) * (1.0 + 0.6 * w) * select(1.0, 2.6, dune);
   let hs = max(sz, px * 1.25);
   var o: MO;
   o.c = cs[vi];
