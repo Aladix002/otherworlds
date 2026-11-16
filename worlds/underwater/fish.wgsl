@@ -127,5 +127,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   var c = uwLit(alb, n, in.w, causticsAt(in.w), 1.0);
   let L = lightAt(in.w.y);
   c += L * spec * 0.5 * pow(max(dot(reflect(v, n), SUN), 0.0), 12.0) * (1.0 - fogF(distance(in.w, G.camPos)));
+  // species 7: fish of gold-leaf light
+  if (spc > 6.5) { c = mix(c, vec3f(1.9, 1.0, 0.2) * (0.5 + pow(1.0 - abs(dot(n, v)), 2.0)), 0.85 * (1.0 - fogF(distance(in.w, G.camPos)))); }
   return vec4f(c, 1.0);
 }

@@ -3,7 +3,10 @@
 override ARCHY: f32 = 6.74;   // architrave bottom, above the pad
 struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) m: vec2f };
 @vertex fn vs(@location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f) -> VO {
-  var o: VO; o.w = p; o.n = n; o.m = uv; o.pos = G.viewProj * vec4f(p, 1.0); return o;
+  var o: VO; o.w = p; o.n = n; o.m = uv;
+  // floating pieces (uv.y > 50 carries a phase) bob slowly; the stair steps only breathe
+  if (uv.y > 50.0) { o.w.y += select(0.3, 0.05, uv.x > 7.0) * sin(G.time * 0.33 + uv.y * 7.0); }
+  o.pos = G.viewProj * vec4f(o.w, 1.0); return o;
 }
 // Greek key, 7 x 6 cells per period
 const KEY = array<u32, 6>(124u, 68u, 84u, 92u, 64u, 127u);
@@ -40,7 +43,10 @@ fn key(p: vec2f) -> f32 {
   if (mt > 0.5 && mt < 1.5) { alb = vec3f(0.72, 0.33, 0.16) * (0.75 + 0.4 * nm.r) * (0.9 + 0.2 * nf.r);
     alb = mix(alb, vec3f(0.16, 0.09, 0.06), 0.6 * smoothstep(0.03, 0.0, abs(fract(hgt * 2.2 + nz.r * 0.3) - 0.5) - 0.07)); }
   if (mt > 2.5) { alb = mix(mix(vec3f(0.95, 0.3, 0.1), vec3f(1.0, 0.62, 0.3), smoothstep(0.55, 0.7, nf.g)), vec3f(0.95, 0.94, 0.9), step(3.5, mt)); }
-  else {
+  // pastel coral trees: rose trunks -> lilac -> mint tips
+  if (mt > 5.5) { alb = mix(mix(vec3f(1.0, 0.3, 0.5), vec3f(0.6, 0.4, 1.0), uss(1.0, 6.0, hgt + nz.r * 2.0)), vec3f(0.3, 1.0, 0.75), uss(5.0, 10.0, hgt)) * (0.8 + 0.3 * nm.r); }
+  if (mt > 6.5) { alb = vec3f(0.95, 0.93, 0.88); }
+  if (mt <= 2.5) {
     // algae film on top faces and a weathered, stained band near the seabed
     let up = smoothstep(0.45, 0.9, n.y) * smoothstep(0.42, 0.62, nz.b + 0.15 * nf.g);
     alb = mix(alb, vec3f(0.36, 0.5, 0.26) * (0.8 + 0.4 * nf.a), up * 0.6);
@@ -55,5 +61,10 @@ fn key(p: vec2f) -> f32 {
   let pv = vec3f(THOX, THOY, THOZ) - wp; let pd = dot(pv, pv);
   let gl = vec3f(0.15, 0.8, 1.0) * (1.0 + 2.5 * smoothstep(18.0, 4.0, distance(vec3f(THOX, THOY, THOZ), G.camPos))) * (0.85 + 0.15 * sin(G.time * 0.8)) * (1.0 - fogF(distance(wp, G.camPos)));
   if (pd < 90.0) { c += gl * mix(alb * max(dot(n, pv) * inverseSqrt(pd), 0.0) * 5.0 / (1.0 + pd * 0.25) * step(mt, 3.5), vec3f(2.5), step(3.5, mt) * step(mt, 4.5)); }
+  // coral tips glow softly; the stair turns to light as it climbs out of the sea
+  if (mt > 5.5) {
+    let f = 1.0 - fogF(distance(wp, G.camPos));
+    if (mt > 6.5) { c = mix(c, vec3f(1.7, 0.95, 0.3), uss(-11.0, 0.0, wp.y) * f); } else { c += alb * (0.25 + 0.6 * uss(3.0, 9.0, hgt)) * f; }
+  }
   return vec4f(c, 1.0);
 }

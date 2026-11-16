@@ -39,6 +39,15 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
     let tw = pow(0.5 + 0.5 * sin(G.time * (0.3 + h * 0.8) + h * 60.0), 3.0);
     o.col = (snow + bio * glow * (0.12 + tw) * 0.5 * step(0.5, fract(h * 13.1))) * fade / (1.0 + d * d * 0.004);
     o.kind = 0.0;
+  } else if (ii >= NM + NB * BPS) {
+    // big slow bubbles, each holding a tiny garden
+    let k = f32(ii - NM - NB * BPS);
+    let hs = hash3u(vec3u(ii, 7u, 1u));
+    let p = select(vec3f(mix(-8.0, 14.0, hs.x), -9.8 + 3.5 * hs.y, mix(56.0, 100.0, hs.z)), vec3f(6.3, -9.5, 61.0), k < 0.5)
+          + vec3f(sin(G.time * 0.07 + k), 0.3 * sin(G.time * 0.11 + k * 2.0), cos(G.time * 0.06 + k * 1.7)) * select(1.5, 0.2, k < 0.5);
+    o.pos = G.viewProj * vec4f(billboard(p, c, vec2f(0.3 + 0.3 * hs.y)), 1.0);
+    o.col = lightAt(p.y) * 0.4 * (1.0 - fogF(distance(p, G.camPos)));
+    o.kind = 2.0;
   } else {
     // bubbles rising from a few vents around the temple and gateway
     let j = ii - NM;
@@ -66,5 +75,12 @@ struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) c
   var a: f32;
   if (in.kind < 0.5) { a = (exp(-r2 * 4.0) - 0.018) * 0.6 + exp(-r2 * 40.0) * 0.6; }
   else { let r = sqrt(r2); a = smoothstep(0.65, 0.95, r) * (1.0 - smoothstep(0.95, 1.0, r)) * 0.8 + exp(-dot(in.c - vec2f(-0.35, 0.4), in.c - vec2f(-0.35, 0.4)) * 30.0) * 0.9; }
+  if (in.kind > 1.5) {
+    // green mound, a little trunk, a pink blossom crown
+    let g = in.c;
+    let gd = vec3f(0.2, 1.2, 0.3) * smoothstep(0.0, 0.04, -0.3 - g.x * g.x - g.y) + vec3f(0.7, 0.45, 0.25) * step(abs(g.x), 0.035) * step(abs(g.y + 0.12), 0.2)
+           + vec3f(1.8, 0.45, 0.9) * smoothstep(0.3, 0.2, length(g - vec2f(0.0, 0.22)));
+    return vec4f(in.col * (a * 0.7 + gd), 0.0);
+  }
   return vec4f(in.col * a, 0.0);
 }

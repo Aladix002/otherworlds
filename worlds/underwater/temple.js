@@ -15,7 +15,8 @@ export function mat(rx, ry, rz, tx, ty, tz, s = 1) {
 
 export function buildTemple(M, heightAt, PADY, door, rng, fg, THO, nest) {
   const parts = [], cols = [], boxes = [], shade = [], late = [];
-  const add = (g, m, mat_ = 0) => { if (m) M.transform(g, m); for (let i = 0; i < g.uv.length; i += 2) g.uv[i] = mat_; parts.push(g); return g; };
+  let fl = 0;   // > 0 while building floating (bobbing) pieces
+  const add = (g, m, mat_ = 0) => { if (m) M.transform(g, m); g.f = fl && 1 + parts.length % 9; for (let i = 0; i < g.uv.length; i += 2) g.uv[i] = mat_; parts.push(g); return g; };
   const box = (w, h, d, x, y, z, ry = 0, rx = 0, rz = 0, solid = true, mt = 0) => {
     add(M.box(w, h, d), mat(rx, ry, rz, x, y, z), mt);
     if (solid) boxes.push([x, y, z, w / 2, h / 2, d / 2, ry]);
@@ -266,6 +267,36 @@ export function buildTemple(M, heightAt, PADY, door, rng, fg, THO, nest) {
   }
   star(nest[0] - 1.1, nest[1] + 0.7, 1.2);
 
+  // ---- dream pass: marble that forgot its weight (upside-down column, statue, capital, drums and blocks adrift), a
+  // floating staircase that climbs out through the surface and turns to light (material 7), giant pastel coral trees (6)
+  fl = 1;
+  add(M.merge([shaft(R0, R1, H, false, 1), M.translate(capital(R1), 0, H, 0)]), mat(Math.PI + 0.3, 0, 0.2, -19, -1.6, 54));
+  kore(mat(Math.PI - 0.2, 0.9, 0.15, -6, -3.4, 60, 1.5), true, false);
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.4, x = -20 + 9 * Math.cos(a) + (i % 3) * 14, y = -4 - 5 * rng(), z = 50 + 12 * Math.sin(a);
+    add(i % 2 ? shaft(R0, R0, 0.8 + 1.5 * rng(), true, i) : M.box(0.7 + rng(), 0.6, 0.8), mat(rng() * 3, a, rng() * 3, x, y, z));
+  }
+  for (let i = 0, x = 11, z = 39; i < 47; i++) {
+    const a = 0.9 + 0.012 * i, k = Math.min(1, (47 - i) / 9);
+    box(2.8 * k, 0.16, 0.62 * k, x, -12.3 + 0.325 * i, z, a + Math.PI / 2, 0, 0, i < 37, 7);
+    x += 0.495 * Math.cos(a); z -= 0.495 * Math.sin(a);
+  }
+  fl = 0;
+  const coral = (x, y, z, dx, dy, dz, len, r, n) => {
+    const ex = x + dx * len, ey = y + dy * len, ez = z + dz * len;
+    add(M.tube([[x, y, z], [ex, ey, ez]], (t) => r * (1 - 0.3 * t), 7), 0, 6);
+    add(ell(r * 0.72, r * 0.72, r * 0.72, ex, ey, ez, 1), 0, 6);
+    if (n) for (let k = rng() < 0.45 ? 3 : 2; k--;) {
+      const a = rng() * TAU, s = 0.75 + 0.5 * rng(), bx = dx + Math.cos(a) * s, by = dy + 0.35, bz = dz + Math.sin(a) * s, l = Math.hypot(bx, by, bz);
+      coral(ex, ey, ez, bx / l, by / l, bz / l, len * (0.62 + 0.2 * rng()), r * 0.7, n - 1);
+    }
+  };
+  for (const [x, z, s] of [[-26, 49, 4.2], [-19, 31, 3], [27, 44, 2.8], [-36, 14, 3.2], [-8, 2, 2.4], [24, 96, 2.6]]) {
+    const y = heightAt(x, z) - 0.3;
+    coral(x, y, z, 0, 1, 0, s, s * 0.16, 5);
+    late.push([x, y + s / 2, z, s * 0.16, s / 2, s * 0.16, 0]);
+  }
+
   const geo = M.merge(parts);
   // bake: uv.y = height above the seabed, uv.x += ambient occlusion from the colliders
   const sdf = (x, y, z) => {
@@ -290,6 +321,8 @@ export function buildTemple(M, heightAt, PADY, door, rng, fg, THO, nest) {
     ao = ao < 0.22 ? 0.22 : ao > 1 ? 1 : ao;
     geo.uv[v * 2] += ao * 0.9;
   }
+  let v0 = 0;
+  for (const g of parts) { const n = g.pos.length / 3; if (g.f) for (let i = 0; i < n; i++) geo.uv[(v0 + i) * 2 + 1] = 100 + g.f; v0 += n; }
   boxes.push(...late); cols.push([cx, cz, 3.2, cy + 3]);
   return { geo, cols, boxes, shade, eel, oct: [2.5, TY, TZ + 12.05], thoY: hy };
 }

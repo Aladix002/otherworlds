@@ -35,6 +35,9 @@ const SUNAIR = vec3f(0.559, 0.776, 0.293);
       // Snell's window: bright turquoise-white sky with a soft sun glow, rolled off so it never clips flat
       var win = mix(vec3f(0.55, 1.05, 1.2), vec3f(0.4, 0.85, 1.25), clamp(rr.y, 0.0, 1.0)) * 1.25
               + vec3f(1.5, 1.35, 1.0) * (pow(sd, 90.0) * 2.5 + pow(sd, 10.0) * 0.9 + pow(sd, 2.5) * 0.3);
+      // a colossal pale moon hangs in the other sky above the stair
+      let mn = dot(rr, vec3f(0.32, 0.8, -0.5));
+      win = mix(win, vec3f(1.9, 1.8, 1.6), smoothstep(0.9, 0.915, mn)) + vec3f(0.5, 0.45, 0.6) * smoothstep(0.7, 0.92, mn);
       // total internal reflection: mirror of the water below
       let tir = waterAt(cy) * vec3f(0.9, 1.1, 1.1) * (0.6 + 0.6 * (a.y - 0.3));
       let cw = textureSampleLevel(tCaus, sRep, q * 0.09 + g * 0.3 + vec2f(t * 0.01, 0.0), lod + 1.5).g;

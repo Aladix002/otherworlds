@@ -81,9 +81,9 @@ export default {
   spawn: { pos: [2, -6.5, 80], yaw: 0, pitch: -0.08 },
   poses: [
     { pos: [11, -9.5, 66], yaw: 0.5, pitch: 0.02 },
-    { pos: [-9.5, -10.8, 61], yaw: -1.0, pitch: 0.5 },
+    { pos: [8.5, -11, 46], yaw: -0.4, pitch: 0.48 },
     { pos: [-8, -20, -40], yaw: 0.25, pitch: 0.24 },
-    { pos: [12, -19, -64], yaw: -0.59, pitch: -0.2, t: 7 },
+    { pos: [-7, -18, -60], yaw: -0.98, pitch: -0.3, t: 7 },
     { pos: [-13.5, -12.6, 17.5], yaw: 0.83, pitch: 0.06, t: 30 },
     { pos: [0, -95, -255], yaw: 0, pitch: 0.2, t: 57 },
   ],
@@ -91,6 +91,7 @@ export default {
     { pos: [-16, -6.5, 100], yaw: -0.6, pitch: -0.05 },
     { pos: [2, -6.5, 82], yaw: 0, pitch: -0.05 },
     { pos: [12, -8, 66], yaw: 0.5, pitch: 0 },
+    { pos: [11, -9.5, 58], yaw: -0.3, pitch: 0.3 },
     { pos: [2, -9, 64], yaw: 0.1, pitch: 0.05 },
     { pos: [-12.5, -11, 50], yaw: -1.0, pitch: 0.05 },
     { pos: [-12.5, -11.5, 40], yaw: -1.3, pitch: 0.05 },
@@ -206,41 +207,38 @@ export default {
 const NT = ${SC.filter((c) => c[1] < 27).length}u;\nconst COLS = array<vec4f, ${SC.length}>(${SC.map((c) => `vec4f(${f2(c[0])}, ${f2(c[1])}, ${f2(c[2] - 0.05)}, ${f2(c[3])})`).join(',')});
 const NSB = ${SB.length}u;\nconst SBX = array<vec4f, ${SB.length}>(${SB.map((b) => `vec4f(${b.map(f2).join(',')})`).join(',')});
 fn inRuins(p: vec2f) -> bool { return (abs(p.x) < 15.0 && p.y > 27.0 && p.y < 64.0) || (abs(p.x - DOORX) < 9.0 && abs(p.y - DOORZ) < 10.0) || distance(p, vec2f(${THO})) < 10.0; }
-// x = analytic sun shadow of the columns and the entablature, y = contact occlusion at the column feet
 fn colShadow(wp: vec3f) -> vec2f {
-  if (!inRuins(wp.xz)) { return vec2f(1.0); }
-  let d = SUN.xz / SUN.y;
-  var s = 1.0; var c = 1.0;
-  // the tholos columns come last and only shade their own surroundings
-  var i0 = 0u; var i1 = NCOL - NT;
-  if (wp.z < 27.0) { i0 = i1; i1 = NCOL; }
-  for (var i = i0; i < i1; i++) {
-    let C = COLS[i];
-    let h = C.w - wp.y;
-    let rel = C.xy - wp.xz;
-    c *= 1.0 - 0.6 * (1.0 - smoothstep(C.z - 0.1, C.z + 0.55, length(rel))) * step(0.0, h);
-    if (h <= 0.0) { continue; }
-    let t = clamp(dot(rel, d) / dot(d, d), 0.0, h);
-    let dist = length(wp.xz + d * t - C.xy);
-    s *= mix(1.0, smoothstep(C.z - 0.2, C.z + 0.25, dist), smoothstep(0.0, 0.5, h - t) * step(0.05, t));
-  }
-  let hE = PADY + 7.4 - wp.y;
-  if (hE > 0.4 && wp.z < 64.0 && wp.z > 27.0) {
-    let q = wp.xz + d * hE;
-    let e = min(sdBox2(q - vec2f(0.0, 55.3), vec2f(7.0, 0.7)), sdBox2(vec2f(abs(q.x) - 6.25, q.y - 52.0), vec2f(0.5, 3.6)));
-    s *= smoothstep(-0.15, 0.25 + hE * 0.04, e);
-  }
-  return vec2f(mix(1.0, s, 0.88), c);
+if (!inRuins(wp.xz)) { return vec2f(1.0); }
+let d = SUN.xz / SUN.y;
+var s = 1.0; var c = 1.0;
+var i0 = 0u; var i1 = NCOL - NT;
+if (wp.z < 27.0) { i0 = i1; i1 = NCOL; }
+for (var i = i0; i < i1; i++) {
+let C = COLS[i];
+let h = C.w - wp.y;
+let rel = C.xy - wp.xz;
+c *= 1.0 - 0.6 * (1.0 - smoothstep(C.z - 0.1, C.z + 0.55, length(rel))) * step(0.0, h);
+if (h <= 0.0) { continue; }
+let t = clamp(dot(rel, d) / dot(d, d), 0.0, h);
+let dist = length(wp.xz + d * t - C.xy);
+s *= mix(1.0, smoothstep(C.z - 0.2, C.z + 0.25, dist), smoothstep(0.0, 0.5, h - t) * step(0.05, t));
 }
-// soft contact shade on the sand around the stylobate, plinths, fallen blocks, amphorae and the door
+let hE = PADY + 7.4 - wp.y;
+if (hE > 0.4 && wp.z < 64.0 && wp.z > 27.0) {
+let q = wp.xz + d * hE;
+let e = min(sdBox2(q - vec2f(0.0, 55.3), vec2f(7.0, 0.7)), sdBox2(vec2f(abs(q.x) - 6.25, q.y - 52.0), vec2f(0.5, 3.6)));
+s *= smoothstep(-0.15, 0.25 + hE * 0.04, e);
+}
+return vec2f(mix(1.0, s, 0.88), c);
+}
 fn sandAO(p: vec2f) -> f32 {
-  if (!inRuins(p) || p.y < 27.0) { return 1.0; }
-  var a = 1.0;
-  for (var i = 0u; i < NSB; i++) {
-    let B = SBX[i];
-    a *= 1.0 - 0.5 * exp(-max(sdBox2(p - B.xy, B.zw), 0.0) * 2.6);
-  }
-  return a;
+if (!inRuins(p) || p.y < 27.0) { return 1.0; }
+var a = 1.0;
+for (var i = 0u; i < NSB; i++) {
+let B = SBX[i];
+a *= 1.0 - 0.5 * exp(-max(sdBox2(p - B.xy, B.zw), 0.0) * 2.6);
+}
+return a;
 }
 `;
     this.terrain = ctx.pipeline({ code: COMMON + SH + TERRAIN, buffers: [ctx.mesh.layout], layouts: [this.envL], constants: this.consts, label: 'uw-terrain' });
@@ -305,7 +303,7 @@ fn sandAO(p: vec2f) -> f32 {
         [0, -8.2, 44, 0.8, 14, 1.0, 19, 0.34, 36, 0], [5, -9.6, 59, 0.6, 6, 0.8, 4, 0.3, 24, 1],
         [-14, -10, 46, 0.5, 4, 1.5, 9, 0.16, [36, 60, 80][q], 2], [-6, -6.8, 90, 0.7, 8, 1, 7, 0.26, 26, 3], [7, -10.2, 60, 0.45, 5, 0.8, 3.5, 0.2, 22, 2], [1, -10, 60, 0.5, 6, 1, 3, 0.24, 14, 3],
         [-15, -17, -55, 1.5, 22, 3, 25, 0.3, [120, 220, 320][q], 4], [30, -24, -95, 0.4, 6, 1.5, 6, 0.42, 8, 5],
-        [-6, -19, -50, 0.6, 6, 2, 6, 0.36, 16, 3], [THO[0], this.T.thoY + 2.4, THO[1], 0.9, 2.5, 0.5, 2.5, 0.3, [24, 34, 44][q], 6]];
+        [-6, -19, -50, 0.6, 6, 2, 6, 0.36, 16, 3], [-14, -6.5, 53, 0.8, 5, 1.5, 4, 0.34, [28, 40, 54][q], 7], [16, -6.5, 30, 0.7, 5, 3.5, 8, 0.28, 30, 7], [THO[0], this.T.thoY + 2.4, THO[1], 0.9, 2.5, 0.5, 2.5, 0.3, [24, 34, 44][q], 6]];
       const sd = new Float32Array(SC.length * 12), fd = [];
       let start = 0;
       SC.forEach((c, k) => {
@@ -451,7 +449,7 @@ fn sandAO(p: vec2f) -> f32 {
       pass.setPipeline(this.jelly); this.jellyMesh.draw(pass, this.nJel);
       pass.setPipeline(this.med); this.medMesh.draw(pass, 8, this.nJel);
     }
-    pass.setPipeline(this.moteDraw); pass.setBindGroup(2, this.moteDrawBG); pass.draw(6, this.nMotes + 12 * 18);
+    pass.setPipeline(this.moteDraw); pass.setBindGroup(2, this.moteDrawBG); pass.draw(6, this.nMotes + 12 * 18 + 9);
   },
 
   audio(ctx, a) {

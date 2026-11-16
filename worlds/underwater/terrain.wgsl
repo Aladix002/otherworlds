@@ -60,5 +60,15 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   // deep floor: soft patches of faint blue-green glow instead of bare silt
   var c = uwLit(alb * mix(0.72, 1.0, sa), n, wp, caus * dap * sh.x, dap * mix(0.5, 1.0, sh.x) * sa);
   c += vec3f(0.02, 0.1, 0.12) * smoothstep(0.55, 0.85, nb.r) * deep * (1.0 - fogF(distance(wp, G.camPos))) * 0.35;
+  // a rift in the seabed of the kelp clearing: another sky drifts below it
+  let rp = rot2(0.5) * (wp.xz - vec2f(8.0, -70.0));
+  let e = abs(rp.y) / 5.0 + rp.x * rp.x * 0.006 + (nf.x - 0.5) * 0.08 + (textureSample(tNoise, sRep, wp.xz * 0.09).g - 0.5) * 0.35;
+  if (e < 1.5) {
+    let rd = normalize(wp - G.camPos);
+    let q = wp.xz + rd.xz * (9.0 / max(-rd.y, 0.25));
+    let cl = textureSampleLevel(tNoise, sRep, q * 0.011 + G.time * vec2f(0.003, 0.001), 0.0).r * 0.65 + textureSampleLevel(tNoise, sRep, q * 0.037 - G.time * vec2f(0.002, 0.004), 1.0).g * 0.35;
+    let sky = mix(mix(vec3f(0.16, 0.42, 1.0), vec3f(1.1, 0.7, 0.75), uss(0.6, 0.1, -rd.y)), vec3f(1.5, 1.3, 1.35), uss(0.5, 0.72, cl));
+    c = mix(c * (1.0 - 0.6 * uss(1.3, 1.0, e)) + vec3f(1.0, 0.7, 0.55) * uss(1.5, 1.0, e) * 0.2, sky, uss(1.0, 0.96, e));
+  }
   return vec4f(c, 1.0);
 }

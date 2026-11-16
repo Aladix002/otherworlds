@@ -71,6 +71,20 @@ back toward the temple. A boulder shore rises to the surface behind it (z > 106)
 - Not done from the critic's minor list: statue drapery, door-side column material, far-surface banding, manta
   markings, starfish / acroteria shapes, the lone light pillar, cella wall coursing.
 
+## Surreal pass (dream version)
+- **Staircase into the other sky** (wow, hero view right): 47 floating marble steps (material 7) climb from behind the
+  temple at (11, 39) through the surface near (20, 21) and turn to gold light as they rise; the lower 37 are solid.
+  `temple.js` (stair loop), glow in `temple.wgsl`. A colossal pale moon hangs in Snell's window above it (`bg.wgsl`).
+- **Marble that forgot its weight**: an upside-down column with its capital, an upside-down kore, drums and blocks drift
+  in the water column around the temple. Built while `fl = 1`; their `uv.y` is 100 + phase and the vertex shader bobs them.
+- **Giant pastel coral trees** (material 6, recursive `coral()`): rose trunk, lilac limbs, glowing mint tips; six of them
+  (left of the temple in the hero view, on the way to the tholos / kelp, by the door).
+- **Fish of gold-leaf light**: fish species 7 (two schools: around the floating column, and up along the stair).
+- **Bubbles holding tiny gardens**: 9 big slow bubbles (kind 2 in `motes.wgsl`), one fixed in front of the temple.
+- **A rift with a sky below**: in the kelp clearing at (8, -70) the seabed opens on drifting clouds (parallax window in
+  `terrain.wgsl`); the mantas circle over it. Pose 3 looks across it to the colossal head.
+- Poses 0 (hero), 1 (up the stair to the moon) and 3 (rift) show the pass; the fly-through detours to the foot of the stair.
+
 ## Tunables
 - Light/fog by depth: `lightAt` / `waterAt` in common.wgsl (+ JS twins `lightAt`, `WCOL`, `KCOL`), fog in `update()`.
   Kelpness (amber-green water) depends on camera z and depth.
@@ -82,5 +96,5 @@ back toward the temple. A boulder shore rises to the surface behind it (z > 106)
 ## Known issues / ideas
 - Shadows are analytic (columns + front entablature only); statues and blocks get contact shade but cast no shadow.
 - The faces (kore, colossal head) are assembled from ellipsoids: archaic and stylised, readable but not sculpted.
-- Bundle: the world's own share grew by ~14 KB in the variety pass; the built file is ~203 KB because every world's
+- Bundle: the world's own share grew by ~14 KB in the variety pass and ~6 KB in the surreal pass; the built file is ~210 KB because every world's
   postcard is inlined and those grew a lot (a `_test` build alone is ~126 KB now).
