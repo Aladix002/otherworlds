@@ -567,15 +567,33 @@ export default {
     const surf = a.spatial({ pos: [ISX + Math.cos(th) * ISR, 0.5, ISZ + Math.sin(th) * ISR], ref: 22, rolloff: 1.1, reverb: 0.4, gain: 1 });
     a.noiseBed({ color: 'pink', freq: 520, q: 0.6, gain: 0.075, mod: 0.5, modRate: 0.09, gainMod: 0.7, bus: surf });   // distant surf
     a.noiseBed({ color: 'white', filter: 'bandpass', freq: 2600, q: 0.8, gain: 0.012, mod: 0.4, modRate: 0.11, gainMod: 0.9, bus: surf });
-    a.drone({ freq: a.hz(38), partials: [1, 2, 3], amps: [1, 0.35, 0.12], gain: 0.022, cutoff: 420, detune: 5 });
-    a.pad({ chords: [[50, 57, 62, 66], [45, 52, 57, 64], [47, 54, 59, 62], [43, 50, 59, 62]], gain: 0.026, attack: 7, change: [20, 34], cutoff: 900, reverb: 0.7 });
-    const notes = a.scale(74, 'pentatonic', 2);
-    const glass = a.bus({ gain: 1, reverb: 0.85 });
-    a.every(8, 19, (when) => {
-      const f = a.hz(a.rng.pick(notes));
-      a.bell({ freq: f, gain: 0.014, decay: 6, ratio: 2.76, index: 0.8, when, bus: glass });
-      if (a.rng() < 0.35) a.bell({ freq: f * 1.5, gain: 0.008, decay: 5, ratio: 2.76, index: 0.6, when: when + 0.35 + a.rng() * 0.4, bus: glass });
-    }, { startDelay: 5 });
+    a.drone({ freq: a.hz(37), partials: [1, 2, 3], amps: [1, 0.35, 0.12], gain: 0.022, cutoff: 420, detune: 5 });   // C#2
+    // MUSIC: C# aeolian, a felt-piano lullaby in slow 3/4 (54 bpm), a sparse left hand, long silences
+    const rng = a.rng, sc = a.scale(61, 'aeolian', 3), TEMPO = 54;          // deg 0 = C#4, 7 = C#5
+    const LH = [[49, 56, 61], [45, 52, 57], [54, 61, 66], [56, 59, 64]];    // C#m, A, F#m, G#m(7): bass + two chord tones
+    const A = [[4, 1], [7, 1], [9, 1], [8, 2], [0, 1], [7, 1], [5, 1], [4, 3]];                    // the lullaby: [degree, beats]
+    const B = [[9, 1], [8, 1], [7, 1], [5, 2], [0, 1], [4, 1], [5, 1], [7, 3]];
+    let count = 0;
+    const lullaby = (when) => {
+      const base = (count++ % 3 === 0) ? A : rng.pick([A, B, A]), sh = rng.pick([0, 0, 0, -2, 2]);
+      const mel = base.map(([d, b]) => ({ deg: d + sh, dur: b, vel: 0.75 + rng() * 0.3 }));
+      if (rng() < 0.4) mel.splice(2 + rng.int(3), 1, { rest: 1, dur: 1 });                         // a held-back note
+      if (rng() < 0.4) mel.length = mel.length - 2, mel.push({ deg: 4 + sh, dur: 3, vel: 0.7 });  // alternate ending
+      const bars = Math.ceil(mel.reduce((x, n) => x + n.dur, 0) / 3), prog = [0, 1, 2, 3];
+      const end = a.phrase({ notes: mel, inst: a.pianoFelt, opts: { gain: 0.034, reverb: 0.7, pan: 0.05 }, when, tempo: TEMPO, humanize: 0.03, scale: sc });
+      for (let b = 0; b < bars; b++) {                                                           // left hand: bass on 1, tones on 2-3 only now and then
+        const c = LH[prog[b % 4]], t0 = when + b * 3 * 60 / TEMPO;
+        a.pianoFelt({ midi: c[0], gain: 0.03, reverb: 0.7, when: t0 });
+        if (rng() < 0.6) a.pianoFelt({ midi: c[1], gain: 0.015, reverb: 0.7, when: t0 + 60 / TEMPO * 1.02 });
+        if (rng() < 0.4) a.pianoFelt({ midi: c[2], gain: 0.013, reverb: 0.7, when: t0 + 60 / TEMPO * 2.03 });
+      }
+      return end;
+    };
+    a.every(38, 80, (when) => { lullaby(when); }, { startDelay: 6 });
+    a.every(26, 60, (when) => {                                                                  // lone high echoes between lullabies
+      const m = sc[rng.pick([7, 9, 11, 8])];
+      a.pianoFelt({ midi: m, gain: 0.02, reverb: 0.9, when }); if (rng() < 0.5) a.pianoFelt({ midi: m - 4, gain: 0.013, reverb: 0.9, when: when + 60 / TEMPO * 1.5 });
+    }, { startDelay: 25 });
     this.spl.bus = a.bus({ gain: 1, reverb: 0.3 });
     // the islet: a slow bell buoy.  the lotus field: small glass notes, very quiet
     const isl = a.spatial({ pos: [ISL[0], 3, ISL[1]], ref: 16, rolloff: 1.2, reverb: 0.6, gain: 1 });
@@ -584,7 +602,7 @@ export default {
       if (a.rng() < 0.5) a.bell({ freq: a.hz(57), gain: 0.016, decay: 6, ratio: 1.41, index: 1.2, when: when + 1.1 + a.rng() * 0.5, bus: isl });
     }, { startDelay: 3 });
     const lot = a.spatial({ pos: [LOTUS[0], 0.5, LOTUS[1]], ref: 9, rolloff: 1.3, reverb: 0.7, gain: 1 });
-    const hi = a.scale(81, 'pentatonic', 1);
+    const hi = a.scale(85, 'minorPentatonic', 1);
     a.every(4, 11, (when) => { a.bell({ freq: a.hz(a.rng.pick(hi)), gain: 0.012, decay: 3.5, ratio: 3.01, index: 0.5, when, bus: lot }); }, { startDelay: 6 });
   },
 };
