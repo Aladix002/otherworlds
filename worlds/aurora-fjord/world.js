@@ -286,8 +286,36 @@ export default {
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 140, gain: 0.05, mod: 0.3, modRate: 0.03 });
     a.noiseBed({ color: 'white', filter: 'bandpass', freq: 3000, q: 1.5, gain: 0.004, mod: 0.5, modRate: 0.08, gainMod: 0.9 });          // dry snow hiss
     a.drone({ freq: a.hz(38), partials: [1, 2, 3.01], gain: 0.018, cutoff: 420 });
-    // aurora hum: a very soft, slowly turning high pad
-    a.pad({ chords: [[74, 81, 86, 90], [72, 79, 84, 91], [69, 76, 83, 88], [71, 78, 86, 93]], gain: 0.011, attack: 8, change: [20, 36], cutoff: 2600, type: 'sine', reverb: 0.9 });
+    // MUSIC: D dorian, cello and viola bowing open fifths in long free phrases, a far-off "ah" choir
+    const rng = a.rng, dor = a.scale(50, 'dorian', 3), FIFTHS = [[38, 45], [43, 50], [36, 43], [40, 47], [41, 48]];   // D/A, G/D, C/G, E/B, F/C (low, high)
+    const MOT = [[0, 4, 3, 2, 1, 0], [0, 4, 5, 4, 2, 0], [2, 4, 3, 1, 0]];                       // cello motif as degrees from D3: D A-ish..
+    let k = 0;
+    const cello = (when) => {
+      const m = (k++ % 2 === 0 ? MOT[0] : rng.pick(MOT)).slice(), sh = rng.pick([0, 0, 0, 2, -1]);
+      if (rng() < 0.4) m.pop();
+      const notes = [];
+      m.forEach((d, i) => { notes.push({ deg: d + 3 + sh, dur: 2 + rng() * 2.2, vel: 0.85 + rng() * 0.2 }); if (rng() < 0.3) notes.push({ rest: 1, dur: 1.5 }); });
+      const end = a.phrase({ notes, inst: a.bowed, opts: { gain: 0.034, attack: 1.4, release: 1.5, vibrato: 14, reverb: 0.75, pan: -0.15, durMul: 1.08 }, when, tempo: 36, humanize: 0.02, scale: dor });
+      a.bowed({ midi: dor[3 + sh] + 7, dur: (end - when) * 0.45, attack: 3, release: 3, gain: 0.02, reverb: 0.8, pan: 0.2, when: when + 1.5 });   // viola fifth above, sustained
+      return end;
+    };
+    const chords = (when) => {                                                                    // two or three bowed fifths, glide between them
+      let t = when, prev = null;
+      for (let c = 0, n = 2 + rng.int(2); c < n; c++) {
+        const [lo, hi] = rng.pick(FIFTHS), d = 9 + rng() * 6;
+        a.bowed({ midi: lo + 12, dur: d, attack: 3.2, release: 3, fromMidi: prev ?? undefined, gain: 0.03, reverb: 0.8, pan: -0.2, when: t });
+        a.bowed({ midi: hi + 12, dur: d - 1, attack: 3.8, release: 3, gain: 0.022, reverb: 0.8, pan: 0.2, when: t + 0.7 });
+        prev = lo + 12; t += d - 1;
+      }
+      return t;
+    };
+    a.every(60, 100, (when) => { const e = chords(when); if (rng() < 0.6) cello(e + 3 + rng() * 4); }, { startDelay: 6 });
+    a.every(75, 140, (when) => cello(when), { startDelay: 55 });
+    a.every(70, 130, (when) => {                                                                  // distant choir, one slow swell
+      const m = rng.pick([62, 69, 65, 64]);
+      a.choir({ midi: m, vowel: rng() < 0.7 ? 'ah' : 'oo', dur: 7 + rng() * 4, attack: 3, release: 4, gain: 0.02, reverb: 0.95, pan: rng.range(-0.5, 0.5), when });
+      if (rng() < 0.5) a.choir({ midi: m + 7, vowel: 'oo', dur: 7, attack: 3.5, release: 4, gain: 0.014, reverb: 0.95, pan: rng.range(-0.5, 0.5), when: when + 2 });
+    }, { startDelay: 30 });
     // water lapping under the pier
     const lap = a.spatial({ pos: [PIER[0], 0, PIER[2] + 6], ref: 9, rolloff: 1, reverb: 0.25, gain: 1 });
     a.every(1.6, 4.2, (when) => a.whoosh({ dur: 0.7 + a.rng() * 0.6, f0: 300, f1: 700 + a.rng() * 500, q: 1.2, gain: 0.035, when, bus: lap }), { startDelay: 2 });
@@ -308,7 +336,5 @@ export default {
     a.every(40, 90, (when) => { for (let i = 0; i < 3; i++) a.chirp({ f0: 335 - i * 8, f1: 300, dur: i ? 0.22 : 0.4, gain: 0.014, when: when + i * 0.55 + (i ? 0.25 : 0), bus: hoot }); }, { startDelay: 12 });
     const herd = a.spatial({ pos: [HERD[0], 4, HERD[1]], ref: 10, rolloff: 1.2, reverb: 0.5, gain: 1 });
     a.every(7, 26, (when) => { for (let i = 0, n = 1 + a.rng.int(3); i < n; i++) a.bell({ freq: a.hz(88) * (1 + 0.01 * a.rng()), gain: 0.007, decay: 0.9, ratio: 2.76, index: 1.3, when: when + i * (0.3 + 0.2 * a.rng()), bus: herd }); }, { startDelay: 5 });
-    const notes = a.scale(74, 'pentatonic', 2);
-    a.every(18, 44, (when) => a.bell({ freq: a.hz(a.rng.pick(notes)), gain: 0.005, decay: 7, when, pan: a.rng.range(-0.6, 0.6), reverb: 0.95 }), { startDelay: 9 });
   },
 };
