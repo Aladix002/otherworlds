@@ -513,33 +513,60 @@ export default {
     for (let i = 0; i < 3; i++) a.bell({ freq: a.hz(n[(a.rng() * n.length) | 0]), gain: 0.022, decay: 6, ratio: 2.01, index: 1.1, when: t + i * (0.35 + a.rng() * 0.4), bus: s });
   },
   audio(ctx, a) {
-    this.notes = a.scale(69, 'pentatonic', 2);
+    // identity: D kurd, handpan + slow frame-drum heartbeat + low humming voices
+    const R = a.rng, K = a.scale(50, 'kurd', 3);                      // D3.. 7 degrees per octave
+    this.notes = a.scale(74, 'kurd', 1);
     a.setReverb({ seconds: 5.5, damp: 0.6, wet: 0.85 });
     // night bed: low air, a soft shimmer of crickets, wind moving through the crowns
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 240, gain: 0.04, mod: 0.3 });
     a.noiseBed({ color: 'white', filter: 'bandpass', freq: 4700, q: 4, gain: 0.009, mod: 0.12, modRate: 0.09, gainMod: 0.6 });
     a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 520, q: 0.7, gain: 0.05, mod: 0.55, modRate: 0.045, gainMod: 0.6 });
     a.noiseBed({ color: 'pink', filter: 'highpass', freq: 2400, gain: 0.006, mod: 0.4, modRate: 0.07, gainMod: 0.8 });
-    // airy pad
-    a.drone({ freq: a.hz(33), partials: [1, 2, 3.01, 4.98], gain: 0.02, cutoff: 420 });
-    a.pad({ chords: [[57, 64, 69, 72, 76], [53, 60, 65, 69, 72], [55, 62, 67, 71, 74], [52, 59, 64, 67, 71]], gain: 0.026, change: [20, 36], cutoff: 950, attack: 8, type: 'sine', reverb: 0.8 });
+    a.drone({ freq: a.hz(26), partials: [1, 2, 3.01, 4.98], gain: 0.02, cutoff: 420 });      // low D
+    // humming voices: low "mm" on D / A / F, long, very quiet
+    const hum = [50, 57, 53, 55, 50];
+    a.every(26, 52, (when) => {
+      const m = R.pick(hum);
+      a.choir({ vowel: 'mm', midi: m, dur: 7 + R() * 4, attack: 2.5, voices: 3, gain: 0.016, reverb: 0.8, pan: R.range(-0.4, 0.4), when });
+      if (R() < 0.5) a.choir({ vowel: 'mm', midi: m + 7, dur: 8, attack: 3, voices: 3, gain: 0.011, reverb: 0.85, pan: R.range(-0.5, 0.5), when: when + 1.8 });
+    }, { startDelay: 10 });
+    // heartbeat: a few bars of a slow lub-dub (~58 bpm), then long silence
+    a.every(45, 90, (when) => {
+      const bars = 6 + R.int(8), per = 1.9 + R() * 0.3;
+      for (let i = 0; i < bars; i++) {
+        const t = when + i * per, fade = Math.min(1, (i + 1) / 3, (bars - i) / 3);
+        a.frameDrum({ gain: 0.05 * fade, vel: 1, reverb: 0.5, when: t });
+        a.frameDrum({ gain: 0.03 * fade, vel: 0.7, reverb: 0.5, when: t + 0.4 });
+      }
+    }, { startDelay: 20 });
+    // handpan motif, every ~40-80 s, with variations (degrees into the kurd scale; 7..13 = the ding octave and above)
+    const MOT = [[7, 9, 10, 9, 7], [7, 9, 11, 10, 9], [10, 9, 7, 6], [7, 8, 9, 7]];
+    let n = 0;
+    a.every(40, 75, (when) => {
+      const base = MOT[n++ % 2 ? R.int(MOT.length) : 0], sh = R.pick([0, 0, 0, 2, -2, 7]);
+      const notes = [];
+      base.forEach((d, i) => { notes.push({ deg: Math.min(20, Math.max(0, d + sh)), dur: i === base.length - 1 ? 2 : (R() < 0.3 ? 1.5 : 1), vel: 0.8 + R() * 0.3 }); if (R() < 0.35) notes.push({ rest: true, dur: 1 }); });
+      a.phrase({ notes, inst: a.handpan, opts: { gain: 0.05, reverb: 0.7, pan: R.range(-0.3, 0.3) }, tempo: 52 + R.int(14), humanize: 0.02, scale: K, when });
+    }, { startDelay: 6 });
+    // sparse single handpan notes between the phrases
+    a.every(8, 20, (when) => { if (R() < 0.6) a.handpan({ midi: R.pick(K.slice(3, 15)), gain: 0.03, reverb: 0.75, pan: R.range(-0.6, 0.6), when }); }, { startDelay: 14 });
     // crickets, sparse and soft
-    a.every(4, 11, (when) => a.chirp({ f0: 4100 + a.rng() * 500, f1: 4300, dur: 0.045, repeat: 3 + a.rng.int(5), gap: 0.05, gain: 0.005, when, pan: a.rng.range(-0.9, 0.9), reverb: 0.4 }));
+    a.every(4, 11, (when) => a.chirp({ f0: 4100 + R() * 500, f1: 4300, dur: 0.045, repeat: 3 + R.int(5), gap: 0.05, gain: 0.005, when, pan: R.range(-0.9, 0.9), reverb: 0.4 }));
     // a distant owl
     a.every(35, 80, (when) => {
-      const f = 300 + a.rng() * 40, pan = a.rng.range(-0.8, 0.8);
+      const f = 300 + R() * 40, pan = R.range(-0.8, 0.8);
       a.chirp({ f0: f, f1: f * 0.93, dur: 0.32, repeat: 1, vib: 3, vibRate: 5, gain: 0.011, when, pan, reverb: 0.9 });
       a.chirp({ f0: f * 0.97, f1: f * 0.88, dur: 0.5, repeat: 1, vib: 3, vibRate: 5, gain: 0.012, when: when + 0.55, pan, reverb: 0.9 });
     }, { startDelay: 18 });
     // the pond: a drop now and then; the stone ring: a low, far bell
     const ps = a.spatial({ pos: [POND[0], WY, POND[1]], ref: 6, reverb: 0.6 }), rs = a.spatial({ pos: [RING[0], 1, RING[1]], ref: 8, reverb: 0.9 });
-    a.every(5, 14, (when) => a.chirp({ f0: 1100 + a.rng() * 500, f1: 520, dur: 0.06, repeat: 1, vib: 0, gain: 0.02, when, bus: ps }));
-    a.every(22, 50, (when) => a.bell({ freq: a.hz(45 + a.rng.int(3) * 5), gain: 0.03, decay: 9, ratio: 1.5, index: 0.6, when, bus: rs }));
+    a.every(5, 14, (when) => a.chirp({ f0: 1100 + R() * 500, f1: 520, dur: 0.06, repeat: 1, vib: 0, gain: 0.02, when, bus: ps }));
+    a.every(22, 50, (when) => a.bell({ freq: a.hz(45 + R.int(3) * 5), gain: 0.03, decay: 9, ratio: 1.5, index: 0.6, when, bus: rs }));
     // rare spirit chimes
     a.every(16, 38, (when) => {
-      const n = a.rng.pick(this.notes);
-      a.bell({ freq: a.hz(n + 12), gain: 0.009, decay: 7, ratio: 3.01, index: 0.7, when, pan: a.rng.range(-0.7, 0.7), reverb: 0.95 });
-      if (a.rng() < 0.5) a.bell({ freq: a.hz(n + 19), gain: 0.006, decay: 7, ratio: 3.01, index: 0.6, when: when + 0.6 + a.rng() * 0.5, pan: a.rng.range(-0.7, 0.7), reverb: 0.95 });
+      const n = R.pick(this.notes);
+      a.bell({ freq: a.hz(n + 12), gain: 0.009, decay: 7, ratio: 3.01, index: 0.7, when, pan: R.range(-0.7, 0.7), reverb: 0.95 });
+      if (R() < 0.5) a.bell({ freq: a.hz(n + 19), gain: 0.006, decay: 7, ratio: 3.01, index: 0.6, when: when + 0.6 + R() * 0.5, pan: R.range(-0.7, 0.7), reverb: 0.95 });
     }, { startDelay: 8 });
   },
 };
