@@ -726,7 +726,7 @@ export default {
     for (let i = 0; i < (low ? 5 : 3); i++) a.bell({ freq: a.hz(n[(a.rng() * n.length) | 0] - (low ? 12 : 0)), gain: 0.02, decay: 5, ratio: 2.01, index: 1.2, when: t + i * (0.25 + a.rng() * 0.3), bus: s });
   },
   audio(ctx, a) {
-    this.notes = a.scale(72, 'lydian', 2);
+    this.notes = a.scale(69, 'mixolydian', 2);
     a.setReverb({ seconds: 5, damp: 0.5, wet: 0.85 });
     // night insects: high band-passed noise shimmer + soft low bed
     a.noiseBed({ color: 'white', filter: 'bandpass', freq: 5200, q: 3, gain: 0.012, mod: 0.15, modRate: 0.08, gainMod: 0.6 });
@@ -736,8 +736,40 @@ export default {
     a.noiseBed({ color: 'pink', filter: 'lowpass', freq: 1400, gain: 0.16, mod: 0.15, gainMod: 0.15, bus: wf });
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 400, gain: 0.2, mod: 0.1, bus: wf });
     // slow pads following the colour cycle
-    a.drone({ freq: a.hz(38), partials: [1, 2, 3, 5.01], gain: 0.025, cutoff: 500 });
-    a.pad({ chords: [[57, 64, 69, 71, 76], [55, 62, 67, 69, 74], [60, 64, 67, 71, 74], [53, 60, 65, 67, 72]], gain: 0.03, change: [18, 32], cutoff: 1100, attack: 7 });
+    a.drone({ freq: a.hz(33), partials: [1, 2, 3, 5.01], gain: 0.02, cutoff: 480 });
+    a.pad({ chords: [[57, 64, 69, 73], [55, 62, 67, 71], [62, 66, 69, 74], [52, 59, 64, 67]], gain: 0.016, change: [22, 38], cutoff: 1000, attack: 7 });
+    // A mixolydian: a wooden marimba (3 steps) against a kalimba (4 steps) over 12 eighth-notes, soft hand drum and shaker, breathy wood flute phrases
+    const r = a.rng, MX = a.scale(57, 'mixolydian', 3); // A3 B3 C#4 D4 E4 F#4 G4 A4 ...
+    const TEMPO = 86, E8 = 60 / TEMPO / 2;
+    const POOLS = [[0, 2, 4, 7], [0, 4, 6, 9], [3, 5, 7, 10], [-2, 0, 2, 4], [1, 4, 7, 9]];
+    const ostinato = (when) => {
+      const pool = r.pick(POOLS).map((d) => MX[Math.max(0, d + 3)]), cycles = 3 + r.int(4), swap = r() < 0.3;
+      const mar = [0, 1, 2, 1].map((i) => pool[i]), kal = [2, 3, 1].map((i) => pool[i] + 12);
+      for (let c = 0; c < cycles; c++) for (let s8 = 0; s8 < 12; s8++) {
+        const t = when + (c * 12 + s8) * E8;
+        if (s8 % 3 === 0 && r() > 0.22) a.marimba({ midi: mar[(c * 4 + s8 / 3) % 4] - (swap ? 12 : 0), when: t, gain: 0.045, vel: s8 === 0 ? 1 : 0.7, pan: -0.25, reverb: 0.4 });
+        if (s8 % 4 === 0 && r() > 0.22) a.kalimba({ midi: kal[(c * 3 + s8 / 4) % 3], when: t, gain: 0.04, vel: 0.8, pan: 0.3, reverb: 0.5 });
+        if (s8 === 0 && c % 2 === 0) a.handDrum({ when: t, gain: 0.03 });
+        if (r() < 0.45 && s8 % 2 === 1) a.shaker({ when: t, gain: 0.008 + r() * 0.006, pan: 0.2 });
+      }
+    };
+    // flute motif: E-C#-G-A with the fourth rest, answering phrases and an alternate ending
+    const FM = [{ deg: 11, dur: 1 }, { deg: 9, dur: 0.5 }, { deg: 13, dur: 2 }, { rest: 1, dur: 0.5 }, { deg: 12, dur: 0.75 }, { deg: 11, dur: 0.75 }, { deg: 7, dur: 3 }];
+    const fl = (when) => {
+      const x = r(), sh = r.pick([0, 0, -2, 2]);
+      let ns = FM.map((n) => (n.rest ? n : { ...n, deg: n.deg + sh, vel: 0.9 }));
+      if (x < 0.3) ns = ns.slice(0, 3);
+      else if (x < 0.55) ns = ns.slice(0, 6).concat([{ deg: 8 + sh, dur: 2.5 }]);
+      else if (x < 0.7) ns = ns.slice(4);
+      a.phrase({ notes: ns, inst: a.flute, opts: { preset: 'wood', gain: 0.05, reverb: 0.55, vibrato: 14 }, when, tempo: 64, scale: MX });
+    };
+    let lastKind = 0;
+    a.every(22, 48, (when) => {
+      const x = r();
+      if (x < 0.4 && lastKind !== 1) { ostinato(when); lastKind = 1; if (r() < 0.4) fl(when + 16 + r() * 6); }
+      else if (x < 0.8 && lastKind !== 2) { fl(when); lastKind = 2; }
+      else { ostinato(when); lastKind = 1; }
+    }, { startDelay: 7 });
     // frogs and crickets, sparse
     a.every(3, 9, (when) => a.chirp({ f0: 520 + a.rng() * 200, f1: 380, dur: 0.09, repeat: 2 + a.rng.int(4), gap: 0.11, vib: 20, vibRate: 30, gain: 0.012, when, pan: a.rng.range(-0.9, 0.9), reverb: 0.6 }));
     a.every(5, 14, (when) => a.chirp({ f0: 3900, f1: 4300, dur: 0.05, repeat: 3 + a.rng.int(5), gap: 0.04, gain: 0.006, when, pan: a.rng.range(-0.8, 0.8) }));
@@ -745,7 +777,7 @@ export default {
     const gy = this.hAt(GRV[0], GRV[1]);
     const grove = a.spatial({ pos: [GRV[0], gy + 4, GRV[1]], ref: 9, rolloff: 1.2, reverb: 0.6 });
     a.every(9, 22, (when) => { const f = 620 + a.rng() * 260; a.chirp({ f0: f, f1: f * 1.32, dur: 0.16, repeat: 2 + a.rng.int(2), gap: 0.2, vib: 10, vibRate: 9, gain: 0.014, when, bus: grove }); }, { startDelay: 4 });
-    a.every(7, 16, (when) => a.additive({ freq: a.hz(a.rng.pick([45, 48, 52, 55])), partials: [1, 0.4, 0.12], attack: 1.2, decay: 4, gain: 0.02, when, bus: grove }));
+    a.every(7, 16, (when) => a.additive({ freq: a.hz(a.rng.pick([45, 49, 52, 55])), partials: [1, 0.4, 0.12], attack: 1.2, decay: 4, gain: 0.02, when, bus: grove }));
     const pool = a.spatial({ pos: [POOL[0], 0.3, POOL[1]], ref: 6, rolloff: 1.3, reverb: 0.85 });
     a.every(4, 11, (when) => a.pluck({ freq: a.hz(a.rng.pick(this.notes)), decay: 1.6, gain: 0.014, when, bus: pool }));
     this.hum = a.spatial({ pos: [0, 1, -30], ref: 2.5, rolloff: 1.6, reverb: 0.2 });
