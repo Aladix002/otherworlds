@@ -14,9 +14,13 @@ import PUFFS from './puffs.wgsl';
 import PUFFBAKE from './puffbake.wgsl';
 import GLOW from './glow.wgsl';
 import ISLET from './islet.wgsl';
+import RAY from './ray.wgsl';
+import LIFE from './life.wgsl';
 
-import { DOOR, CORE, PATHS, JGROUPS, POSES, FLY, FLY_DUR, frame, spine } from './layout.js';
+import { DOOR, CORE, PATHS, JGROUPS, POSES, FLY, FLY_DUR, frame, spine, NURSERY, REEF, RING, RAXIS, ROCKS, CLOUDS } from './layout.js';
 const _sp = [0, 0, 0], _ws = new Float32Array(54);
+const WH = [0, 1, 2, 6];                 // whale paths that push the camera (the calf is too small to matter)
+const NSPR = 6, LROCK = 16, _ld = new Float32Array((LROCK + ROCKS.length) * 4);   // life data: see life.wgsl
 
 // ---------- geometry ----------
 export const WRM = 0.108;
@@ -51,7 +55,7 @@ function whaleGeo(q) {
     const base = P.length / 3, i0 = I.length;
     for (const [C, cd, td, ch, th, u] of secs) for (let i = 0; i < NA; i++) {
       const a = i / NA * Math.PI * 2, c = Math.cos(a), x = c * ch * 0.5, y = Math.sin(a) * th * 0.5 * (0.6 - 0.4 * c);
-      P.push(C[0] + cd[0] * x + td[0] * y, C[1] + cd[1] * x + td[1] * y, C[2] + cd[2] * x + td[2] * y); UV.push(part, u);
+      P.push(C[0] + cd[0] * x + td[0] * y, C[1] + cd[1] * x + td[1] * y, C[2] + cd[2] * x + td[2] * y); UV.push(part + 0.3 * c, u);   // + chordwise position (-1 leading .. 1 trailing)
     }
     for (let j = 0; j < secs.length - 1; j++) for (let i = 0; i < NA; i++) {
       const a = base + j * NA + i, b = base + j * NA + (i + 1) % NA, c = a + NA, d = b + NA;
@@ -79,7 +83,7 @@ function whaleGeo(q) {
       const bump = 0.007 * (0.5 + 0.5 * Math.sin(t * 34)) * (1 - 0.7 * t) * sm(0.05, 0.2, t);
       const ch = (0.062 * Math.pow(1 - t, 0.55) * (0.62 + 0.38 * sm(0, 0.3, t)) + 0.004 + bump) * (j === NF ? 0.3 : 1);
       const C = cen(t); for (let c = 0; c < 3; c++) C[c] -= cd[c] * bump * 0.5;
-      secs.push([C, cd, td, ch, ch * 0.26 * (1 - 0.4 * t), t]);
+      secs.push([C, cd, td, ch, ch * 0.36 * (1 - 0.45 * t), t]);
     }
     loft(secs, NA, side);
   }
@@ -128,13 +132,17 @@ export default {
     let d = Math.max(r - rr, qy - 0.02, -7.4 - qy) * 0.85;
     // whales gently shoulder the camera aside instead of passing through it
     const t = this.t || 0;
-    for (let k = 0; k < 3; k++) {
-      const p = PATHS[k], R = p[11] * 0.1 + 2.5;
+    for (let k = 0; k < 4; k++) {
+      const p = PATHS[WH[k]], R = p[11] * 0.1 + 2.5;
       for (let j = 0; j < 6; j++) {
         spine(p, t, 0.06 + j * 0.17, _sp);
         const dd = Math.hypot(x - _sp[0], y - _sp[1], z - _sp[2]) - R;
         if (dd < d) d = dd;
       }
+    }
+    for (let k = 0; k < ROCKS.length; k++) {
+      const o = (LROCK + k) * 4, dd = Math.hypot(x - _ld[o], (y - _ld[o + 1]) * (y > _ld[o + 1] ? 1.5 : 1), z - _ld[o + 2]) - _ld[o + 3] * 1.05;
+      if (dd < d) d = dd;
     }
     return d;
   },
@@ -186,6 +194,15 @@ export default {
     this.whaleAura = ctx.pipeline({ module: whaleMod, vs: 'vsh', fs: 'fsh', layouts: [whaleL], blend: 'add', cull: 'none', label: 'ao-aura' });
     this.NT = [900, 2200, 3200][q];
     this.trail = ctx.pipeline({ code: UTIL + COMMON + TRAIL, layouts: [pathL], blend: 'add', cull: 'none', constants: { NT: this.NT }, label: 'ao-trail' });
+    // ---- rays: the giant of the deep (instance 0) and the reef pod ----
+    {
+      const NX = [32, 56, 64][q], NV = 8, g = M.plane(2, 1, NX, NV), n = g.pos.length / 3, tl = M.plane(0.03, 1, 1, 10);
+      for (let i = 0; i < n; i++) { g.pos[i * 3 + 2] += 0.5; g.uv[i * 2] = 0; }
+      for (let i = 0; i < tl.pos.length / 3; i++) { tl.pos[i * 3 + 2] += 1.5; tl.uv[i * 2] = 1; }
+      this.rayMesh = M.upload(M.merge([g, tl]));
+      this.NRAY = [5, 7, 9][q];
+      this.ray = ctx.pipeline({ code: UTIL + COMMON + RAY, buffers: [M.layout], layouts: [pathL], blend: 'premul', cull: 'none', label: 'ao-ray' });
+    }
 
     // ---- fish ----
     const NF = [1152, 2176, 3584][q], FA = Math.round(NF * 0.42), FB = Math.round(NF * 0.8), rng = ctx.rng;
@@ -203,12 +220,13 @@ export default {
     // ---- jellies ----
     const jd = [], jsc = [0.6, 1, 1][q];
     this.jgroups = [];
-    for (const [x, by, z, r, n, H, h0, h1] of JGROUPS) {
-      const cnt = Math.round(n * jsc);
+    const rng2 = ctx.math.makeRng(77);     // new content draws from its own stream, so the old layout stays put
+    JGROUPS.forEach(([x, by, z, r, n, H, h0, h1, sm = 1], gi) => {
+      const cnt = Math.round(n * (sm > 1 ? 1 : jsc)), rng = gi > 2 ? rng2 : ctx.rng;
       this.jgroups.push([x, by + H * 0.5, z]);
       const placed = [];
       for (let i = 0; i < cnt; i++) {
-        const size = 0.4 + Math.pow(rng(), 2.2) * 1.5;
+        const size = (0.4 + Math.pow(rng(), 2.2) * 1.5) * sm;
         let jx = 0, jz = 0;
         // every jelly keeps its own column: bells never nest, tentacles have room
         for (let tr = 0, ok = false; tr < 300 && !ok; tr++) {
@@ -219,13 +237,13 @@ export default {
         placed.push([jx, jz, size]);
         jd.push(x + jx, by, z + jz, size, 3.2 + rng() * 2.2, h0 + (h1 - h0) * rng(), rng(), rng(), H, 0.8 + rng() * 0.5, 0.65 + 0.75 * rng(), 0, 0, 0, 0, 0);
       }
-    }
+    });
     this.NJ = jd.length / 16;
     this.jd = Float32Array.from(jd);
     this.jelBuf = ctx.buffer(this.jd, 'storage');
     const jelL = ctx.layout(['storage']);
     this.jelBG = ctx.bindGroup(jelL, [this.jelBuf]);
-    const bell = M.lathe([[0.84, -0.07], [0.97, 0.0], [1.0, 0.1], [0.97, 0.25], [0.88, 0.42], [0.72, 0.58], [0.5, 0.7], [0.25, 0.77], [0.0, 0.79]], [16, 24, 32][q]);
+    const bell = M.lathe([[0.84, -0.07], [0.97, 0.0], [1.0, 0.1], [0.97, 0.25], [0.88, 0.42], [0.72, 0.58], [0.5, 0.7], [0.25, 0.77], [0.0, 0.79]], [16, 36, 44][q]);
     this.bellMesh = M.upload(bell);
     this.bell = ctx.pipeline({ code: UTIL + JELLY, buffers: [M.layout], layouts: [jelL], blend: 'add', cull: 'none', label: 'ao-bell' });
     this.NSEG = [10, 16, 20][q];
@@ -324,9 +342,9 @@ export default {
       };
       const flag = (g, u, v) => { for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = u; if (v !== undefined) g.uv[i + 1] = v; } return g; };
       const W3 = (x, y, z) => [D[0] + x, D[1] + y, D[2] + z];
-      const crystal = (pos, dir, r, h, col, glow = 0) => {
+      const crystal = (pos, dir, r, h, col, glow = 0, mat = 1) => {
         const g = orient(M.merge([M.cylinder(r, r * 0.85, h, 6, 1), M.translate(M.cone(r * 0.85, h * 0.4, 6), 0, h, 0)]), pos, dir);
-        parts.push(flag(g, 1, col));
+        parts.push(flag(g, mat, col));
         const l = Math.hypot(...dir);
         if (glow) glows.push(pos[0] + dir[0] / l * h, pos[1] + dir[1] / l * h, pos[2] + dir[2] / l * h, h * glow, ...(col < 0.5 ? [0.04, 0.12, 0.26] : [0.15, 0.06, 0.24]), 0);
       };
@@ -429,8 +447,16 @@ export default {
         parts.push(flag(M.tube(path, (t) => 0.02 * (1 - 0.65 * t), 5), 5));
       }
       // grass tufts: thin curved blades, double-sided
+      const gp = [], gn = [], gu = [], gi = [];
+      const blade = (px, py, pz, ca, sa, h, lean, w) => {
+        const base = gp.length / 3;
+        for (let k = 0; k <= 4; k++) {
+          const t = k / 4, o = lean * Math.abs(h) * t * t, ww = w * (1 - t * 0.92);
+          for (const sd of [-1, 1]) { gp.push(px + ca * o - sa * ww * sd, py + h * t * (1 - 0.25 * lean * t), pz + sa * o + ca * ww * sd); gn.push(0, 1, 0); gu.push(6, t); }
+        }
+        for (let k = 0; k < 4; k++) { const v = base + k * 2; gi.push(v, v + 1, v + 2, v + 1, v + 3, v + 2, v, v + 2, v + 1, v + 1, v + 2, v + 3); }
+      };
       {
-        const gp = [], gn = [], gu = [], gi = [];
         const NTF = [50, 100, 130][q];
         for (let i = 0, n = 0; i < 900 && n < NTF; i++) {
           let x = (rng() - 0.5) * 6.2, z = (rng() - 0.5) * 6.2;
@@ -439,15 +465,10 @@ export default {
           const nb = 5 + Math.floor(rng() * 5), th = 0.1 + 0.2 * rng();
           for (let b = 0; b < nb; b++) {
             const a = rng() * 6.28, ca = Math.cos(a), sa = Math.sin(a), h = th * (0.6 + 0.6 * rng()), lean = 0.25 + 0.6 * rng(), w = 0.011 + 0.007 * rng();
-            const bx = x + (rng() - 0.5) * 0.09, bz = z + (rng() - 0.5) * 0.09, by = topH(bx, bz) - 0.02, base = gp.length / 3;
-            for (let k = 0; k <= 4; k++) {
-              const t = k / 4, o = lean * h * t * t, ww = w * (1 - t * 0.92);
-              for (const sd of [-1, 1]) { gp.push(...W3(bx + ca * o - sa * ww * sd, by + h * t * (1 - 0.25 * lean * t), bz + sa * o + ca * ww * sd)); gn.push(0, 1, 0); gu.push(6, t); }
-            }
-            for (let k = 0; k < 4; k++) { const v = base + k * 2; gi.push(v, v + 1, v + 2, v + 1, v + 3, v + 2, v, v + 2, v + 1, v + 1, v + 2, v + 3); }
+            const bx = x + (rng() - 0.5) * 0.09, bz = z + (rng() - 0.5) * 0.09;
+            blade(D[0] + bx, D[1] + topH(bx, bz) - 0.02, D[2] + bz, ca, sa, h, lean, w);
           }
         }
-        parts.push({ pos: Float32Array.from(gp), nrm: Float32Array.from(gn), uv: Float32Array.from(gu), idx: Uint32Array.from(gi) });
       }
       // drifting debris (bobs in the vertex shader: uv.x = 2, uv.y = phase)
       for (let i = 0; i < 8; i++) {
@@ -455,9 +476,54 @@ export default {
         M.scale(r, sc, sc * 0.8, sc); M.translate(r, ...W3(Math.cos(a) * d, -1 - rng() * 6, Math.sin(a) * d));
         parts.push(flag(r, 2, i * 1.7));
       }
+      // ---- the reef field: asteroid chunks grown over with branching light-coral, weed and crystals ----
+      const hat = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+      const coral = (p, d, h, lvl, n) => {
+        const path = [], bx = (rng2() - 0.5) * 0.5, bz = (rng2() - 0.5) * 0.5;
+        for (let k = 0; k <= 5; k++) { const t = k / 5; path.push([p[0] + (d[0] + bx * t) * h * t, p[1] + (d[1] + 0.25 * t) * h * t, p[2] + (d[2] + bz * t) * h * t]); }
+        const g = M.tube(path, (t) => h * (0.085 - 0.035 * t), 5);
+        for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = 5; g.uv[i + 1] = (n - lvl - 1 + g.uv[i + 1]) / n; }
+        parts.push(g);
+        if (lvl) for (let b = 0; b < 3; b++) coral(path[5], hat([d[0] + (rng2() - 0.5) * 1.5, d[1] + (rng2() - 0.5) * 1.5 + 0.3, d[2] + (rng2() - 0.5) * 1.5]), h * 0.62, lvl - 1, n);
+      };
+      ROCKS.forEach(([dx, dy, dz, R], k) => {
+        const c = [REEF[0] + dx, REEF[1] + dy, REEF[2] + dz], top = M.rock(200 + k * 7, 3, 0.5), keel = M.rock(230 + k * 5, 3, 0.55);
+        _ld.set([c[0], c[1], c[2], R], (LROCK + k) * 4);
+        M.scale(top, R, R * 0.62, R * 0.9); M.translate(top, c[0], c[1], c[2]);
+        M.scale(keel, R * 0.95, R * (0.8 + 0.5 * rng2()), R * 0.85); orient(keel, c, [0.15 * rng2(), -1, 0.15 * rng2()]);     // a rough keel hides the flat underside
+        const nt = top.pos.length / 3, g = M.merge([M.computeNormals(top), M.computeNormals(keel)]);
+        parts.push(flag(g, 0, 0));
+        glows.push(c[0], c[1] - R * 0.5, c[2], R * 1.5, 0.008, 0.05, 0.06, 0);
+        const nv = g.pos.length / 3;
+        for (let j = 0, m = 0; m < 4 + R * 6 && j < 600; j++) {
+          const v = Math.floor(rng2() * nv) * 3, p = [g.pos[v], g.pos[v + 1], g.pos[v + 2]], nr = [g.nrm[v], g.nrm[v + 1], g.nrm[v + 2]];
+          if (v < nt * 3 ? nr[1] < 0.15 : nr[1] > -0.3 || rng2() < 0.7) continue;
+          m++;
+          const up = nr[1] < 0 ? -1 : 1, d = hat([nr[0], nr[1] + 0.6 * up, nr[2]]), kind = rng2();
+          p[1] -= 0.05 * up;
+          if (kind < 0.4) coral(p, d, 0.5 + 0.8 * rng2(), 2, 3);
+          else if (kind < 0.5) crystal(p, d, 0.07 + 0.06 * rng2(), 0.4 + 0.6 * rng2(), 0.15 * rng2(), 0.7);
+          else for (let b = 0, nb = 4 + Math.floor(rng2() * 5); b < nb; b++) {       // weed tuft
+            const a = rng2() * 6.28;
+            blade(p[0], p[1], p[2], Math.cos(a), Math.sin(a), (0.25 + 0.5 * rng2()) * up, 0.3 + 0.6 * rng2(), 0.02 + 0.012 * rng2());
+          }
+        }
+      });
+      parts.push({ pos: Float32Array.from(gp), nrm: Float32Array.from(gn), uv: Float32Array.from(gu), idx: Uint32Array.from(gi) });
+      // ---- the crystal ring: shards circling the jelly column behind the islet (material 8 turns in the shader) ----
+      {
+        const e1 = hat([RAXIS[1], -RAXIS[0], 0]), e2 = [RAXIS[1] * e1[2] - RAXIS[2] * e1[1], RAXIS[2] * e1[0] - RAXIS[0] * e1[2], RAXIS[0] * e1[1] - RAXIS[1] * e1[0]];
+        for (let i = 0; i < 18; i++) {
+          const a = i / 18 * 6.283 + rng2() * 0.15, R = 10.5 + rng2() * 1.2, ca = Math.cos(a) * R, sa = Math.sin(a) * R, y = (rng2() - 0.5) * 1.2;
+          const p = [0, 1, 2].map((j) => RING[j] + e1[j] * ca + e2[j] * sa + RAXIS[j] * y), d = hat([rng2() - 0.5, rng2() + 0.4, rng2() - 0.5]);
+          const r = 0.13 + 0.16 * rng2(), h = 0.5 + 0.9 * rng2(), col = (i % 3 ? 0.05 : 0.75) + 0.2 * rng2();
+          crystal(p, d, r, h, col, 0.6, 8); crystal(p, d.map((v) => -v), r, h * 0.7, col, 0, 8);
+        }
+      }
       glows.push(D[0], D[1] - 6.6, D[2], 3.6, 0.035, 0.07, 0.18, 0, D[0] + 0.9, D[1] - 5.2, D[2] - 0.6, 2.2, 0.03, 0.03, 0.1, 0, D[0] - 0.8, D[1] - 4.4, D[2] + 0.7, 1.8, 0.015, 0.05, 0.09, 0);
       this.isletMesh = M.upload(M.merge(parts));
-      const CLS = 'const CL = array<vec4f, 4>(' + [0, 1, 2, 3].map((k) => 'vec4f(' + lights.slice(k * 4, k * 4 + 4).map((v) => v.toFixed(3)).join(',') + ')').join(',') + ');\n';
+      const v3s = (v) => 'vec3f(' + v.map((x) => x.toFixed(3)).join(',') + ');\n';
+      const CLS = 'const RC = ' + v3s(RING) + 'const RA = ' + v3s(RAXIS) + 'const CL = array<vec4f, 4>(' + [0, 1, 2, 3].map((k) => 'vec4f(' + lights.slice(k * 4, k * 4 + 4).map((v) => v.toFixed(3)).join(',') + ')').join(',') + ');\n';
       const TRS = 'const TIERS = array<vec3f, 3>(' + TIER.map((v) => 'vec3f(' + v.map((x) => x.toFixed(3)).join(',') + ')').join(',') + ');\n';
       this.islet = ctx.pipeline({ code: CLS + TRS + ISLET, buffers: [M.layout], constants: { DX: DOOR[0], DY: DOOR[1], DZ: DOOR[2] }, label: 'ao-islet' });
       const glL = ctx.layout(['storage']);
@@ -465,7 +531,17 @@ export default {
       this.glowBG = ctx.bindGroup(glL, [ctx.buffer(Float32Array.from(glows), 'storage')]);
       this.glow = ctx.pipeline({ code: UTIL + GLOW, layouts: [glL], blend: 'add', cull: 'none', label: 'ao-glow' });
     }
-    this.nearJelly = 1e9;
+    // ---- small life (see life.wgsl) ----
+    {
+      for (let i = 0; i < NSPR; i++) _ld.set([RING[0] + 3 * Math.cos(i), RING[1] + 4 + Math.sin(i * 2), RING[2] + 3 * Math.sin(i), 0], i * 4);
+      CLOUDS.forEach((c, i) => { _ld.set(c.slice(0, 4), (6 + i) * 4); _ld[(11 + i) * 4 + 2] = c[4]; });
+      this.lifeBuf = ctx.buffer(_ld, 'storage');
+      const L = ctx.layout(['storage']), NP = [1000, 2000, 3000][q], ND = [90, 160, 220][q], NE = 84, NC = [260, 500, 700][q];
+      this.lifeBG = ctx.bindGroup(L, [this.lifeBuf]);
+      this.NL = NP + ND + NE + NC + NSPR * 9;
+      this.life = ctx.pipeline({ code: UTIL + LIFE, layouts: [L], blend: 'add', cull: 'none', constants: { NP, ND, NE, NC, NR: ROCKS.length }, label: 'ao-life' });
+    }
+    this.nearJelly = 1e9; this.lt = 0;
     await progress(1);
   },
 
@@ -488,6 +564,30 @@ export default {
       }
       ctx.write(this.jelBuf, jd);
     }
+    // star-sprites: at home in the crystal ring; when you come near, the bolder ones drift over and circle ahead of you
+    const P = cam.pos, ld = _ld, ks = 1 - Math.exp(-dt / 1.5), M3 = ctx.math;
+    const lead = M3.smoothstep(64, 30, Math.hypot(P[0] - RING[0], P[1] - RING[1], P[2] - RING[2]));
+    this.lead = lead;
+    for (let i = 0; i < NSPR; i++) {
+      const o = i * 4, l = lead * (1 - i * 0.14), a = t * 0.21 + i * 1.047, cr = Math.cos(a) * 2.6, cu = Math.sin(a * 1.3) * 1.3 + 0.3, cf = 5 + i * 0.5;
+      const hx = RING[0] + 3.5 * Math.cos(t * 0.11 + i * 1.05), hy = RING[1] + 3 + 2 * Math.sin(t * 0.17 + i * 2.1), hz = RING[2] + 3.5 * Math.sin(t * 0.13 + i * 1.05);
+      for (let c = 0; c < 3; c++) {
+        const h = c === 0 ? hx : c === 1 ? hy : hz, tg = P[c] + cam.fwd[c] * cf + cam.right[c] * cr + cam.up[c] * cu;
+        ld[o + c] += (h + (tg - h) * l - ld[o + c]) * ks;
+      }
+      ld[o + 3] = l;
+    }
+    // plankton clouds wind up into a slow whirl while you move through them, glow when you are near, then settle
+    const sp = Math.min(3, Math.hypot(cam.vel[0], cam.vel[1], cam.vel[2])), kw = 1 - Math.exp(-dt / 2.5);
+    for (let i = 0; i < 5; i++) {
+      const o = (6 + i) * 4, s = (11 + i) * 4, pr = M3.smoothstep(ld[o + 3] * 4, ld[o + 3], Math.hypot(P[0] - ld[o], P[1] - ld[o + 1], P[2] - ld[o + 2]));
+      ld[s + 3] += (pr * sp * 0.3 - ld[s + 3]) * kw;
+      ld[s] += ld[s + 3] * dt;
+      ld[s + 1] += (pr - ld[s + 1]) * kw;
+    }
+    ctx.write(this.lifeBuf, ld);
+    // the deep: a low layer swells as you sink
+    if (ctx.audio && this.deep && t - this.lt > 0.5) { this.lt = t; this.deep.set(0.05 * M3.smoothstep(-15, -70, P[1]), 1.5); }
     let m = 1e9;
     for (let i = 0; i < this.jgroups.length; i++) {
       const g = this.jgroups[i];
@@ -509,19 +609,23 @@ export default {
 
   renderTransparent(ctx, pass) {
     pass.setPipeline(this.puffs); pass.setBindGroup(1, this.puffBG); pass.draw(6, this.NPF);
+    pass.setBindGroup(1, this.pathBG);
+    pass.setPipeline(this.ray); this.rayMesh.draw(pass, 1);         // the giant of the deep: a silhouette under everything
     // whales: aura, depth prepass, then one shell of light at equal depth; later things are hidden behind them
     pass.setBindGroup(1, this.whaleBG);
-    pass.setPipeline(this.whaleAura); pass.draw(6, 21);
-    pass.setPipeline(this.whalePre); this.whaleMesh.draw(pass, 3);
-    pass.setPipeline(this.whale); this.whaleMesh.draw(pass, 3);
+    pass.setPipeline(this.whaleAura); pass.draw(6, 35);
+    pass.setPipeline(this.whalePre); this.whaleMesh.draw(pass, 5);
+    pass.setPipeline(this.whale); this.whaleMesh.draw(pass, 5);
     pass.setBindGroup(1, this.pathBG);
-    pass.setPipeline(this.trail); pass.draw(6, this.NT * 3);
+    pass.setPipeline(this.trail); pass.draw(6, this.NT * 4);
+    pass.setPipeline(this.ray); this.rayMesh.draw(pass, this.NRAY, 1);
     pass.setBindGroup(1, this.jelBG);
     pass.setPipeline(this.jhalo); pass.draw(6, this.NJ);
     pass.setPipeline(this.bell); this.bellMesh.draw(pass, this.NJ);
     pass.setPipeline(this.tent); pass.draw(6 * 14 * this.NSEG, this.NJ);
     pass.setPipeline(this.fishDraw); pass.setBindGroup(1, this.fishDrawBG); pass.draw(6, this.NF);
     pass.setPipeline(this.motes); pass.draw(6, this.NM);
+    pass.setPipeline(this.life); pass.setBindGroup(1, this.lifeBG); pass.draw(6, this.NL);
     pass.setPipeline(this.glow); pass.setBindGroup(1, this.glowBG); pass.draw(6, this.NG);
   },
 
@@ -532,10 +636,10 @@ export default {
     a.noiseBed({ color: 'brown', freq: 260, q: 0.5, gain: 0.025, mod: 0.4, modRate: 0.03 });
     a.pad({ chords: [[72, 79, 83, 86], [71, 76, 79, 86], [69, 76, 81, 84], [74, 79, 83, 88], [67, 74, 79, 83]], type: 'sine', gain: 0.022, attack: 7, change: [16, 30], cutoff: 3200, reverb: 0.85 });
     // whale song: formant-filtered glides, positioned at a whale
-    const song = (when) => {
-      const k = a.rng.int(3), W = frame(PATHS[k], ctx.time, 0.2);
+    const song = (when, k = a.rng.int(3), mul = 1) => {
+      const W = frame(PATHS[k], ctx.time, 0.2);
       const sp = a.spatial({ pos: W.p, ref: 40, rolloff: 0.6, reverb: 0.9, gain: 1 });
-      const base = 110 + a.rng() * 120, dur = 2.8 + a.rng() * 3, low = a.rng() < 0.35;
+      const base = (110 + a.rng() * 120) * mul, dur = (2.8 + a.rng() * 3) / mul, low = a.rng() < 0.35;
       const os = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain();
       os.type = 'sine'; o2.type = 'triangle';
       const f = [base, base * (low ? 0.6 : 1.5 + a.rng() * 0.5), base * (low ? 0.5 : 1.15)];
@@ -558,7 +662,16 @@ export default {
       for (const o of [os, o2, v]) { o.start(when); o.stop(when + dur + 0.1); }
     };
     a.every(14, 34, (when) => { song(when); if (a.rng() < 0.5) song(when + 2.5 + a.rng() * 2); }, { startDelay: 6 });
+    // the calf answers in a small high voice; the reef ticks and chirps; sprites chime when they come to you
+    a.every(20, 46, (when) => song(when, 7, 2.3), { startDelay: 15 });
+    const reef = a.spatial({ pos: REEF, ref: 12, rolloff: 1, reverb: 0.7, gain: 1 });
+    this.deep = a.drone({ freq: a.hz(24), partials: [1, 2, 3.01], amps: [1, 0.5, 0.2], gain: 0, cutoff: 200, detune: 4 });
     const notes = a.scale(76, 'pentatonic', 2);
+    a.every(3, 9, (when) => {
+      if (a.rng() < 0.3) a.chirp({ f0: 700 + a.rng() * 300, f1: 1300 + a.rng() * 500, dur: 0.6, gain: 0.02, bus: reef, when });
+      else a.pluck({ freq: a.hz(a.rng.pick(notes) - 12), decay: 1.6, gain: 0.03, bus: reef, when });
+    });
+    a.every(4, 10, (when) => { if (this.lead > 0.35) a.bell({ freq: a.hz(a.rng.pick(notes) + 12), gain: 0.007 * this.lead, decay: 2.5, ratio: 4.2, index: 0.8, when, pan: a.rng.range(-0.5, 0.5), reverb: 0.8 }); });
     a.every(1.8, 5.5, (when) => {
       const near = Math.max(0, 1 - this.nearJelly / 45);
       if (near <= 0.02 && a.rng() < 0.8) return;

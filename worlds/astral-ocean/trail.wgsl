@@ -3,7 +3,8 @@
 override NT: u32 = 800u;
 struct VO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) col: vec3f };
 @vertex fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VO {
-  let k = ii / NT;
+  let k0 = ii / NT;
+  let k = k0 + select(0u, 3u, k0 > 2u);     // 3 = the nursery mother (path 6)
   let P = paths[k];
   let L = P.d.w;
   let ph = f32(k) * 2.1;

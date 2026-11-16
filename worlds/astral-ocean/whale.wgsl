@@ -8,7 +8,9 @@ struct VO {
   @invariant @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) l: vec3f,
   @location(3) @interpolate(flat) k: u32, @location(4) part: vec2f,
 };
-@vertex fn vs(@location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f, @builtin(instance_index) k: u32) -> VO {
+fn aoWk(k: u32) -> u32 { return k + select(0u, 3u, k > 2u); }   // instances 3, 4 = nursery mother and calf (paths 6, 7)
+@vertex fn vs(@location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f, @builtin(instance_index) ki: u32) -> VO {
+  let k = aoWk(ki);
   let P = paths[k];
   let L = P.d.w;
   let t = G.time;
@@ -25,7 +27,7 @@ struct VO {
   let F = aoFrame(P, t, s);
   let wv = aoWave(s, t, ph);
   let slope = (aoWave(s + 0.01, t, ph) - wv) * 100.0;
-  if (uv.x == 2.0) { lp.y += (lp.z - 0.9) * slope * 1.6; }   // the fluke pitches with the stroke, showing its blade
+  if (abs(uv.x - 2.0) < 0.4) { lp.y += (lp.z - 0.9) * slope * 1.6; }   // the fluke pitches with the stroke, showing its blade
   var o: VO;
   o.w = F.p + (F.r * lp.x + F.u * (lp.y + wv)) * L;
   let nl = vec3f(n.x, n.y, n.z - slope * n.y);
@@ -58,12 +60,14 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let s = in.l.z;
   let lm = in.l * L;
   let t = G.time;
-  let isBody = in.part.x == 0.0;
+  let part = round(in.part.x);
+  let cx = (in.part.x - part) / 0.3;         // fins: chordwise position, -1 leading edge .. 1 trailing edge
+  let isBody = part == 0.0;
   let body = select(0.0, 1.0, isBody);
   let ang = atan2(in.l.x, -in.l.y);          // 0 = belly, +-pi = back
   let aa = abs(ang);
   let lod = smoothstep(420.0, 120.0, dist);  // fine line work fades with distance
-  let ICE = vec3f(0.34, 0.62, 1.5);
+  let ICE = mix(vec3f(0.34, 0.62, 1.5), vec3f(1.15, 0.6, 0.95), select(0.0, 0.5, in.k > 5u));   // the nursery pair is rosier
 
   // faint volume: cool top light + a warm kiss from the nebula core, so head-on views keep their form
   let up = n.y * 0.5 + 0.5;
@@ -75,7 +79,7 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let nh = vnoise3(q * 0.55 + 4.0);
   e += mix(vec3f(0.015, 0.085, 0.13), vec3f(0.1, 0.03, 0.15), smoothstep(-0.35, 0.35, nh)) * smoothstep(-0.15, 0.6, nb) * nd * 0.75 * (0.35 + 0.65 * body);
   // rim of light; fins grow out of the body glow instead of meeting it at a seam
-  let root = select(smoothstep(0.0, 0.22, in.part.y), 1.0, isBody || in.part.x == 2.0);
+  let root = select(smoothstep(0.0, 0.22, in.part.y), 1.0, isBody || part == 2.0);
   e += ICE * (pow(fres, 2.4) * 0.3 * body + pow(fres, 5.0) * 1.3) * (0.25 + 0.75 * root);
 
   // flowing lines: spine + lateral lines with light travelling toward the tail
@@ -130,8 +134,14 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   let tw = 0.75 + 0.25 * sin(t * 0.6 + dot(cid, vec2f(3.1, 1.7)));
   e += (mix(vec3f(1.5, 1.0, 0.55), vec3f(1.3, 1.15, 1.0), hs.y) * c * tw + vec3f(1.0, 0.8, 0.6) * cl * 0.45) * lod;
 
-  var a = 0.13 + 0.42 * fres + 0.16 * (1.0 - body);
-  e += ICE * (1.0 - body) * 0.03;
+  // fins are lenses of glass, not cards: bright rounded edges (leading edge strongest), a clear middle, and on the
+  // flippers three finger-bones of light converging on the tip
+  let ec = cx * cx;
+  let fin = (1.0 - body) * root;
+  let dbn = min(abs(cx + 0.4), min(abs(cx), abs(cx - 0.42)));
+  let bone = aoLine(dbn, 0.05, fwidth(dbn) + 1e-4) * select(0.0, 1.0, abs(part) == 1.0) * smoothstep(0.02, 0.2, in.part.y) * smoothstep(1.0, 0.7, in.part.y);
+  e += ICE * fin * (ec * ec * (0.2 - 0.09 * cx) + 0.012 + bone * lod * (0.1 + 0.35 * tr));
+  var a = 0.13 + 0.42 * fres + (0.04 + 0.2 * ec) * (1.0 - body);
   // depth haze: far whales sink into the nebula
   let hz = 1.0 - exp(-dist * 0.0032);
   let bg = textureSampleLevel(farTex, fsamp, -V, 0.0).rgb;   // haze takes the colour of the nebula behind
@@ -145,7 +155,7 @@ fn aoSeg(p: vec2f, a: vec2f, b: vec2f) -> f32 {
 const NH = 7u;
 struct HO { @builtin(position) pos: vec4f, @location(0) c: vec2f, @location(1) col: vec3f };
 @vertex fn vsh(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> HO {
-  let k = ii / NH;
+  let k = aoWk(ii / NH);
   let P = paths[k];
   let L = P.d.w;
   let s = (f32(ii % NH) + 0.5) / f32(NH) * 0.92;

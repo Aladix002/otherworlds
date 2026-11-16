@@ -56,11 +56,42 @@ intensity by area, so they stay temporally stable.
   ribbon, clip 2 = jellies with whale 0 gliding past whole, clip 3 = close whale in profile. Pose 4 = under the great
   whale, pose 5 = islet off-centre with jellies behind.
 
+## Variety and life pass (round 4)
+Four regions around the spawn, all in `layout.js` (`NURSERY`, `REEF`, `RING`, `ROCKS`, `CLOUDS`, paths 6-9):
+- **Rose-gold nursery** (toward the core, ~100 m ahead-left): a mother whale and her calf (paths 6/7, whale instances
+  3/4, rosier rim; the calf keeps the same angular speed and rides beside her back), a double helix of pearl "eggs",
+  baby jellies (JGROUPS[3], size x0.5), rose and gold plankton. The calf answers the whale song in a high voice.
+- **Teal reef field** (right of the spawn, inside whale 1's loop): seven asteroid chunks (top rock + keel) merged into
+  the islet mesh, grown with branching light-coral (material 5), weed (6) and crystals; tiny darters circle each
+  rock; a pod of luminous rays glides in arcs over it (path 8); teal plankton; the comet hangs beyond. Rocks collide
+  (`sdf`). Quiet positional plucks and chirps.
+- **Crystal ring** (behind the islet, around jelly column 2): 18 double-ended shards, material 8, turning in the
+  islet vertex shader about `RA` through `RC`. Home of six star-sprites: within ~60 m the bolder ones drift over and
+  circle a few metres ahead of you, then go home (CPU state in `_ld[0..5]`, small bells when they are with you).
+- **The quiet deep** (below y = -40): five giant jellies (JGROUPS[4], x2.6) and the giant ray (path 9, y = -140, half
+  span 64 m, ray instance 0): a dark silhouette with a faint edge, always a little out of reach under the bounds.
+  A low drone layer swells as you sink.
+- Everywhere: five plankton clouds that glow when you are near and wind up into a slow whirl while you move through
+  them (swirl angle and glow integrated in `update`, `_ld[11..15]`), and a slow comet circling the core far out with
+  its tail streaming away from it.
+
+New files: `ray.wgsl` (one sheet mesh, planform + flap in the vertex shader, outline light from the mesh
+coordinates) and `life.wgsl` (one additive draw for plankton, darters, pearls, comet, sprites; instance ranges by
+override constants). New content uses its own RNG stream (`rng2`), so the older layout did not move.
+
+Fixes: whale fins carry a chordwise coordinate in `uv.x` (part + 0.3 * c) and are shaded as glass lenses (bright
+rounded edges, clear middle, three finger-bones of light on the flippers; thicker section). Islet rock: the mid
+octave that drew worm-track contours is turned down in favour of fine grain, and cracks stay on the flanks.
+
+Layout: the old whales' phases are frozen numbers now (the framing search is gone). Poses: 0 spawn (whale 0 + nursery
+pair), 1 close whale, 2 nursery, 3 reef + rays + comet, 4 the deep, 5 islet + ring. Fly-through: islet -> spawn view
+-> fish -> jellies -> across to the reef (clip 3).
+
 ## Perf (Barcelo iGPU, 1920×1080)
-Medium: avg 5.7 ms, p99 13.9 ms, min scale 0.95 over the fly-through (the first seconds at the islet are the heavy part:
-about 11–13 ms at scale 1, then 4–6 ms). Low: avg 2.7 ms, p99 8.6 ms.
+Medium: avg 5.3 ms, p99 8.1 ms, max 10.7 ms, scale 1.0 over the fly-through. Low: avg 3.7 ms, p99 15.8 ms (scale 0.85).
 
 ## Known issues / ideas
 - Whale depth prepass: things behind a whale are fully hidden, not dimmed (reads as volume; fine at these distances).
 - The islet rock shader is the most expensive thing in the world when it fills the screen.
-- The framing search in `layout.js` is weak (its score is dominated by unavoidable terms); key views were tuned by hand.
+- Rays are single sheets (no thickness); edge-on they are thin. The reef rocks do not drift.
+- Bundle is ~187 KB (the other worlds' postcards alone put the baseline at 178 KB).

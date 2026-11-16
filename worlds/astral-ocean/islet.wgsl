@@ -9,13 +9,19 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   var o: VO;
   var w = p;
   let t = G.time;
+  var nn = n;
+  if (uv.x > 7.5) {                    // crystal ring: turns slowly about its axis, every shard bobbing on its own
+    let q = quatAxisAngle(RA, t * 0.02);
+    w = RC + quatRotate(q, p - RC) + RA * 0.3 * sin(t * 0.3 + uv.y * 90.0);
+    nn = quatRotate(q, n);
+  }
   if (uv.x > 1.5 && uv.x < 2.5) { w.y += 0.3 * sin(t * 0.31 + uv.y) + 0.15 * sin(t * 0.17 + uv.y * 2.3); }
   if (uv.x > 4.5 && uv.x < 6.5) {      // tendrils and grass breathe in a slow current
     let k = uv.y * uv.y * select(0.05, 0.025, uv.x < 5.5);
     w.x += (sin(t * 0.7 + p.x * 3.0 + p.z * 2.0) + 0.5 * sin(t * 0.43 + p.z * 5.0)) * k;
     w.z += cos(t * 0.53 + p.z * 3.3 + p.x) * k;
   }
-  o.w = w; o.n = n; o.uv = uv; o.o = p; o.pos = G.viewProj * vec4f(w, 1.0); return o;
+  o.w = w; o.n = nn; o.uv = uv; o.o = p; o.pos = G.viewProj * vec4f(w, 1.0); return o;
 }
 fn aoGlowCol(h: f32) -> vec3f { return mix(vec3f(0.25, 0.75, 1.4), vec3f(0.95, 0.4, 1.4), h); }
 
@@ -43,7 +49,7 @@ fn aoBox2(p: vec2f, b: vec2f) -> f32 { let q = abs(p) - b; return length(max(q, 
     cao *= mix(0.5, 1.0, smoothstep(0.02, 0.3, d2));
   }
 
-  if (ty > 0.5 && ty < 1.5) {          // crystal: light held inside, brighter toward the tip, a hard bright edge
+  if ((ty > 0.5 && ty < 1.5) || ty > 7.5) {          // crystal: light held inside, brighter toward the tip, a hard bright edge
     let base = aoGlowCol(in.uv.y);
     let band = 0.85 + 0.15 * sin(dot(in.o, vec3f(9.0, 31.0, 7.0)));
     var c = base * (0.12 + 0.85 * nd * nd * band + 0.25 * pow(nd, 8.0));
@@ -82,8 +88,9 @@ fn aoBox2(p: vec2f, b: vec2f) -> f32 { let q = abs(p) - b; return length(max(q, 
   let g2 = snoise3d(q * 6.1 + 11.0);
   let g3 = snoise3d(q * 23.0);
   let lodf = smoothstep(26.0, 5.0, dist);          // finest grain only up close
-  let hv = g1.w * 0.25 + g2.w * 0.45 + g3.w * 0.3 * lodf;
-  let gr = g1.xyz * 0.6 + g2.xyz * 2.0 + g3.xyz * 1.5 * lodf;
+  // broad tone + fine grain; the mid octave is kept low (its contours read as worm tracks up close)
+  let hv = g1.w * 0.5 + g2.w * 0.18 + g3.w * 0.42 * lodf;
+  let gr = g1.xyz * 0.9 + g2.xyz * 0.7 + g3.xyz * 2.6 * lodf;
   let geoUp = n.y;
   n = normalize(n - select(0.075, 0.045, step7) * (gr - n * dot(gr, n)));
   let side = 1.0 - abs(geoUp);
@@ -93,7 +100,7 @@ fn aoBox2(p: vec2f, b: vec2f) -> f32 { let q = abs(p) - b; return length(max(q, 
   // crack lines: zero-crossings of a warped noise
   let edge = abs(g1.w * 0.8 + g2.w * 0.45 - 0.08);      // reuses the octaves above
   let crack = 1.0 - smoothstep(0.0, 0.05, edge);
-  alb *= 1.0 - 0.65 * crack;
+  alb *= 1.0 - 0.6 * crack * (1.0 - smoothstep(0.3, 0.75, geoUp));     // cracks run down the flanks, not over the top
   if (step7) { alb = mix(alb, vec3f(0.13, 0.14, 0.215) * (0.7 + 0.6 * in.uv.y), 0.7) * (0.85 + 0.3 * g3.w * lodf) * (1.0 - 0.3 * crack); }
   // moss and lichen settle in the hollows of up-facing rock
   let top = smoothstep(0.45, 0.85, geoUp);
