@@ -13,9 +13,9 @@ struct VO {
   let fade = select(1.0, 1.0 - smoothstep(30.0, 48.0, distance(v.a.xyz, G.camPos)), mat >= 4.0 && mat < 6.0);
   var w = v.a.xyz + R * (v.p * s * fade);
   w.y += sin(G.time * 0.17 + v.b.y * 40.0) * bob * 0.6;
-  let ph = G.time * 0.8 + w.x * 0.13 + w.z * 0.11;
-  let gust = sin(ph) + 0.5 * sin(ph * 2.3 + 1.7) + 0.6 * sin(G.time * 0.31 + w.z * 0.04);
-  let amp = select(select(select(0.05, 0.07, mat == 4.0), 0.045, mat == 3.0), 0.5, mat == 1.0);
+  let gust = gustAt(w) + select(0.0, 0.8 * sin(G.time * 3.1 + (w.x + w.z) * 2.3 + w.y), mat == 8.0);   // flags flutter
+  var amp = select(select(select(0.05, 0.07, mat == 4.0), 0.045, mat == 3.0), 0.5, mat == 1.0);
+  if (mat >= 7.0) { amp = (mat - 7.0) * 0.22; }
   w += vec3f(0.8, 0.0, 0.55) * (gust * wgt * amp * v.a.w);
   var o: VO;
   o.w = w; o.n = normalize(R * (v.n / s)); o.m = vec2f(v.uv.x, mat + wgt * 0.5); o.sd = v.b.yw;
@@ -86,7 +86,7 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
   let wp = in.w; let d = distance(wp, G.camPos);
   let mat = floor(in.m.y + 0.01); let wgt = fract(in.m.y) * 2.0;
   let nz = nl(wp.xz + wp.y * 0.7, 0.33, d);
-  let ao = in.m.x;
+  var ao = in.m.x;
   let bk = nl(vec2f(wp.x + wp.z, wp.y * 0.35), 1.4, d);
   var alb = mix(vec3f(0.06, 0.05, 0.048), vec3f(0.27, 0.21, 0.175), bk.a * 0.7 + nz.a * 0.3);   // grey-brown bark (2), roots and vines (1)
   if (mat < 3.0) { n = normalize(n + vec3f(bk.g - 0.5, 0.0, bk.b - 0.5) * 1.6); }
@@ -108,7 +108,22 @@ fn shade(alb: vec3f, n: vec3f, wp: vec3f, ao: f32, sh: f32, trans: f32) -> vec3f
     alb = select(select(vec3f(0.95, 0.74, 0.16), vec3f(0.9, 0.86, 0.8), k < 0.66), vec3f(0.9, 0.36, 0.5), k < 0.33) * (0.6 + 0.4 * ao);
     tr = 0.5; sh = shadowAt(wp.xz);
   }
-  return vec4f(shade(alb, n, wp, 0.35 + 0.65 * ao, sh, tr), 1.0);
+  var em = vec3f(0.0);
+  if (mat == 7.0) {                                   // paint: index in the weight
+    var pal = array<vec3f, 8>(vec3f(0.5, 0.06, 0.04), vec3f(0.06, 0.14, 0.2), vec3f(0.85, 0.55, 0.12), vec3f(0.6, 0.54, 0.48), vec3f(0.13, 0.08, 0.06), vec3f(0.5, 0.7, 0.8), vec3f(1.0, 0.5, 0.15), vec3f(0.36, 0.26, 0.17));
+    let k = i32(wgt * 8.0);
+    alb = pal[k] * (0.75 + 0.5 * nz.a);
+    if (k == 6) { em = vec3f(3.4, 1.5, 0.45) * (0.8 + 0.2 * sin(G.time * 2.3 + wp.x * 5.0 + wp.z * 3.0)); }
+    if (k == 5) {                                     // eggs: speckled, glow softly when someone comes close
+      alb *= 0.75 + 0.5 * smoothstep(0.4, 0.6, nl(wp.xz + wp.y, 2.3, d).a);
+      em = vec3f(0.35, 0.9, 1.0) * (G.params.y * (0.5 + 0.35 * sin(G.time * 1.1 + wp.x * 2.0)));
+    }
+  }
+  if (mat == 8.0) {                                   // prayer flags: colour index in the ao slot
+    var fp = array<vec3f, 5>(vec3f(0.1, 0.25, 0.75), vec3f(0.85, 0.82, 0.76), vec3f(0.75, 0.1, 0.08), vec3f(0.12, 0.5, 0.2), vec3f(0.9, 0.65, 0.1));
+    alb = fp[i32(ao * 5.0)] * 0.75; ao = 1.0; tr = 0.35;
+  }
+  return vec4f(shade(alb, n, wp, 0.35 + 0.65 * ao, sh, tr) + em * atmoT(wp - G.camPos), 1.0);
 }
 
 // ---- sky ----

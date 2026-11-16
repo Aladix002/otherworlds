@@ -171,3 +171,11 @@ export function makeSdf(col) {
     return d;
   };
 }
+// summit [x, y, z] of the plain pillar nearest to (x, z)
+export function pillarTop(L, x, z) {
+  let best = 1e9, bi, bk, bv;
+  L.pil.forEach((inst, v) => { for (let k = 0; k < inst.length; k += 8) { const d = Math.hypot(inst[k] - x, inst[k + 2] - z); if (d < best) { best = d; bi = inst; bk = k; bv = v; } } });
+  pillarFn(bv + 1, 0, 64)(0, 1, o);
+  const sx = bi[bk + 3], c = Math.cos(bi[bk + 4]), s = Math.sin(bi[bk + 4]);
+  return [bi[bk] + (c * o[0] + s * o[2]) * sx, bi[bk + 1] + o[1] * sx * bi[bk + 6], bi[bk + 2] + (-s * o[0] + c * o[2]) * sx];
+}

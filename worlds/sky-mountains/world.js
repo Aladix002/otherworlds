@@ -8,9 +8,16 @@ import COMMON from './common.wgsl';
 import SCENE from './scene.wgsl';
 import FX from './fx.wgsl';
 import RAYS from './rays.wgsl';
+import FLY from './fly.wgsl';
+import AIR from './air.wgsl';
+import { manta, songbird, buildLife, flyPos, fitLoop } from './life.js';
 
 const TAU = Math.PI * 2, SMR = 44, SMN = 256, RW = 480, RH = 270;
-const I1 = ISL[1];
+const I1 = ISL[1], I3 = ISL[3], I6 = ISL[6];
+// wanted manta loops [cx, cy, cz, radius, half-span]; the last one is the far elder. Songbird flocks [cx, cy, cz, radius, count]
+const MANTAS = [[-8, 88, -62, 46, 5.5], [62, 104, -78, 72, 8], [-70, 122, -190, 92, 10], [104, 84, 44, 62, 6.5], [-112, 80, 16, 56, 6], [24, 142, -262, 120, 13], [-30, 250, -430, 300, 34]];
+const FLOCKS = [[I1.x, I1.y + 24, I1.z, 54, 14], [2, 86, -6, 42, 12], [I3.x, I3.y + 20, I3.z, 40, 10], [I6.x - 14, I6.y + 22, I6.z + 20, 44, 9]];
+const TMP = [0, 0, 0];
 const pose = (x, y, z, tx, ty, tz, t) => ({ pos: [x, y, z], yaw: yawTo(x, z, tx, tz), pitch: Math.atan2(ty - y, Math.hypot(tx - x, tz - z)), t });
 
 function smp(H, u, v) {                                   // bilinear, wrapped sample of the 256^2 height field
@@ -53,6 +60,8 @@ function drawBatch(b, pass) {
   }
 }
 
+// a soft low bell when the eggs wake
+const a_egg = (A) => { const a = A.a; a.bell({ freq: a.hz(57), gain: 0.022, decay: 6, ratio: 2, index: 0.6, reverb: 0.8 }); a.bell({ freq: a.hz(64), gain: 0.016, decay: 6, ratio: 2, index: 0.6, reverb: 0.8, when: a.now() + 0.5 }); };
 export default {
   id: 'sky-mountains',
   title: 'Lietajúce hory nad morom oblakov',
@@ -60,15 +69,15 @@ export default {
   spawn: { pos: SPAWN, yaw: 0, pitch: -0.02 },
   poses: [
     pose(-70, 176, 150, -30, 96, -160, 20),                                // wide establishing shot
-    pose(4, 82, -62, I1.x - 6, I1.y - 16, I1.z, 33),                       // floating island with waterfalls
+    pose(-16, 82, -138, 59, 74, -112, 33),                       // floating island with waterfalls
     pose(-0.5, SPAWN[1] + 3.0, -9.5, -8.6, SPAWN[1] + 2.7, -19.6, 12),    // close pine on the island's ledge
-    pose(-25, 75, 3, -38, 10, -42, 41),                                  // looking down into the clouds
-    pose(46, 56, -8, 46 + SUN[0] * 100, 56 + SUN[1] * 100 + 6, -8 + SUN[2] * 100, 26),   // sunrise backlight through pillars
+    pose(-40, 112, -62, -76, 100, -90, 41),                              // shrine island, rope bridge and the nest
+    pose(46, 56, -8, 46 + SUN[0] * 100, 56 + SUN[1] * 100 + 6, -8 + SUN[2] * 100, 33),   // sunrise backlight through pillars
     pose(2.4, DOOR[1] + 1.45, 10.2, -0.4, DOOR[1] + 1.15, DOOR[2], 16),        // the door on its ledge
   ],
   flythrough: [
-    [0, 72.6, 2, 0, 72, -40], [1, 73, -16, 10, 74, -80], [6, 77, -44, 50, 72, -130], [16, 80, -78, 56, 68, -128], [14, 76, -112, 50, 60, -132],
-    [-2, 68, -150, 44, 66, -152], [5, 64, -193, -60, 84, -300], [30, 67, -204, -40, 84, -310], [88, 84, -200, 60, 80, -150], [134, 106, -160, 40, 80, -60],
+    [0, 72.6, 2, 0, 72, -40], [0, 73, -14, -30, 90, -80], [-14, 84, -42, -70, 100, -90], [-40, 108, -64, -80, 98, -84], [-50, 113, -90, -62, 106, -112], [-34, 104, -122, 30, 84, -150],
+    [-8, 84, -142, 50, 76, -140], [5, 64, -193, -60, 84, -300], [30, 67, -204, -40, 84, -310], [88, 84, -200, 60, 80, -150], [134, 106, -160, 40, 80, -60],
     [122, 112, -100, 10, 74, -10], [84, 102, -52, 0, 72, 5], [50, 88, -8, 0, 72, 10], [30, 80, 28, 0, 72, 14], [8, 75.5, 36, 0, 72, 15],
     [-9, 73.8, 22, 0, 72.3, 10], [-6, 73, 7, -2, 72.4, -30], [0, 72.6, 2, 0, 72, -40],
   ].map(([x, y, z, tx, ty, tz]) => pose(x, y, z, tx, ty, tz)),
@@ -127,8 +136,8 @@ export default {
     // ---------- layout ----------
     const L = buildLayout(q);
     this.sdfFn = makeSdf(L.col);
-    const trees = [[], [], []];
-    const pushTrees = (list) => { for (let i = 0; i < list.length; i += 8) trees[R.int(3)].push(...list.slice(i, i + 8)); };
+    const LF = buildLife(L), trees = [[], [], []];
+    const pushTrees = (list) => { for (let i = 0; i < list.length; i += 8) { const v = R.int(3); if (!LF.keep.some((k) => Math.hypot(list[i] - k[0], list[i + 2] - k[1]) < k[2])) trees[v].push(...list.slice(i, i + 8)); } };
     for (const fl of [0, 1]) (fl ? L.fpil : L.pil).forEach((inst, v) => {
       const out = [];
       for (let k = 0; k < inst.length; k += 8) {
@@ -199,6 +208,7 @@ export default {
     for (let v = 0; v < 3; v++) { this.vegB.push(add(lods((l) => pine(v + 1, l), 4), trees[v], { d: [[16, 18, 24][q], [60, 66, 80][q], 200, 540], ck: 3, rk: 5.5 })); await progress(0.65 + v * 0.04); }
     this.vegB.push(add([up(tuft(11, 11)), up(tuft(12, 5))], cover.tufts, { d: [14, 48], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 100] }));
     this.vegB.push(add([up(flower(4))], cover.flowers, { d: [48], ck: 0.2, rk: 0.8, bs: [0, 70, 0, 100] }));
+    this.vegB.push(add([up(LF.geo)], [0, 0, 0, 1, 0, 0.5, 1, 0], { d: [1e9], ck: 0, rk: 1e6 }));
     // cloud grid: polar, rings grow geometrically
     const NA = 128, NR = 84, cv = new Float32Array((NA * NR + 1) * 2), ci = new Uint32Array(NA * 3 + (NR - 1) * NA * 6);
     let n = 0;
@@ -228,14 +238,41 @@ export default {
     this.fallI = ctx.buffer(Float32Array.from(fi), 'vertex'); this.nFall = fi.length / 8;
     this.puffI = ctx.buffer(Float32Array.from(pi), 'vertex'); this.nPuff = pi.length / 8;
     this.nMote = [160, 320, 520][q];
+    // flyers: mantas (the last two are the elder and the calf that keeps the player company), songbird flocks
+    const R2 = makeRng(1717), F = new Float32Array(12), fm = [], fb = [];
+    for (const d of MANTAS) if (fitLoop(R2, this.sdfFn, d, d[4] * 1.15 + 5, F)) {
+      F[4] = R2() * TAU; F[5] = F[6] = 0; F[7] = d[4]; F[8] = -1; F[11] = (3.6 + d[4] * 0.25) / F[3] * (R2() < 0.5 ? -1 : 1);
+      fm.push(...F);
+    }
+    this.calfK = fm.length;
+    fm.push(4, 86, -44, 7, 0, 0, 0, 1.3, -1, 0.37, 0, 0.26);
+    for (const d of FLOCKS) if (fitLoop(R2, this.sdfFn, d, 7, F)) {
+      F[4] = R2() * TAU; F[11] = 6 / F[3] * (R2() < 0.5 ? -1 : 1);
+      const hue = R2();
+      for (let i = 0; i < d[4]; i++) {
+        const row = (i + 1) >> 1;
+        F[5] = (i & 1 ? 1 : -1) * row * 1.1 + (R2() - 0.5) * 1.2; F[6] = row * 1.0 + (R2() - 0.5) * 1.6; F[7] = 1.1 + 0.5 * R2(); F[8] = R2() < 0.7 ? hue : R2();
+        fb.push(...F);
+      }
+    }
+    this.FM = Float32Array.from(fm); this.nManta = fm.length / 12; this.nSong = fb.length / 12;
+    this.mantaM = up(manta()); this.songM = up(songbird());
+    this.mantaI = ctx.buffer(this.FM, 'vertex'); this.songI = ctx.buffer(Float32Array.from(fb), 'vertex');
+    this.bflyI = ctx.buffer(Float32Array.from(LF.bfly), 'vertex'); this.nBfly = LF.bfly.length / 4;
+    const bow = [];
+    for (const f of this.fallList) bow.push(f[0] + Math.cos(f[6]) * 4, f[1] - 13, f[2] + Math.sin(f[6]) * 4, -30);
+    this.globeI = ctx.buffer(Float32Array.from(LF.globes), 'vertex'); this.nGlobe = LF.globes.length / 4;
+    this.bowI = ctx.buffer(Float32Array.from(bow), 'vertex'); this.nBow = bow.length / 4;
+    this.nSeed = [140, 260, 420][q];
+    this.nest = LF.nest; this.shrine = LF.shrine; this.eggK = 0;
     await progress(0.8);
 
     // ---------- pipelines ----------
-    const IL = M.instanceLayout(['float32x4', 'float32x4'], 3), sc = COMMON + SCENE, mod = ctx.shader(sc, 'scene'), fx = ctx.shader(COMMON + FX, 'fx'), rays = ctx.shader(RAYS, 'rays');
+    const IL = M.instanceLayout(['float32x4', 'float32x4'], 3), IL3 = M.instanceLayout(['float32x4', 'float32x4', 'float32x4'], 3), IL1 = M.instanceLayout(['float32x4'], 3), sc = COMMON + SCENE + FLY, mod = ctx.shader(sc, 'scene'), fx = ctx.shader(COMMON + FX + AIR, 'fx'), rays = ctx.shader(RAYS, 'rays');
     const P = (d) => ctx.pipelineAsync({ layouts: [cL], ...d });
     this.dL = ctx.layout(['texture-depth']); this.rL = ctx.layout(['texture', 'sampler']);
     const CB = [{ arrayStride: 8, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }] }];
-    [this.pVeil, this.pPuff, this.pRock, this.pVeg, this.pBird, this.pCloud, this.pShell, this.pSky, this.pFall, this.pMote, this.pRay, this.pRayMix] = await Promise.all([
+    [this.pVeil, this.pPuff, this.pRock, this.pVeg, this.pBird, this.pCloud, this.pShell, this.pSky, this.pFall, this.pMote, this.pRay, this.pRayMix, this.pFly, this.pBfly, this.pSeed, this.pGlobe, this.pBow] = await Promise.all([
       P({ module: mod, vs: 'vsCloud', fs: 'fsVeil', buffers: CB, cull: 'none', blend: 'premul', label: 'veil' }),
       P({ module: fx, vs: 'vsPuff', fs: 'fsPuff', buffers: [IL], cull: 'none', blend: 'premul', label: 'puff' }),
       P({ module: mod, fs: 'fsRock', buffers: [M.layout, IL], label: 'rock' }),
@@ -248,6 +285,11 @@ export default {
       P({ module: fx, vs: 'vsMote', fs: 'fsMote', cull: 'none', blend: 'add', label: 'mote' }),
       ctx.pipelineAsync({ module: rays, vs: 'vsRay', fs: 'fsRay', layouts: [this.dL], format: 'r8unorm', depthFormat: null, label: 'ray' }),
       ctx.pipelineAsync({ module: rays, vs: 'vsRay', fs: 'fsRayMix', layouts: [this.dL, this.rL], blend: 'add', depthFormat: null, label: 'raymix' }),
+      P({ module: mod, vs: 'vsFly', fs: 'fsFly', buffers: [M.layout, IL3], cull: 'none', label: 'fly' }),
+      P({ module: mod, vs: 'vsBfly', fs: 'fsBfly', buffers: [IL1], cull: 'none', label: 'bfly' }),
+      P({ module: fx, vs: 'vsSeed', fs: 'fsSeed', cull: 'none', blend: 'premul', label: 'seed' }),
+      P({ module: fx, vs: 'vsGlobe', fs: 'fsSeed', buffers: [IL1], cull: 'none', blend: 'premul', label: 'globe' }),
+      P({ module: fx, vs: 'vsGlobe', fs: 'fsBow', buffers: [IL1], cull: 'none', blend: 'add', label: 'bow' }),
     ]);
     const rt = ctx.texture(RW, RH, 'r8unorm', GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT);
     this.rBG = ctx.bindGroup(this.rL, [rt.createView(), ctx.samplers.linear]);
@@ -269,10 +311,25 @@ export default {
     for (let i = 0; i < B.length; i++) binBatch(B[i], ctx, cam, tx, ty, kx, ky);
     const s = cam.fwd[0] * SUN[0] + cam.fwd[1] * SUN[1] + cam.fwd[2] * SUN[2];
     this.rayK = ctx.env.params[0] = ss(0.0, 0.5, s);
+    // the calf keeps the player company: its small loop drifts after the camera, staying clear of rock
+    const FM = this.FM, k = this.calfK, e = cam.eye, fl = Math.hypot(cam.fwd[0], cam.fwd[2]) + 1e-4;
+    let gx = e[0] + cam.fwd[0] / fl * 11, gy = Math.max(e[1] + 5, 62), gz = e[2] + cam.fwd[2] / fl * 11;
+    if (this.sdfFn(gx, gy, gz) < 11) { gx = e[0]; gy = e[1] + 13; gz = e[2]; }
+    const m = 1 - Math.exp(-dt / 5), nx = FM[k] + (gx - FM[k]) * m, ny = FM[k + 1] + (gy - FM[k + 1]) * m, nz = FM[k + 2] + (gz - FM[k + 2]) * m;
+    if (dt > 0 && this.sdfFn(nx, ny, nz) > 10) { FM[k] = nx; FM[k + 1] = ny; FM[k + 2] = nz; ctx.queue.writeBuffer(this.mantaI, k * 4, FM, k, 12); }
+    // the eggs in the nest light up when someone comes near
+    const nd = Math.hypot(e[0] - this.nest[0], e[1] - this.nest[1], e[2] - this.nest[2]), near = 1 - ss(9, 30, nd);
+    this.eggK += (near - this.eggK) * (1 - Math.exp(-dt / 1.5));
+    ctx.env.params[1] = 0.25 + 1.6 * this.eggK;
     const A = this.aud;
     if (A && (ctx.frame & 15) === 0) {
       const h = ss(40, 190, cam.eye[1]);
       A.wind.set(0.035 + 0.035 * h + 0.02 * Math.min(cam.moving, 1.5), 1.5);
+      let bd = 1e9, bi = 0;                               // the manta song follows the nearest one
+      for (let i = 0; i < this.nManta; i++) { flyPos(FM, i * 12, t, TMP); const d = Math.hypot(TMP[0] - e[0], TMP[1] - e[1], TMP[2] - e[2]); if (d < bd) { bd = d; bi = i; } }
+      flyPos(FM, bi * 12, t, TMP); A.song.setPos(TMP[0], TMP[1], TMP[2]);
+      if (near > 0.5 && !this.eggOn) a_egg(A);
+      this.eggOn = near > 0.3;
     }
   },
 
@@ -285,6 +342,12 @@ export default {
     pass.setPipeline(this.pBird);
     pass.setVertexBuffer(0, this.birdM.vertexBuffer); pass.setVertexBuffer(1, this.birdI); pass.setIndexBuffer(this.birdM.indexBuffer, this.birdM.indexFormat);
     pass.drawIndexed(this.birdM.indexCount, this.nBird);
+    pass.setPipeline(this.pFly);
+    pass.setVertexBuffer(0, this.mantaM.vertexBuffer); pass.setVertexBuffer(1, this.mantaI); pass.setIndexBuffer(this.mantaM.indexBuffer, this.mantaM.indexFormat);
+    pass.drawIndexed(this.mantaM.indexCount, this.nManta);
+    pass.setVertexBuffer(0, this.songM.vertexBuffer); pass.setVertexBuffer(1, this.songI); pass.setIndexBuffer(this.songM.indexBuffer, this.songM.indexFormat);
+    pass.drawIndexed(this.songM.indexCount, this.nSong);
+    pass.setPipeline(this.pBfly); pass.setVertexBuffer(0, this.bflyI); pass.draw(12, this.nBfly);
     pass.setPipeline(this.pCloud);
     pass.setVertexBuffer(0, this.cloudV); pass.setIndexBuffer(this.cloudI, 'uint32'); pass.drawIndexed(this.cloudN, 1);
     pass.setPipeline(this.pSky); pass.draw(3);
@@ -296,6 +359,9 @@ export default {
     pass.setPipeline(this.pVeil); pass.drawIndexed(this.shellN, 1, 0, 0, 20);
     pass.setPipeline(this.pPuff); pass.setVertexBuffer(0, this.puffI); pass.draw(6, this.nPuff);
     pass.setPipeline(this.pFall); pass.setVertexBuffer(0, this.fallI); pass.draw(168, this.nFall);
+    pass.setPipeline(this.pBow); pass.setVertexBuffer(0, this.bowI); pass.draw(6, this.nBow);
+    pass.setPipeline(this.pGlobe); pass.setVertexBuffer(0, this.globeI); pass.draw(6, this.nGlobe);
+    pass.setPipeline(this.pSeed); pass.draw(6, this.nSeed);
     pass.setPipeline(this.pMote); pass.draw(6, this.nMote);
   },
   afterScene(ctx, enc) {
@@ -325,6 +391,17 @@ export default {
     }, { startDelay: 9 });
     const notes = a.scale(81, 'pentatonic', 2);
     a.every(11, 30, (when) => a.bell({ freq: a.hz(a.rng.pick(notes)), gain: 0.008, decay: 6, when, pan: a.rng.range(-0.6, 0.6), reverb: 0.9 }), { startDelay: 5 });
-    this.aud = { wind };
+    // sky-manta song: slow low calls from wherever the nearest one is gliding
+    const song = a.spatial({ pos: [0, 90, -60], ref: 30, rolloff: 0.8, maxDistance: 400, reverb: 0.8 });
+    a.every(13, 34, (when) => {
+      const f = a.hz(a.rng.pick([45, 47, 50, 52])), n = 1 + a.rng.int(3);
+      for (let i = 0; i < n; i++) a.additive({ freq: f * [1, 1.5, 1.335][i], partials: [1, 0.3, 0.08], attack: 1.4, decay: 4.5, gain: 0.03, when: when + i * 2.1, bus: song });
+    }, { startDelay: 6 });
+    // wind chimes at the shrine, songbirds over the waterfall island
+    const chime = a.spatial({ pos: this.shrine, ref: 9, rolloff: 1.2, reverb: 0.6 }), cn = a.scale(86, 'pentatonic', 1);
+    a.every(1.5, 7, (when) => { for (let i = 0, n = 1 + a.rng.int(3); i < n; i++) a.bell({ freq: a.hz(a.rng.pick(cn)), gain: 0.03, decay: 2.5, ratio: 2.76, index: 0.8, when: when + i * (0.15 + 0.3 * a.rng()), bus: chime }); });
+    const tw = a.spatial({ pos: [I1.x, I1.y + 14, I1.z], ref: 16, rolloff: 1.1, reverb: 0.5 });
+    a.every(4, 13, (when) => { const f = 2100 + a.rng() * 1300; a.chirp({ f0: f, f1: f * (1.1 + 0.3 * a.rng()), dur: 0.09, repeat: 2 + a.rng.int(4), gap: 0.07, vib: 40, gain: 0.02, when, bus: tw }); }, { startDelay: 3 });
+    this.aud = { wind, song, a };
   },
 };

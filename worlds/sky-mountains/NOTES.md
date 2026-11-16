@@ -16,6 +16,20 @@ Fly world. Sunrise over a sea of clouds, karst pillars in aerial-perspective lay
   radial march of sky visibility (depth), additive composite weighted by the depth of air.
 - `postcard.wgsl` — sky, sun, cloud sea, three rows of pillar silhouettes, a floating island with a fall.
 
+## Life and places (variety pass)
+- `life.js` — meshes `manta`, `songbird`; `buildLife(L)` builds one static props mesh (drawn with the vegetation shader: material 7 = paint
+  with the palette index in the weight, 8 = flag cloth with the colour index in the ao slot) and returns globe, butterfly and landmark data;
+  `flyPos` (CPU twin of `flyP` in `fly.wgsl`) and `fitLoop` (jitters a wanted loop until it keeps clear of the collision sdf, so flyers never cross rock at any quality).
+- `fly.wgsl` (appended to the scene module) — `vsFly`/`fsFly`: sky-mantas (`MANTAS` in world.js: six between the pillars, one far 68 m elder,
+  one calf whose small loop drifts after the player and stays clear of rock) and four long-tailed songbird flocks (`FLOCKS`); butterflies
+  (two hinged quads, alpha-tested, drift aside when the camera is within ~4 m).
+- `air.wgsl` (appended to the fx module) — drifting puff seeds (hashed, wrapped around the camera), puff globes on stalks (sway with `gustAt`),
+  rainbow cards at every waterfall (colour from the angle to the antisolar point: visible only from the sunny side of the mist).
+- Places: **hero island** (door, flag gate over the path, butterflies, a few puff globes); **shrine island** `ISL[6]` (pagoda with lanterns,
+  four prayer-flag lines, chimes) joined by a **rope bridge** to the **nest pillar** (three eggs that glow and ring softly when you come near, `G.params.y`);
+  **waterfall island** `ISL[1]` (rainbow, songbirds, butterflies); **puff-globe meadow** `ISL[3]` behind the spawn; the open air lanes with mantas.
+- Sound: manta song (low additive calls, positional at the nearest manta), shrine chimes, songbird twitter at the waterfall island, egg bells.
+
 ## Layout
 Hero island at (0, 70, 0), 19 × 27 m. Spawn (0, ~72.6, −7) looks −Z over the edge; the sun is ahead-left (`SUN`). Door at (0, 70.9, 15),
 22 m behind the spawn, facing it, with stepping stones, boulders, lusher grass and baked contact shade. Waterfall island = `ISL[1]`.
@@ -24,7 +38,7 @@ Bounds: sphere r 280 around (0, 95, −70). `heightAt` = cloud top + 9 m. `sdf` 
 ## Rendering
 All instanced kinds go through `makeBatch`/`binBatch`: per frame CPU frustum + distance culling into LOD ranges of one vertex buffer
 (no allocations). Hero-island sun shadows (trees, door, stones) + contact shade are baked on the CPU into a 256² map (`SM`).
-Draw order: rock, vegetation, birds, cloud sea, sky (last, depth-tested) → doors → cloud shells, falls, motes → shafts (afterScene).
+Draw order: rock, vegetation (+ props), cranes, mantas, songbirds, butterflies, cloud sea, sky (last, depth-tested) → doors → cloud shells, falls, rainbows, globes, seeds, motes → shafts (afterScene).
 
 ## Tunables
 `env`/`post` in world.js; haze in `hazeCol`/`atmoT`; cloud amplitudes/scales in `cloudUV`/`cloudMix` (keep `cloudAt` in sync);
@@ -34,7 +48,9 @@ counts per quality: pillars (`buildLayout`), trees per pillar (init), tufts/flow
 Quiet GPU: avg 5.5 ms, p50 5.4, p99 7.7, scale 1.0; probe at scale 1: 5.7–8.1 ms (heaviest near the door). When other jobs share
 the GPU the whole run scales up (avg ≈ 8.9, p99 ≈ 15.6) and single frames spike to 30 ms at random places.
 
+After the variety pass: avg 5.8 ms, p50 5.7, p99 7.4, max 8.0, scale 1.0 (the new life is a few small instanced draws). The pass adds about 18 KB to the bundle.
+
 ## Known issues / next
 No real shadows off the hero island (AO + soft wrap only). Cloud sea is a height field: flying into a tall billow is prevented by
-`heightAt`, not by volume. Waterfall strands and puffs are not depth-sorted or depth-faded against rock. Rock detail normals come from the baked noise
+`heightAt`, not by volume. Flyers, props and globes cast no shadows; the bridge and pagoda have no collision. Waterfall strands and puffs are not depth-sorted or depth-faded against rock. Rock detail normals come from the baked noise
 gradients (no screen-space derivatives), so very close rock is soft rather than crisp.

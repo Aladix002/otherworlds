@@ -6,8 +6,8 @@ import { sphere, tube, computeNormals, merge } from '../../core/src/mesh.js';
 
 const TAU = Math.PI * 2;
 export const ss = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
-const mk = (nv, ni) => ({ pos: new Float32Array(nv * 3), nrm: new Float32Array(nv * 3), uv: new Float32Array(nv * 2), idx: new Uint32Array(ni) });
-const setUV = (g, ao, mat) => { for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = typeof ao === 'function' ? ao(g.uv[i + 1]) : ao; g.uv[i + 1] = typeof mat === 'function' ? mat(g.uv[i + 1]) : mat; } return g; };
+export const mk = (nv, ni) => ({ pos: new Float32Array(nv * 3), nrm: new Float32Array(nv * 3), uv: new Float32Array(nv * 2), idx: new Uint32Array(ni) });
+export const setUV = (g, ao, mat) => { for (let i = 0; i < g.uv.length; i += 2) { g.uv[i] = typeof ao === 'function' ? ao(g.uv[i + 1]) : ao; g.uv[i + 1] = typeof mat === 'function' ? mat(g.uv[i + 1]) : mat; } return g; };
 
 // grid wrapped in u (shared seam, smooth normals). f(u, v, o) fills o = [x, y, z, ao, mat]
 export function grid(nu, nv, f, flip) {

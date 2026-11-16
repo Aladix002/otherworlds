@@ -68,3 +68,9 @@ fn bump(n: vec3f, wp: vec3f, h: f32, k: f32) -> vec3f {
   let g = sign(det) * (dpdx(h) * r1 + dpdy(h) * r2);
   return normalize(abs(det) * n - k * g);
 }
+
+// wind gust at a world position (shared by vegetation sway and the puff globes)
+fn gustAt(w: vec3f) -> f32 {
+  let ph = G.time * 0.8 + w.x * 0.13 + w.z * 0.11;
+  return sin(ph) + 0.5 * sin(ph * 2.3 + 1.7) + 0.6 * sin(G.time * 0.31 + w.z * 0.04);
+}
