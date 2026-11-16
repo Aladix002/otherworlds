@@ -335,6 +335,29 @@ a.pluck({ freq, decay }), a.chirp({ f0, f1, dur, repeat, gap, vib, vibRate }), a
 a.every(minSec, maxSec, (when) => { ... }, { startDelay })  // sparse random events -> { stop }
 a.wander(audioParam, depth, rate)                           // slow non-periodic modulation
 ```
+**Scales** (`a.scale(root, name, octaves)`, also `a.SCALES`): the above plus `aeolian`, `phrygianDominant` = `hijaz` [0,1,4,5,7,8,10], `wholeTone`,
+`lydianAug`, `yo` [0,2,5,7,9], `in` [0,1,5,7,8], `kurd` (D kurd pitch set [0,2,3,5,7,8,10]; handpan layout from the ding: 0,7,8,10,12,14,15,17,19), `majorPent4` [0,2,4,5,7,9].
+
+**Instruments** (one-shot, like `bell`; all take `{ freq | midi, when, gain, vel (x gain), bus | pan | reverb }`; nodes stop themselves; `a.spatial()` works as `bus`):
+```js
+a.epiano({ decay, cutoff, wobble: 0..1 })      // FM tine, chorus pair, wobbling lowpass
+a.marimba() a.kalimba() a.pianoFelt() a.celesta({ box }) a.musicBox() a.handpan() a.steelPan({ decay })   // decay overrides
+a.koto({ bend: semitones, bendAt, bendTime })  // plucked saw, bend after pluck;  a.oud({ fromMidi|from, slide, bend })  a.harp()
+a.strum({ notes: [midi...], dir: 1|-1, spread: [0.015, 0.04] })    // ukulele-like staggered plucks
+a.singingBowl({ decay = 14 })  a.glassHarmonica({ dur = 3 })       // beating partials / sustained sine stack
+a.flute({ preset: 'wood'|'shakuhachi'|'ney'|'whistle', dur, attack, release, vibrato (cents), vibDelay, breath (x), bend (start scoop, semitones, shakuhachi/ney default), fromMidi|from (portamento), glide })
+a.bowed({ dur, attack, release, vibrato, fromMidi })               // saw stack, slow bow swell, delayed vibrato
+a.choir({ vowel: 'ah'|'oo'|'mm'|'oh'|'ee', dur = 5, attack = 1, voices = 4, pulse })          // formant voices
+a.whaleSong({ midi|freq, to: midi|[midi...], path: [midi...], dur = 9 })    // long eased glide + harmonics
+a.frameDrum() a.handDrum() a.shaker() a.darbuka({ type: 'doum'|'tek' }) a.drip({ dir: 1|-1 })   // soft percussion (freq optional)
+a.tanpura({ root: midi = 38, gain = 0.06, bus, reverb })           // continuous drone, Pa-Sa-Sa-lowSa cycle -> { set, stop }
+```
+Sustained ones (`flute`, `bowed`, `choir`, `glassHarmonica`, `whaleSong`) are legato-capable: pass `dur` in seconds and `fromMidi` to glide in.
+
+**Phrases:** `a.phrase({ notes: [{ midi | deg, dur (beats), vel, rest }], inst: a.marimba, opts: {}, when, tempo = 60, humanize = 0.015, scale: a.scale(...) })`
+plays notes with one instrument (`deg` indexes `scale`; `dur` in seconds is passed to the instrument as `opts.dur`, scaled by `opts.durMul`), humanizes timing/velocity, returns the end time (audio clock).
+`a.loop({ every: [min, max], fn(when), startDelay })` = `a.every`.
+
 Crossfade layers from `update` via `ctx.audio` (check it is not null): e.g. `this.deep.set(depth01 * 0.8, 2)`. Don't call
 `set` every frame with the same value; update when it changes noticeably or a few times per second. Everything must loop
 forever without audible repetition (`wander`, `every` and random chord changes help).
