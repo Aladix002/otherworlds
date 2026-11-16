@@ -16,7 +16,7 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   // far slopes: crags from the noise gradient, so the coarse far mesh does not shade as flat facets
   let mid = nl(wp.xz, 0.0043, d);
   n = normalize(n + (vec3f(big2.g - 0.5, 0.0, big2.b - 0.5) * 1.3 + vec3f(mid.g - 0.5, 0.0, mid.b - 0.5) * 0.7) * smoothstep(200.0, 800.0, d) * smoothstep(20.0, 120.0, wp.y));
-  let rk = smoothstep(0.74, 0.5, n.y + (big.a - 0.5) * 0.5 + (big2.a - 0.5) * 0.5 + (a.a - 0.5) * 0.2 + (b.a - 0.5) * 0.1 + 0.3 * smoothstep(180.0, 520.0, wp.y)) * smoothstep(4.0, 12.0, wp.y);
+  let rk = smoothstep(0.74, 0.5, n.y + (big.a - 0.5) * 0.5 + (big2.a - 0.5) * 0.5 + (a.a - 0.5) * 0.2 + (b.a - 0.5) * 0.1 + 0.3 * smoothstep(180.0, 520.0, wp.y) + (nl(vec2f(wp.x * 0.3 + wp.z, wp.y * 5.0), 0.03, d).a - 0.5) * 0.6 * smoothstep(45.0, 20.0, wp.y)) * smoothstep(4.0, 9.0, wp.y);
   let dn = drift(n, wp, d, m.b); n = dn.xyz;
   var col = snow(n, wp, in.m.x, dn.w, m) * (1.0 - 0.28 * m.b);
   // rock: triplanar grain + cracks, lifted by sky and aurora fill so the walls are not flat navy
@@ -25,7 +25,7 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let rf = nl(wp.zy, 0.07, d) * tw.x + nl(wp.xz, 0.07, d) * tw.y + nl(wp.xy, 0.07, d) * tw.z;
   let rn = normalize(n + (vec3f(rt.g, rt.a, rt.b) - 0.5) * 0.7 + (vec3f(rf.g, rf.a, rf.b) - 0.5) * 0.35 * (1.0 - smoothstep(60.0, 400.0, d)));
   let rock = vec3f(0.1, 0.105, 0.125) * (0.45 + 0.8 * rt.a + 0.4 * rf.a) * mix(0.55, 1.0, smoothstep(0.3, 0.55, rt.r));
-  col = mix(col, rock * (light(rn, in.m.x, 1.0, 0.0, 0.0) + G.ambientSky * 0.6), rk);
+  col = mix(col, rock * (light(rn, in.m.x, 1.0, m.r * 1.5, 0.0) + G.ambientSky * (0.6 + 1.2 * smoothstep(45.0, 20.0, wp.y))), rk);
   // far forest, painted where the tree meshes are culled
   let fo = in.m.y * smoothstep(420.0, 850.0, d) * smoothstep(0.3, 0.55, b.a + a.a * 0.4) * (1.0 - rk);
   col = mix(col, vec3f(0.005, 0.011, 0.011) + col * 0.22, fo * 0.85);
@@ -50,7 +50,7 @@ fn paint(ci: f32) -> vec3f {
   if (ci < 1.5) { return vec3f(0.6, 0.36, 0.06); }         // ochre
   if (ci < 2.5) { return vec3f(0.62, 0.62, 0.57); }        // white
   if (ci < 3.5) { return vec3f(0.07, 0.24, 0.38); }        // blue
-  if (ci > 4.5) { return vec3f(0.075, 0.05, 0.035); }      // tarred (the sauna)
+  if (ci > 4.5) { return vec3f(0.2, 0.105, 0.045); }       // oiled logs (the sauna)
   return vec3f(0.1, 0.29, 0.17);                           // green
 }
 fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id)) & 1u) == 1u; }
@@ -114,23 +114,23 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
     } else if (mat == 12.0) {
       // ice: vertical organ-pipe streaks, sky and aurora in the glaze
       let v = normalize(wp - G.camPos);
-      let st = nl(vec2f(u * 2.2, wp.y * 0.13 + wp.x * 0.1), 1.0, d);
-      let ni = normalize(n + vec3f(0.0, 0.0, (st.g - 0.5) * 1.3) + (nl(wp.zy, 0.3, d).gbg - 0.5) * 0.5);
-      let F = 0.05 + 0.95 * pow(1.0 - max(dot(-v, ni), 0.0), 4.0);
-      let frost = smoothstep(0.35, 0.7, nl(wp.zy + wp.x, 0.21, d).r + 0.25 * n.y);
-      col = mix(vec3f(0.13, 0.3, 0.4), vec3f(0.6, 0.7, 0.8), frost) * (0.45 + st.a) * (light(ni, 1.0, 1.0, m.r * 2.0, 0.0) + G.ambientSky * 0.9 + AURL * (0.14 * G.params.x))
-        + skyCol(reflect(v, ni)) * F * 1.6 + G.sunColor * (pow(max(dot(ni, normalize(G.sunDir - v)), 0.0), 60.0) * 1.2);
+      let st = nl(vec2f(wp.z * 1.7, wp.y * 0.12), 1.0, d);
+      let ni = normalize(n + (st.gbg - 0.5) * 0.45);
+      let F = pow(1.0 - max(dot(-v, ni), 0.0), 3.0);
+      col = vec3f(0.19, 0.3, 0.36) * (0.75 + 0.4 * st.a) * (light(ni, 1.0, 1.0, m.r * 2.0, 0.0) + G.ambientSky * 0.9 + AURL * (0.2 * G.params.x))
+        + (skyCol(reflect(v, ni)) * 1.5 + AUR * (0.1 * G.params.x)) * F + G.sunColor * (pow(max(dot(ni, normalize(G.sunDir - v)), 0.0), 60.0) * 1.2);
+      col = mix(col, snow(n, wp, 1.0, 1.0, m), smoothstep(0.7, 0.92, n.y + (st.a - 0.5) * 0.3));
       return vec4f(fogged(col, wp), 1.0);
     } else if (mat == 13.0) {
       // fur, feathers, cloth: palette index in the fraction
       let pi = u32(fv * 12.0);
-      var pal = array<vec3f, 12>(vec3f(0.62, 0.2, 0.04), vec3f(0.6, 0.56, 0.5), vec3f(0.012, 0.01, 0.01), vec3f(0.17, 0.125, 0.09), vec3f(0.5, 0.47, 0.42), vec3f(0.42, 0.36, 0.27),
+      var pal = array<vec3f, 12>(vec3f(0.62, 0.2, 0.04), vec3f(0.6, 0.56, 0.5), vec3f(0.03, 0.018, 0.012), vec3f(0.17, 0.125, 0.09), vec3f(0.5, 0.47, 0.42), vec3f(0.42, 0.36, 0.27),
         vec3f(0.2, 0.21, 0.23), vec3f(0.62, 0.62, 0.6), vec3f(1.0, 0.7, 0.1), vec3f(0.03, 0.06, 0.14), vec3f(0.5, 0.04, 0.03), vec3f(0.5, 0.3, 0.2));
       let fz = nl(in.l.xz * 3.0 + in.l.y * 1.7, 1.0, d);
       alb = pal[pi] * (0.75 + 0.5 * fz.a) * 1.25;
-      if (pi == 6u) { alb *= 0.5 + 0.9 * smoothstep(0.35, 0.6, nl(in.l.xz + in.l.y, 2.5, d).a); }
-      if (pi == 7u) { alb *= 0.5 + 0.5 * smoothstep(0.05, 0.3, abs(fract(in.l.y * 13.0 + fz.a * 0.8) - 0.5) + step(0.33, in.l.y)); }
-      if (pi == 8u) { return vec4f(fogged(alb * 0.7, wp), 1.0); }
+      if (pi == 6u) { alb = pal[6] * (1.5 - 1.6 * in.l.y) * (1.0 - 0.4 * smoothstep(0.62, 0.7, nl(in.l.xz + in.l.y, 7.0, d).a)); }
+      if (pi == 7u) { alb = pal[7] * (0.55 + 0.6 * smoothstep(0.1, 0.3, abs(fract(in.l.y * 17.0 + in.l.x * 3.0) - 0.5) + step(0.33, in.l.y))); }
+      if (pi == 8u) { return vec4f(fogged(alb * 0.3, wp), 1.0); }
     } else if (mat == 8.0) {
       let st = fv / 0.98;
       alb = mix(vec3f(0.07, 0.045, 0.03) * (0.6 + 0.4 * smoothstep(0.5, 0.38, abs(fract(st * 5.0) - 0.5))), mix(vec3f(0.5, 0.07, 0.04), vec3f(0.6, 0.6, 0.55), step(0.86, st)), step(0.72, st)) * (0.7 + 0.6 * nz.a);
@@ -153,7 +153,9 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
 // ---- spruces: sway in travelling gusts, boughs nod ----
 @vertex fn vsTree(v: VI) -> VO {
   let R = rotY(v.b.x); let s = v.a.w; let t = G.time;
-  var w = v.a.xyz + R * (v.p * s);
+  // every tree its own girth and droop
+  let r2 = dot(v.p.xz, v.p.xz); let sq = 0.82 + 0.4 * fract(v.b.y * 13.7);
+  var w = v.a.xyz + R * (vec3f(v.p.x * sq, v.p.y - (fract(v.b.y * 7.1) - 0.35) * 0.1 * r2, v.p.z * sq) * s);
   let hg = v.p.y / 9.0;
   let ph = t * 0.5 + w.x * 0.043 + w.z * 0.031;
   let gust = sin(ph) + 0.5 * sin(ph * 2.3 + 1.7 + v.b.y * 6.0) + 0.6 * sin(t * 0.21 + w.z * 0.012) + 0.25 * sin(t * 1.25 + v.b.y * 40.0);
@@ -182,7 +184,8 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
   let look = mix(slow * idle, clamp(ang, -mx, mx) * (1.0 - smoothstep(2.4, 3.1, abs(ang))), near);
   var pitch = 0.0;
   if (kind == 1.0) { pitch = 1.3 * smoothstep(-0.5, 0.1, slow) * (1.0 - near); }             // grazing, lifts the head when you come close
-  if (kind == 2.0) { pitch = -0.1 - 0.4 * max(near, smoothstep(0.8, 1.3, slow)); }
+  if (kind == 2.0) { pitch = -0.3 - 0.35 * max(near, smoothstep(0.8, 1.3, slow)); }
+  if (kind == 0.0) { pitch = 0.07 * sin(ph * 2.0) * walk; }
   if (part == 1.0) {
     let o = vec3f(0.0, piv.x, piv.y); let cp = cos(pitch); let sp = sin(pitch); let ca = cos(look); let sa = sin(look);
     var q = p - o;
@@ -192,7 +195,7 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
   } else if (part > 5.5) {
     p.x += sin(t * 0.7 + sd * 20.0) * 0.3 * max(p.z - tz, 0.0);
   } else if (part > 1.5) {
-    let lp = ph + PI * step(abs(part - 3.5), 0.6);
+    let lp = ph + (part - 2.0) * PI + step(3.5, part) * 1.57;
     let k = clamp((hip - p.y) / hip, 0.0, 1.0) * walk * hip;
     p.z += sin(lp) * 0.5 * k; p.y += max(-cos(lp), 0.0) * 0.14 * k;
   } else {
@@ -214,16 +217,21 @@ fn isLit(mask: f32, id: f32) -> bool { return id > 14.5 || ((u32(mask) >> u32(id
   let m = vmap(wp.xz);
   // near trees: the bough tips break up into a ragged needle fringe instead of straight polygon edges
   let q = (1.0 - in.m.x) / 0.7;
+  let tip = smoothstep(0.7, 1.0, q) * step(-0.3, in.n.y);
   if (in.m.y < 11.0 && q > 0.8 && d < 48.0 && in.n.y > -0.3) {
     let fr = nl(vec2f(atan2(in.l.z, in.l.x) * 7.0 + in.l.y, in.l.y * 0.8 + length(in.l.xz) * 0.6), 1.1, d * 0.15).a;
     if (fr < (q - 0.8) * 4.5 * (1.0 - d / 48.0)) { discard; }
   }
   n = normalize(n + vec3f(nz.g - 0.5, 0.0, nz.b - 0.5) * 0.6);
   let ao = mix(0.62, 1.0, clamp(length(in.l.xz) / (2.5 * (1.0 - in.l.y / 9.0) + 0.5), 0.0, 1.0));
-  var col = vec3f(0.05, 0.035, 0.028) * (0.5 + nz.a) * light(n, in.k.y, 0.6, m.r, 0.0);
+  var col = vec3f(0.05, 0.035, 0.028) * (0.5 + nz.a) * (light(n, in.k.y, 0.6, m.r * 2.0, 0.0) + G.ambientSky * 0.3);
   if (in.m.y < 11.0) {
-    let sn = smoothstep(0.3, 0.72, n.y * 0.75 + in.m.x * 0.45 + (nz.a - 0.5) * 0.55 - 0.2 * smoothstep(50.0, 260.0, d));
-    col = mix(vec3f(0.022, 0.05, 0.034) * (0.5 + nz.r) * (0.75 + 0.5 * fract(in.k.x * 7.3)) * (light(n, in.k.y, ao, m.r, 0.0) + G.ambientSky * 0.5), snow(n, wp, in.k.y, ao, vec4f(m.r * 0.5, 1.0, 0.0, 0.0)), sn);
+    // soft snow mask (none on the needle tips); undersides keep a dark green floor and a sky / aurora rim
+    let sn = smoothstep(0.12, 0.9, n.y * 0.7 + in.m.x * 0.5 + (nz.a - 0.5) * 0.9 + (nz.r - 0.5) * 0.5 - 0.6 * tip - 0.2 * smoothstep(50.0, 260.0, d));
+    let rim = pow(1.0 - abs(dot(n, normalize(G.camPos - wp))), 3.0);
+    let gr = vec3f(0.022, 0.05, 0.034) * (0.5 + nz.r) * (0.75 + 0.5 * fract(in.k.x * 7.3)) * (light(n, in.k.y, ao, m.r, 0.0) + G.ambientSky * 0.5)
+      + vec3f(0.004, 0.011, 0.008) + (AURL * (0.025 * G.params.x) + G.ambientSky * 0.2) * rim;
+    col = mix(gr, snow(n, wp, in.k.y, ao, vec4f(m.r * 0.5, 1.0, 0.0, 0.0)), sn);
   }
   return vec4f(fogged(col, wp), 1.0);
 }
@@ -251,7 +259,7 @@ struct WO { @builtin(position) pos: vec4f, @location(0) w: vec3f };
   let F = mix(0.55, 1.0, pow(1.0 - abs(vd.y), 5.0));
   var col = vec3f(0.002, 0.005, 0.011) + refl * F * 0.92;
   let wI = 2.0 + 5.5 * ic2.a;
-  let ice = smoothstep(-wI, -wI + 0.9, s + (ic.a - 0.5) * 1.2);
+  let ice = smoothstep(-wI, -wI + 0.9, s + (ic.a - 0.5) * 1.2) * smoothstep(0.9, 1.2, distance(wp.xz, G.params2.xy) + ic.a * 0.3);
   if (ice > 0.0) {
     let m = vmap(wp.xz);
     let dust = smoothstep(0.3, 0.75, ic.r * 0.8 + ic2.r * 0.3 + 0.5 * smoothstep(-2.5, 0.0, s));
@@ -271,7 +279,7 @@ fn stars(rd: vec3f, K: f32, px: f32) -> vec3f {
   let h = hash33(ip); let h2 = hash33(ip + 31.7);
   let q = p - (ip + 0.3 + 0.4 * h);
   // power-law brightness: most cells are empty, a few stars are bright and a little larger
-  let m = max(h2.x - 0.9, 0.0) * 10.0; let b0 = m * m;
+  let m = max(h2.x - 0.87, 0.0) * 7.7; let b0 = m * m;
   let r = max(K * px * (2.0 + 1.6 * b0), 0.03);
   let b = b0 * (0.8 + 0.2 * sin(G.time * (0.7 + 1.6 * h2.y) + h2.z * 40.0));
   return mix(vec3f(0.7, 0.8, 1.0), vec3f(1.0, 0.85, 0.7), h2.z * h2.z) * (exp(-dot(q, q) / (r * r)) * b);
@@ -284,7 +292,7 @@ fn stars(rd: vec3f, K: f32, px: f32) -> vec3f {
   // milky way: a soft band of unresolved light
   let mw = exp(-pow(dot(rd, normalize(vec3f(0.6, 0.35, 0.72))) * 3.2, 2.0)) * textureSampleLevel(NT, NS, rd.xz * 1.3 + rd.y, 2.0).a;
   c += vec3f(0.02, 0.024, 0.036) * mw * ext;
-  c += (stars(rd, 36.0, px) * 2.4 + stars(rd, 80.0, px) * 0.8 * (1.0 + mw)) * ext;
+  c += (stars(rd, 36.0, px) * 3.4 + stars(rd, 80.0, px) * 1.5 * (1.0 + mw)) * ext;
   let mr = length(rd - G.sunDir);
   let mare = textureSampleLevel(NT, NS, (rd.xy - G.sunDir.xy) * 9.0 + 0.3, 1.0).a;
   c += vec3f(0.85, 0.92, 1.0) * ((1.0 - smoothstep(0.016, 0.016 + px * 3.0, mr)) * (1.5 + 0.9 * mare) + 0.05 * exp(-mr * 22.0) + 0.012 * exp(-mr * 5.0));
@@ -299,7 +307,7 @@ fn aurP(u: f32, r: f32) -> vec3f {
   let k = 1.0 + 0.27 * r - 0.11 * r * r * 0.5;                     // every band folds at its own scale
   let env = 0.65 + 0.35 * sin(xk * 0.31 * k + r * 1.9 + t * 0.011);
   let a2 = xk * 2.6 * k - t * 0.043 + r * 4.3;
-  let z = 900.0 - 1900.0 * pow(r, 1.5) - 0.00002 * x * x + 700.0 * sin(xk * 0.85 / k + t * 0.019 + r * 2.7) + 280.0 * env * sin(a2) + 70.0 * sin(xk * 7.3 * k + t * 0.08 + r * 1.3);
+  let z = 900.0 - 1900.0 * pow(r, 1.5) - 0.00002 * x * x + 700.0 * sin(xk * 0.85 / k + t * 0.019 + r * 2.7) + 280.0 * env * sin(a2) + 70.0 * sin(xk * 7.3 * k + t * 0.08 + r * 1.3) + 260.0 * sin(xk * 1.2 * k + t * 0.013 + r * 5.1);
   return vec3f(x + 190.0 * env * cos(a2), 3200.0 + 350.0 * sin(xk * 0.6 + r * 5.0 + t * 0.027), z);
 }
 @vertex fn vsAur(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> AO {
@@ -307,17 +315,18 @@ fn aurP(u: f32, r: f32) -> vec3f {
   let r = f32(ii);
   let u = (f32(vi / 6u) + cx) / 320.0 * 2.0 - 1.0;
   let p = aurP(u, r);
-  let tg = normalize((aurP(u + 0.004, r) - p).xz);
+  let tg = aurP(u + 0.004, r) - p;
   let hgt = 3600.0 + 900.0 * sin(p.x * 0.0004 + r * 3.0);
   let w = p + vec3f(0.0, hgt, hgt * 0.28) * cy;
-  let vh = normalize((w - G.camPos).xz);
   var o: AO;
   o.pos = clip(w);
   // sheets seen edge-on are brighter (longer path through the glow); fade toward the ribbon ends
   // ...but fade where a sheet is exactly edge-on or right overhead, so no crease shows
-  let sn = abs(vh.x * tg.y - vh.y * tg.x);
-  let up = normalize(w - G.camPos).y;
-  o.q = vec3f(p.x * 0.001 * (1.0 + 0.19 * r), cy, min(1.0 / max(sn, 0.3), 3.3) * 0.3 * smoothstep(0.03, 0.3, sn) * (1.0 - 0.75 * smoothstep(0.8, 0.98, up)) * (1.0 - pow(abs(u), 6.0)));
+  // angle between the view and the (tilted) sheet
+  let vd = normalize(w - G.camPos);
+  let sn = abs(dot(vd, normalize(cross(tg, vec3f(0.0, 1.0, 0.28)))));
+  let up = vd.y;
+  o.q = vec3f(p.x * 0.001 * (1.0 + 0.19 * r), cy, min(1.0 / max(sn, 0.42), 2.4) * 0.42 * smoothstep(0.04, 0.5, sn) * (1.0 - 0.75 * smoothstep(0.8, 0.98, up)) * smoothstep(1.0, 0.7, abs(u)));
   o.r = r;
   return o;
 }
@@ -327,12 +336,12 @@ fn aurP(u: f32, r: f32) -> vec3f {
   let fine = textureSample(NT, NS, vec2f(xk * 3.1 - t * 0.011, r * 0.61 + v * 0.02)).a;
   let env = textureSample(NT, NS, vec2f(xk * 0.045 + t * 0.0016 + r * 0.21, r * 0.13 + t * 0.0006)).r;
   let rays = ray * 0.65 + fine * 0.35;
-  let vb = v - 0.035 * ray - 0.01;
-  let prof = smoothstep(0.0, 0.06, vb) * (exp(-vb * 4.5) + 0.22 * (1.0 - v)) * pow(1.0 - v, 0.6);
+  let vb = v - 0.03 * env - 0.012 * ray;
+  let prof = smoothstep(0.0, 0.13, vb) * (exp(-vb * 4.5) + 0.22 * (1.0 - v)) * pow(1.0 - v, 0.6);
   let pulse = 0.8 + 0.2 * sin(t * 0.07 + r * 2.4 + xk * 0.2);
   var I = smoothstep(0.33, 0.78, env) * (0.25 + 1.1 * rays * rays) * prof * in.q.z * G.params.x * pulse * 2.4;
   I = 2.4 * (1.0 - exp(-I / 2.4));
-  var col = mix(AUR, vec3f(1.0, 0.18, 0.52) * 1.15, (1.0 - smoothstep(0.01, 0.1, vb)) * (0.35 + 0.65 * fine));
+  var col = mix(AUR, mix(vec3f(1.0, 0.18, 0.52), vec3f(0.6, 0.2, 1.0), smoothstep(0.0, 0.2, vb)) * 1.3, (1.0 - smoothstep(0.02, 0.24, vb)) * (0.5 + 0.5 * fine));
   col = mix(col, vec3f(0.5, 0.2, 1.0) * 1.3, smoothstep(0.16, 0.7, v));
   return vec4f(col * I, 0.0);
 }

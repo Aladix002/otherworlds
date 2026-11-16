@@ -75,7 +75,7 @@ function house(o, sd) {
     // roof side: slab, snow blanket, white barge boards
     const L = (w / 2 + 0.45) / Math.cos(p); let r = merge([bx(L, 0.1, l + 0.8, 4, L / 2), mv(blanket(L + 0.1, l + 1.0, 0.27, 0.3, sd + sg, 1), 0, 0.1, 0),
       bx(L, 0.2, 0.07, 1, L / 2, -0.13, l / 2 + 0.4), bx(L, 0.2, 0.07, 1, L / 2, -0.13, -l / 2 - 0.4)]);
-    if (o.ladder && sg > 0) { const R = [r]; for (const dz of [0.2, -0.2]) R.push(bx(L * 0.85, 0.05, 0.05, 4, L * 0.45, 0.4, dz - l * 0.22)); for (let x = 0.25; x < L * 0.85; x += 0.36) R.push(bx(0.05, 0.04, 0.4, 4, x, 0.4, -l * 0.22)); r = merge(R); }
+    if (o.ladder && sg > 0) { const R = [r]; for (const dz of [0.2, -0.2]) R.push(bx(L * 0.85, 0.07, 0.07, 4, L * 0.45, 0.4, dz - l * 0.22)); for (let x = 0.25; x < L * 0.85; x += 0.36) R.push(bx(0.05, 0.04, 0.4, 4, x, 0.4, -l * 0.22)); r = merge(R); }
     rz(r, -p, 0, hw + rh + 0.02, 0);
     P.push(sg < 0 ? mirX(r) : r);
   }
@@ -147,11 +147,10 @@ function boat(len = 5.4, B = 0.82) {
   }
   for (let i = 0; i < hull.idx.length; i += 3) { const t = hull.idx[i + 1]; hull.idx[i + 1] = hull.idx[i + 2]; hull.idx[i + 2] = t; }
   computeNormals(hull);
-  const fill = grid(xs, [-1, -0.6, 0, 0.6, 1], (x, j) => { const [, ys] = sec(x); return ys - 0.1 + 0.13 * Math.cos(j * 1.5) * (1 + 0.4 * snoise2(x * 1.3, j)); });
+  const fill = grid(xs, [-1, -0.6, 0, 0.6, 1], (x, j) => { const [, ys] = sec(x); return ys - 0.17 + 0.17 * Math.cos(j * 1.5) * (1 + 0.4 * snoise2(x * 1.3, j)); });
   for (let v = 0; v < fill.pos.length / 3; v++) fill.pos[v * 3 + 2] *= sec(fill.pos[v * 3])[0];
   computeNormals(fill);
   const T = [hull, fill, bx(0.09, 0.5, 0.12, 4, len / 2 - 0.02, 0.6), bx(0.09, 0.5, 0.12, 4, -len / 2 + 0.02, 0.6)];
-  for (const x of [-len * 0.24, 0, len * 0.24]) { const [b, ys] = sec(x); T.push(bx(0.16, 0.04, b * 2 + 0.04, 4, x, ys - 0.01, 0, 1)); }
   return merge(T);
 }
 
@@ -173,11 +172,12 @@ export function village(pier, lamps, hAt, door, dyaw, posts, X) {
     bulbs.push(x - Math.sin(a) * 0.5, y + 3.0, z - Math.cos(a) * 0.5);
   }
   const b = boat(4.3, 0.74);
-  P.push(ry(boat(), 1.5, px - 2.35, -0.14, -7), ry(boat(5.0, 0.78), 1.62, px + 2.3, -0.13, -11.5), ry(rx(b, 0.3), 0.6, -8.5, hAt(-8.5, 10.5) - 0.05, 10.5));
+  P.push(ry(boat(), 1.5, px - 2.35, -0.14, -7), ry(boat(5.0, 0.78), 1.62, px + 2.3, -0.13, -11.5), ry(rx(b, 0.3), 0.6, -8.5, hAt(-8.5, 10.5) - 0.2, 10.5));
   // drying rack (hjell): A-frames + rails, snow on the top rails
   const R = [];
   for (let i = 0; i < 4; i++) for (const sg of [1, -1]) R.push(rz(bx(0.17, 6.7, 0.17, 4, sg * 2.25, -0.4), sg * 0.36, 0, 0, i * 3.6 - 5.4));
   for (const [x, y] of [[0, 5.75], [0.75, 3.9], [-0.75, 3.9], [1.42, 2.15], [-1.42, 2.15]]) R.push(bx(0.14, 0.14, 12.4, 4, x, y, 0), mv(blanket(0.2, 12.4, 0.09, 0.09, x, 0, 1.3), x - 0.1, y + 0.13, 0));
+  for (const [x, y] of [[0.75, 3.9], [-0.75, 3.9], [1.42, 2.15], [-1.42, 2.15]]) for (let z = -5.8; z < 5.9; z += 0.3) if (h1(z * 50 + x * 9) > 0.25) R.push(fur(bx(0.045, 0.34 + 0.2 * h1(z * 31 + x), 0.11, 0, x, y - 0.6, z), 0, 5));
   P.push(ry(merge(R), 0.25, -16, hAt(-16, 24) - 0.6, 24));
   // snow drifted against the door frame
   const ax = []; for (let i = -15; i <= 15; i++) ax.push(i * 0.16);
@@ -185,9 +185,17 @@ export function village(pier, lamps, hAt, door, dyaw, posts, X) {
     const r = Math.hypot(x, z), u = Math.abs(x) - 0.84, k = 1 + 0.25 * snoise2(x * 1.9, z * 1.9);
     return ss(2.4, 1.1, r) * (0.3 * k * Math.exp(-u * u / (u < 0 ? 0.035 : 0.3) - z * z / 0.22) * ss(0.52, 0.74, Math.abs(x)) + 0.05 * (1 + snoise2(x * 0.8 + 3, z * 0.8)) * ss(0.4, 1.3, r)) + 0.012;
   }), dyaw, door[0], door[1], door[2]));
-  for (const [x, y, z, a, sc] of X.snowmen) P.push(ry(snowman(sc), a, x, y - 0.05, z), ry(sled(), a + 1.9, x + 1.5 * Math.cos(a), hAt(x + 1.5 * Math.cos(a), z - 1.5 * Math.sin(a)) + 0.07, z - 1.5 * Math.sin(a)));
+  X.snowmen.forEach(([x, y, z, a, sc], i) => { const sx = x + 2 * Math.cos(a), sz = z - 2 * Math.sin(a); P.push(ry(snowman(sc, i), a, x, y - 0.05, z), ry(sled(), a + 1.9 + i, sx, hAt(sx, sz) + 0.07, sz)); });
   P.push(ry(bench(), X.bench[3], X.bench[0], X.bench[1] - 0.06, X.bench[2]), mv(cairn(), ...X.cairn), mv(camp(), ...X.camp), ry(lean(), X.lean[3], X.lean[0], X.lean[1] - 0.08, X.lean[2]), X.ice);
-  for (const [x, y, z] of X.owlPosts) P.push(bx(0.13, 1.5, 0.13, 4, x, y - 0.1, z));
+  for (const [x, y, z] of X.owlPosts) P.push(mv(setMat(cylinder(0.085, 0.065, 1.42, 8), 4, 0), x, y - 0.1, z), cap(0.24, 0.24, 0.07, x, y + 1.3, z, x));
+  // on the way up the view hill: a signpost with skis leaning on it, a snow-capped woodpile
+  for (const [x, y, z] of X.signs) {
+    P.push(bx(0.1, 2.3, 0.1, 4, x, y - 0.2, z), ry(bx(0.9, 0.2, 0.04, 0, 0.3, 0, 0), 0.5, x, y + 1.75, z), ry(bx(0.8, 0.18, 0.04, 1, -0.28, 0, 0), -0.9, x, y + 1.5, z), cap(0.22, 0.22, 0.08, x, y + 2.1, z, 2));
+    for (const d of [0.12, 0.26]) P.push(rz(bx(0.09, 1.8, 0.025, 6), 0.16, x + 0.38 + d * 0.5, y - 0.1, z + d));
+    const W = [mv(blanket(1.3, 1.5, 0.14, 0.2, 9, 0, 0.4), -0.65, 0.78, 0)];
+    for (let i = 0; i < 14; i++) W.push(mv(log(0.13, 1.3), (i % 5 - 2 + (i > 4 && i < 9 ? 0.5 : 0)) * 0.27 * (i > 8 ? 0.8 : 1), [0, 0.24, 0.48][i / 5 | 0] - 0.05, 0));
+    P.push(ry(merge(W), 1.1, x + 4, hAt(x + 4, z - 0.5), z - 0.5));
+  }
   for (const [x, y, z] of posts) P.push(bx(0.11, 1.15, 0.11, 4, x, y - 0.15, z), cap(0.2, 0.2, 0.08, x, y + 0.99, z, x));
   return { geo: merge(P), bulbs };
 }
@@ -223,14 +231,14 @@ const el = (a, b, c, x, y, z, part = 0, col = 0, sub = 2) => fur(mv(scale(sphere
 const lim = (path, r, part, col, segs = 6) => fur(tube(path, r, segs), part, col);
 const ball = (r, mat, x, y, z, sub = 1) => mv(setMat(sphere(r, sub), mat, 0), x, y, z);
 const log = (r, len) => merge([rx(setMat(cylinder(r, r, len, 10), 4, 0), Math.PI / 2, 0, r * 0.8, -len / 2), ...[1, -1].map((s) => mv(setMat(scale(sphere(1, 1), r, r, 0.02), 4, 0), 0, r * 0.8, s * len / 2))]);
-function snowman(s) {
+function snowman(s, v) {
   const P = [ball(0.44, 2, 0, 0.3, 0, 2), ball(0.31, 2, 0, 0.92, 0, 2), ball(0.21, 2, 0, 1.36, 0, 2),
     fur(rx(cylinder(0.035, 0.004, 0.22, 6), Math.PI / 2, 0, 1.37, 0.19), 0, 0),
-    mv(setMat(cylinder(0.15, 0.13, 0.2, 10), 4), 0, 1.53, 0), mv(setMat(cylinder(0.22, 0.22, 0.025, 10), 4), 0, 1.52, 0), cap(0.3, 0.3, 0.06, 0, 1.72, 0, 3),
+    ...(v % 2 ? [] : [mv(setMat(cylinder(0.15, 0.13, 0.2, 10), 4), 0, 1.53, 0), mv(setMat(cylinder(0.22, 0.22, 0.025, 10), 4), 0, 1.52, 0), cap(0.3, 0.3, 0.06, 0, 1.72, 0, 3)]),
     fur(mv(scale(torus(0.2, 0.05, 12, 6), 1, 1.2, 1), 0, 1.17, 0), 0, 10), fur(bx(0.09, 0.3, 0.04, 0, 0.12, 0.85, 0.2), 0, 10)];
-  for (const sg of [1, -1]) P.push(ball(0.028, 4, sg * 0.075, 1.43, 0.185), setMat(tube([[sg * 0.27, 0.98, 0], [sg * 0.55, 1.2, 0.05], [sg * 0.72, 1.42, 0.02]], 0.014, 4), 4, 0));
+  for (const sg of [1, -1]) P.push(ball(0.028, 4, sg * 0.075, 1.43, 0.185), setMat(tube([[sg * 0.27, 0.98, 0], [sg * 0.55, 1.2 - v * 0.12 * sg, 0.05], [sg * 0.72, 1.42 - v * 0.3 * sg, 0.02]], 0.014, 4), 4, 0));
   for (let i = 0; i < 3; i++) P.push(ball(0.026, 4, 0, 0.78 + i * 0.14, 0.3 - Math.abs(i - 1) * 0.02));
-  return scale(merge(P), s);
+  return scale(merge(P), s, s * (1 + 0.1 * v), s);
 }
 function sled() {
   const P = [bx(0.44, 0.03, 0.85, 0, 0, 0.2, 0, 1), mv(blanket(0.44, 0.5, 0.05, 0.08, 7, 0, 0.3), -0.22, 0.23, 0.12)];
@@ -259,30 +267,29 @@ function lean() {   // open toward +z
   P.push(el(0.3, 0.12, 0.8, 0.5, 0.1, -0.9, 0, 3, 1), el(0.2, 0.2, 0.28, -0.8, 0.18, -0.6, 0, 10, 1));   // a bedroll and a pack
   return merge(P);
 }
-// frozen waterfall draped over the rock face: flows along +x from the top of the rib. hAt = the rendered terrain height
+// frozen waterfall: clustered icicle columns of varied length hugging the rock face (down +x), an ice mound at the foot
 export function icefall(hAt, [x0, z0]) {
-  const xs = [], us = [];
-  for (let i = 0; i <= 30; i++) xs.push(x0 - 4.5 + i * 0.33);
-  for (let j = -6; j <= 6; j++) us.push(j / 6);
-  const g = grid(xs, us, () => 0, 12);
-  for (let v = 0; v < g.pos.length / 3; v++) {
-    const x = g.pos[v * 3], u = g.pos[v * 3 + 2], f = (x - xs[0]) / 10, w = (1.0 + 2.8 * f * f + 0.45 * snoise2(x * 0.7, 3 + Math.sign(u))) * (1 + 0.5 * ss(0.85, 1, f)), z = z0 + u * w + 0.6 * snoise2(x * 0.3, 1);
-    g.pos[v * 3 + 2] = z; g.pos[v * 3 + 1] = hAt(x, z) - 0.1 + Math.sqrt(Math.max(1 - u * u, 0)) * ss(0, 0.12, f) * (0.5 + 0.3 * Math.abs(Math.sin(u * 5 + x * 0.25)) + 0.35 * snoise2(x * 0.8, u * 2) + 0.5 * f);
-    g.uv[v * 2] = u * w;
+  const P = [setMat(mv(scale(rock(7, 2, 0.3), 2.2, 1.6, 3.4), x0 + 4.9, hAt(x0 + 4.9, z0) - 0.45, z0), 12)];
+  for (let c = 0; c < 19; c++) {
+    const z = z0 + (c / 18 - 0.5) * 5 + 0.2 * snoise2(c * 1.7, 2), e = 1 - Math.abs(c / 9 - 1), r = 0.38 + 0.3 * h1(c * 7 + 1), len = Math.min(1, 0.45 + 0.35 * h1(c * 5 + 2) + 0.5 * e), pts = [];
+    for (let i = 0; i <= 14; i++) { const x = x0 - 2.7 + i * 0.52 * len; pts.push([x, hAt(x, z) + r * 0.35, z]); }
+    P.push(setMat(tube(pts, (t) => r * (0.35 + 0.65 * Math.sin(Math.min(t * 6, 1) * 1.57)) * (1 - 0.8 * t * t * t), 6), 12));
   }
-  return computeNormals(g);
+  return merge(P);
 }
 
-// ---- creatures. All face -z; part ids (uv.x): 0 body, 1 head + neck, 2..5 legs, 6 tail. Animated in vsLife ----
 export function fox() {
-  const P = [el(0.1, 0.11, 0.29, 0, 0.34, 0.02), el(0.085, 0.09, 0.12, 0, 0.31, -0.17, 0, 1),
-    lim([[0, 0.36, -0.2], [0, 0.44, -0.33]], 0.065, 1, 0), el(0.075, 0.07, 0.085, 0, 0.47, -0.37, 1, 0),
-    lim([[0, 0.455, -0.42], [0, 0.44, -0.56]], (t) => 0.045 - 0.03 * t, 1, 1), el(0.016, 0.014, 0.016, 0, 0.445, -0.565, 1, 2, 1)];
+  const P = [lim([[0, 0.35, 0.34], [0, 0.36, 0.2], [0, 0.345, 0], [0, 0.35, -0.2], [0, 0.37, -0.3]], (t) => 0.07 + 0.045 * Math.sin(t * 3.1) + 0.012 * Math.cos(t * 6.3), 0, 0, 10),
+    el(0.08, 0.085, 0.08, 0, 0.35, 0.32), el(0.08, 0.085, 0.1, 0, 0.31, -0.22, 0, 1),
+    lim([[0, 0.37, -0.22], [0, 0.44, -0.31], [0, 0.48, -0.36]], (t) => 0.085 - 0.02 * t, 1, 0, 8), el(0.07, 0.066, 0.08, 0, 0.49, -0.39, 1, 0),
+    lim([[0, 0.48, -0.43], [0, 0.46, -0.58]], (t) => 0.048 - 0.034 * t, 1, 1), el(0.015, 0.013, 0.015, 0, 0.462, -0.585, 1, 2, 1),
+    lim([[0, 0.37, 0.3], [0, 0.31, 0.5], [0, 0.27, 0.7], [0, 0.275, 0.84]], (t) => 0.045 + 0.05 * Math.sin(t * 2.6), 6, 0, 8), el(0.05, 0.05, 0.08, 0, 0.275, 0.86, 6, 1, 1)];
   for (const s of [1, -1]) {
-    P.push(lim([[s * 0.045, 0.51, -0.35], [s * 0.065, 0.62, -0.335]], (t) => 0.034 - 0.03 * t, 1, 2, 5), el(0.011, 0.011, 0.008, s * 0.036, 0.485, -0.44, 1, 2, 1));
-    [-0.19, 0.2].forEach((z, k) => P.push(lim([[s * 0.06, 0.3, z], [s * 0.06, 0.14, z + (k ? 0.03 : 0)], [s * 0.06, 0, z]], (t) => 0.032 - 0.012 * t, 2 + k * 2 + (s < 0), 2, 5)));
+    P.push(lim([[s * 0.045, 0.53, -0.37], [s * 0.065, 0.64, -0.355]], (t) => 0.034 - 0.03 * t, 1, 2, 5), el(0.01, 0.01, 0.007, s * 0.036, 0.505, -0.455, 1, 2, 1),
+      el(0.045, 0.1, 0.085, s * 0.065, 0.3, 0.2), el(0.04, 0.085, 0.06, s * 0.065, 0.3, -0.19));
+    [-0.2, 0.22].forEach((z, k) => P.push(lim([[s * 0.065, 0.28, z], [s * 0.065, 0.15, z + (k ? 0.045 : 0)], [s * 0.065, 0.03, z]], (t) => 0.034 - 0.017 * t, 2 + k * 2 + (s < 0), 2, 5),
+      el(0.022, 0.016, 0.034, s * 0.065, 0.016, z - 0.015, 2 + k * 2 + (s < 0), 2, 1)));
   }
-  P.push(el(0.065, 0.065, 0.2, 0, 0.33, 0.46, 6, 0), el(0.045, 0.045, 0.09, 0, 0.33, 0.63, 6, 1));
   return merge(P);
 }
 export function deer() {
@@ -296,19 +303,21 @@ export function deer() {
     P.push(lim(A, (t) => 0.03 - 0.018 * t, 1, 5, 5));
     for (const [k, dx, dy, dz] of [[1, 0.02, 0.2, 0.12], [2, 0.1, 0.22, 0.08], [3, 0.12, 0.14, 0.0], [0, 0.05, 0.04, -0.3]])
       P.push(lim([A[k], [A[k][0] + s * dx, A[k][1] + dy, A[k][2] + dz]], (t) => 0.02 - 0.014 * t, 1, 5, 4));
-    [-0.4, 0.42].forEach((z, k) => P.push(lim([[s * 0.14, 0.9, z], [s * 0.14, 0.45, z + (k ? 0.06 : 0)], [s * 0.14, 0, z]], (t) => 0.075 - 0.04 * t, 2 + k * 2 + (s < 0), k ? 3 : 2, 6)));
+    [-0.4, 0.42].forEach((z, k) => P.push(lim([[s * 0.14, 0.9, z], [s * 0.14, 0.45, z + (k ? 0.06 : 0)], [s * 0.14, 0, z]], (t) => 0.1 - 0.065 * Math.sqrt(t), 2 + k * 2 + (s < 0), k ? 3 : 2, 6)));
   }
   return merge(P);
 }
 export function seal() {
-  const P = [el(0.26, 0.21, 0.55, 0, 0.19, 0.1, 0, 6), el(0.16, 0.13, 0.42, 0, 0.13, 0.62, 0, 6),
+  const P = [el(0.26, 0.25, 0.55, 0, 0.22, 0.1, 0, 6), el(0.16, 0.15, 0.42, 0, 0.15, 0.62, 0, 6),
     el(0.2, 0.18, 0.3, 0, 0.22, -0.38, 1, 6), el(0.13, 0.125, 0.16, 0, 0.27, -0.66, 1, 6), el(0.07, 0.055, 0.07, 0, 0.245, -0.8, 1, 4, 1), el(0.02, 0.015, 0.015, 0, 0.26, -0.865, 1, 2, 1)];
   for (const s of [1, -1]) P.push(el(0.018, 0.018, 0.012, s * 0.07, 0.31, -0.775, 1, 2, 1), el(0.08, 0.025, 0.17, s * 0.27, 0.04, -0.12, 0, 6, 1), el(0.07, 0.02, 0.15, s * 0.08, 0.05, 1.05, 6, 6, 1));
   return merge(P);
 }
 export function owl() {
-  const P = [el(0.13, 0.19, 0.12, 0, 0.19, 0.01, 0, 7), el(0.105, 0.09, 0.1, 0, 0.42, 0, 1, 7), el(0.02, 0.03, 0.02, 0, 0.405, -0.1, 1, 2, 1), el(0.06, 0.03, 0.12, 0, 0.06, 0.1, 0, 7, 1)];
-  for (const s of [1, -1]) P.push(el(0.045, 0.16, 0.1, s * 0.115, 0.2, 0.03, 0, 7, 1), el(0.024, 0.024, 0.012, s * 0.042, 0.435, -0.09, 1, 8, 1), el(0.011, 0.011, 0.008, s * 0.042, 0.435, -0.1, 1, 2, 1));
+  const P = [el(0.12, 0.2, 0.115, 0, 0.2, 0.015, 0, 7), el(0.1, 0.088, 0.095, 0, 0.42, 0, 1, 7), el(0.082, 0.07, 0.03, 0, 0.42, -0.078, 1, 1),   // body, head, facial disc
+    el(0.014, 0.024, 0.02, 0, 0.4, -0.108, 1, 2, 1), el(0.07, 0.03, 0.13, 0, 0.05, 0.12, 0, 3, 1)];
+  for (const s of [1, -1]) P.push(el(0.04, 0.17, 0.105, s * 0.1, 0.2, 0.04, 0, 3), el(0.016, 0.016, 0.01, s * 0.036, 0.432, -0.103, 1, 8, 1), el(0.009, 0.009, 0.006, s * 0.036, 0.432, -0.111, 1, 2, 1),
+    el(0.018, 0.012, 0.035, s * 0.035, 0.008, -0.07, 0, 5, 1));
   return merge(P);
 }
 // the drifting fishing boat: lantern on a pole at the bow, a bundled-up fisher with a rod. Lantern at FISH_L (local)
@@ -316,5 +325,5 @@ export const FISH_L = [1.9, 1.88, 0.36];
 export function fisher() {
   return merge([boat(4.6, 0.78), bx(0.05, 1.5, 0.05, 4, 1.9, 0.6, 0), bx(0.05, 0.05, 0.4, 4, 1.9, 2.05, 0.18), bx(0.14, 0.2, 0.14, 7, 1.9, 1.78, 0.36), bx(0.2, 0.03, 0.2, 4, 1.9, 1.98, 0.36),
     el(0.2, 0.3, 0.19, -0.5, 0.95, 0, 0, 9), el(0.1, 0.11, 0.1, -0.46, 1.33, 0, 0, 11, 1), el(0.105, 0.07, 0.105, -0.46, 1.4, 0, 0, 10, 1), el(0.03, 0.03, 0.03, -0.46, 1.48, 0, 0, 1, 1),
-    lim([[-0.4, 1.05, 0.15], [-0.1, 1.3, 0.8], [0.1, 1.5, 1.9]], 0.012, 0, 2, 4)]);
+    lim([[-0.4, 1.05, 0.15], [-0.1, 1.3, 0.8], [0.1, 1.5, 1.9]], 0.02, 0, 2, 4)]);
 }

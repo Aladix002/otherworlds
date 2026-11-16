@@ -53,7 +53,7 @@ export default {
   poses: [
     pose(-1.5, 1.7, 21, -1, 5, -60, 12),                 // village around the cove, aurora mirrored in the fjord
     pose(1.4, 1.75, -16.5, -70, 170, -420, 31),            // peaks with aurora curtains, from the pier head
-    pose(CLR[0] + 10.5, 1.65, CLR[1] - 7, -63, 9, 33.5, 22),   // forest clearing: campfire, lean-to, owl, frozen fall on the rock rib
+    pose(CLR[0] + 10.5, 1.65, CLR[1] - 7, -63, 8, 33.5, 22),   // forest clearing: campfire, lean-to, owl, frozen fall on the rock rib
     pose(-8.5, 1.6, 9.5, -15.5, 3.0, -1.5, 17),            // close house: warm window, snow on the roof
     pose(KNOLL[0] + 1.5, 1.9, KNOLL[1] + 3.6, 10, 30, -60, 44),   // the bench on the view hill: the fjord, the herd, the aurora above
     pose(10.2, 1.55, 42.6, DOOR[0], DY + 1.25, DOOR[2], 27),   // the door on the snowy shore
@@ -139,6 +139,7 @@ export default {
     this.life = [fox, deer, seal, owl].map((f, k) => ({ m: M.upload(f()), i: inst(k ? L.life[k] : this.foxD), n: k ? L.life[k].length / 8 : 1 }));
     this.boatD = Float32Array.of(0, -0.14, -44, 1, 0, 0.5, 1, 0); this.boatI = inst(this.boatD);
     this.objs.push({ m: M.upload(fisher()), i: this.boatI, n: 1 });
+    ctx.env.params2[0] = L.hole[0]; ctx.env.params2[1] = L.hole[2];
     this.campY = L.camp[1]; this.owlPos = L.owlPosts[0];
     await progress(0.65);
     this.trees = makeBatch(ctx, [0, 1, 2].map((l) => M.upload(spruce(l, 3))), L.trees, [42, 150, 1000]);

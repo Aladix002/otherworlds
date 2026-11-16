@@ -52,6 +52,11 @@ swivel. Sounds: campfire crackle, owl hoot, a herd bell (all positional).
 Also: near spruces are whorls of separate boughs with a ragged needle fringe (discard in `fsTree`), the far terrain level is 32 m
 cells (was 64) with gradient-noise crags in the normal.
 
+Polish after the critic: icicle-column waterfall with a foot mound in a rim notch, soft snow mask / green floor / rim light and
+per-tree girth and droop on the spruces, a remodelled fox (walk gait, small single-file prints) and owl (facial disc, wings, round
+capped posts), a hole in the ice by the sauna (`G.params2.xy`), signpost + woodpile + a third snowman on the way to the view hill,
+stockfish on the rack, softer aurora hem and ends, brighter stars, wider campfire light.
+
 ## Known issues
 - The water position is reconstructed from the view ray (interpolating the 80 km quad gave 0.5 m steps).
 - Objects have no moon shadow on each other; house/tree shadows on the ground are baked per terrain vertex (1 m).

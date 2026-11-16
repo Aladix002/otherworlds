@@ -38,7 +38,7 @@ export function height(x, z) {
   const kr = (x - KNOLL[0]) ** 2 + (z - KNOLL[1]) ** 2;
   if (kr < 3600) h += 9 * Math.exp(-kr / 340);
   const cd = cliffD(x, z);
-  if (cd < 1.5) h += 15 * ss(1.5, -3.5, cd) * (1 + 0.25 * fbm2(x * 0.05 + 3, z * 0.05, 2)) + 1.5 * fbm2(x * 0.3, z * 0.3, 3) * ss(1.5, -2, cd);
+  if (cd < 1.5) h += 15 * ss(1.5, -3.5, cd) * (1 + 0.25 * fbm2(x * 0.05 + 3, z * 0.05, 2)) * (1 - 0.14 * Math.exp(-((z - ICE[1]) ** 2) / 6)) + 1.5 * fbm2(x * 0.3, z * 0.3, 3) * ss(1.5, -2, cd);
   return h;
 }
 const yawOf = (x, z, tx, tz) => Math.atan2(-(tx - x), -(tz - z));
@@ -58,7 +58,7 @@ const HS = [
   [27, 0, -20, 1, 0, 0b101101], [23, 0, 25, 0, 1, 0b0111],
   [-48, -1, 0.8, 4, 5, 0b1111],                       // the sauna
 ];
-export const LAMPS = [[PIER[0] + 0.95, PIER[2] + 0.6], [13, 29.5], [-18.5, 8.5], [23, -1], [-35, -30], [38, -33], [KNOLL[0] + 3.4, KNOLL[1] - 0.6]];
+export const LAMPS = [[PIER[0] + 0.95, PIER[2] + 0.6], [13, 29.5], [-18.5, 8.5], [23, -1], [-35, -30], [38, -33], [KNOLL[0] - 4.2, KNOLL[1] - 1.2]];
 const PATHS = [
   [[SPAWN[0], SPAWN[2]], [1.5, 16], [PIER[0], 12], [PIER[0], PIER[2] + 1.5]],
   [[SPAWN[0], SPAWN[2]], [2.5, 26], [6.5, 32], [DOOR[0] + 0.6 * Math.sin(DOOR_YAW), DOOR[2] + 0.6 * Math.cos(DOOR_YAW)]],
@@ -69,7 +69,7 @@ const PATHS = [
 ];
 // the fox's round (closed loop) and things random scatter must stay away from: [x, z, r]
 const FOXP = [[19, 19], [9, 17], [-2, 15], [-9, 18.5], [-11.5, 23], [-10, 28], [-5, 31.5], [3, 33], [9, 33.2], [15, 33], [21, 28]];
-const SNOWMEN = [[-6.4, 14.4, 0.64, 1], [17.5, 9.5, -1.2, 0.85], [-12.8, 6.5, 0.96, 1.1]];
+const SNOWMEN = [[-12.3, 7.1, 0.96, 1.1], [17.5, 9.5, -1.2, 0.8], [20.5, 33, 0.5, 0.65]];
 const KEEP = [[CLR[0], CLR[1], 8], [KNOLL[0], KNOLL[1], 4.5], [HERD[0], HERD[1], 12], [-60.5, ICE[1], 4], [CLR[0] + 10.5, CLR[1] - 7, 6.5]];
 // closed Catmull-Rom loop sampled to [x, z, arc length] * (n + 1)
 export function loopPath(P, n = 360) {
@@ -94,7 +94,7 @@ export function buildLayout(q) {
     const W = (p) => [x + c * p[0] + s * p[2], y + p[1], z - s * p[0] + c * p[2]];
     L.houses[v].push(x, y, z, 1, yaw, ci + R() * 0.98, 1, mask);
     if (H.chim) L.chim.push(W(H.chim));
-    if (v === 4) L.chim.push(W([0.3, 1.2, -H.l / 2 - 0.5]), W([-0.4, 0.6, -H.l / 2 - 1.2]));     // sauna steam
+    if (v === 4) { L.chim.push(W([0.3, 1.2, -H.l / 2 - 0.5]), W([-0.4, 0.6, -H.l / 2 - 1.2]), W([0, -1, -H.l / 2 - 4.4]), W([0.2, 2, 0])); L.hole = W([0, 0, -H.l / 2 - 4.6]); }     // sauna steam, hole in the ice
     L.col.push(x, z, H.w / 2 + 0.25, H.l / 2 + 0.25, c, s);
     L.foot.push([x, z, H.w / 2, H.l / 2, c, s]);
     for (const w of H.wins) if (mask >> w.id & 1) { const p = W(w.p); L.wins.push([p[0], p[2], c * w.n[0] + s * w.n[1], -s * w.n[0] + c * w.n[1], p[1] - height(p[0], p[2]) < 3.5 ? 1 : 0.5]); }
@@ -116,22 +116,23 @@ export function buildLayout(q) {
   // ---- new places and life ----
   const fox = L.fox = loopPath(FOXP);
   for (let i = 0; i < 360; i += 6) KEEP.push([fox[i * 3], fox[i * 3 + 1], 1.3]);
-  for (let s = 0.2, i = 0, side = 1; s < fox[1080 + 2]; s += 0.3, side = -side) {
+  for (let s = 0.2, i = 0, side = 1; s < fox[1080 + 2]; s += 0.2, side = -side) {
     while (fox[i * 3 + 5] < s) i++;
     const dx = fox[i * 3 + 3] - fox[i * 3], dz = fox[i * 3 + 4] - fox[i * 3 + 1], l = Math.hypot(dx, dz);
-    L.prints.push(fox[i * 3] + dz / l * 0.045 * side, fox[i * 3 + 1] - dx / l * 0.045 * side, Math.atan2(-dx, -dz) + 100);
+    L.prints.push(fox[i * 3] + dz / l * 0.015 * side, fox[i * 3 + 1] - dx / l * 0.015 * side, Math.atan2(-dx, -dz) + 100);
   }
   L.snowmen = SNOWMEN.map(([x, z, a, sc]) => { L.col.push(x, z, 0.5, 0.5, 1, 0); KEEP.push([x, z, 2.2]); return [x, height(x, z), z, a, sc]; });
   const at = (x, z, up = 0) => [x, height(x, z) + up, z];
   const ky = yawOf(KNOLL[0], KNOLL[1], 8, -60);
-  L.bench = [...at(KNOLL[0] - 1.2, KNOLL[1] - 2.2), ky + Math.PI];
-  L.cairn = at(KNOLL[0] + 4.5, KNOLL[1] + 3.5);
+  L.bench = [...at(KNOLL[0] - 1.2, KNOLL[1] - 2.2), ky + Math.PI - 0.75];
+  L.cairn = at(KNOLL[0] + 3.4, KNOLL[1] - 3.4);
+  L.signs = [at(29.5, 40.5)]; L.col.push(29.5, 40.5, 0.3, 0.3, 1, 0, 33.5, 40, 1, 1, 1, 0); KEEP.push([31.5, 40.5, 4]);
   L.camp = at(CLR[0], CLR[1]);
   L.lean = [...at(CLR[0] - 1.6, CLR[1] + 5.4), yawOf(CLR[0] - 1.6, CLR[1] + 5.4, CLR[0], CLR[1]) + Math.PI];
   L.col.push(L.bench[0], L.bench[2], 0.9, 0.9, 1, 0, L.cairn[0], L.cairn[2], 0.6, 0.6, 1, 0, CLR[0], CLR[1], 0.75, 0.75, 1, 0, L.lean[0], L.lean[2], 1.9, 1.9, 1, 0);
   // creatures: [x, y, z, scale, yaw, seed, kind, phase]. kind 1 reindeer, 2 seal, 3 owl (0 = the fox, moved every frame)
   L.life = [[], [], [], []];
-  L.owlPosts = [[6.3, 34.5, 2.6, 0.37], [CLR[0] + 6.2, CLR[1] - 5.5, 0.6, 0.71]].map(([x, z, a, sd]) => {
+  L.owlPosts = [[6.3, 34.5, 2.6, 0.37], [CLR[0] + 5.5, CLR[1] - 8.2, 0.6, 0.71]].map(([x, z, a, sd]) => {
     L.life[3].push(...at(x, z, 1.38), 1.05, a, sd, 3, 0); L.col.push(x, z, 0.15, 0.15, 1, 0); return at(x, z);
   });
   for (const [x, a, sc] of [[6.6, 0.7, 1], [8.8, 2.4, 0.8], [-9.5, -1.9, 1.1], [10.2, 0.2, 0.62]]) {
@@ -141,7 +142,7 @@ export function buildLayout(q) {
   }
   for (let i = 0; i < 7; i++) {
     const a = i * 2.4 + R2(), r = i ? 3.5 + 6.5 * R2() : 0, x = HERD[0] + Math.cos(a) * r, z = HERD[1] + Math.sin(a) * r * 0.8, sc = i === 3 ? 0.62 : 0.9 + 0.2 * R2();
-    L.life[1].push(x, height(x, z) - 0.06, z, sc, R2() * TAU, R2(), 1, 0); L.col.push(x, z, 0.55, 0.55, 1, 0);
+    L.life[1].push(x, height(x, z) + 0.02, z, sc, R2() * TAU, R2(), 1, 0); L.col.push(x, z, 0.55, 0.55, 1, 0);
   }
   const tree = (x, z, sc) => {
     L.trees.push(x, height(x, z) - 0.25 * sc, z, sc, R() * TAU, R(), 1, 1);
@@ -279,7 +280,7 @@ export function buildMap(L) {
   };
   for (const [x, z, nx, nz, k] of L.wins) seg(r, x + nx * 0.3, z + nz * 0.3, x + nx * 4.2, z + nz * 4.2, 5, (v, d, h) => v + k * 0.75 * Math.exp(-d * d / (0.5 + 3.5 * h)) * (1 - 0.65 * h));
   for (const [x, , z] of L.lamps) seg(r, x, z, x, z, 11, (v, d) => v + 1.0 / (1 + d * d / 3.2) * ss(11, 3, d));
-  for (const [x, z, k] of L.pools) seg(r, x, z, x, z, 12, (v, d) => v + k / (1 + d * d / 4) * ss(12, 3, d));
+  for (const [x, z, k] of L.pools) seg(r, x, z, x, z, 24, (v, d) => v + k / (1 + d * d / 16) * ss(24, 5, d));
   for (const [x, z, hw, hl, c, s] of L.foot) seg(g, x, z, x, z, 9, (v, d, h, px, pz) => {
     const lx = Math.abs(c * (px - x) - s * (pz - z)) - hw, lz = Math.abs(s * (px - x) + c * (pz - z)) - hl, e = lx > 0 && lz > 0 ? Math.hypot(lx, lz) : Math.max(lx, lz);
     return v * (0.3 + 0.7 * ss(-0.3, 1.5, e));
