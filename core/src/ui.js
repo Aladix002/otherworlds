@@ -21,6 +21,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 #ow-msg{left:50%;bottom:6%;transform:translateX(-50%);font-size:13px;opacity:.7;transition:opacity .8s}
 #ow-dot{left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:rgba(255,255,255,.35);transition:opacity .6s}
 #ow-perf{left:10px;top:10px;font:12px/1.35 ui-monospace,Menlo,monospace;background:rgba(0,0,0,.45);padding:6px 9px;border-radius:6px;white-space:pre;transition:none}
+.ow-sup{display:inline-block;padding:11px 22px;border-radius:999px;background:linear-gradient(135deg,#ffb36b,#ff7f8e);color:#2a1712;font:600 15px/1.2 system-ui,sans-serif;text-decoration:none;box-shadow:0 4px 22px rgba(255,140,110,.35);transition:transform .3s,box-shadow .3s}.ow-sup:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(255,140,110,.5)}
 #ow-menu{inset:0;display:flex;align-items:center;justify-content:center;background:rgba(8,9,13,.55);backdrop-filter:blur(10px);transition:opacity .5s}
 .ow-panel{width:min(760px,92vw);max-height:88vh;overflow:auto;display:grid;grid-template-columns:1.2fr 1fr;gap:28px;padding:30px;border-radius:18px;background:rgba(22,24,32,.72);border:1px solid rgba(255,255,255,.08)}
 @media (max-width:640px){.ow-panel{grid-template-columns:1fr}}
@@ -55,7 +56,7 @@ export function createUI(world, { shot, via }) {
     <label>Volume <input type="range" min="0" max="1" step="0.01" data-k="volume"></label>
     <label>Look sensitivity <input type="range" min="0.2" max="3" step="0.05" data-k="sens"></label>
     <label>Invert Y <input type="checkbox" data-k="invertY"></label>
-    <p style="margin-top:26px"><button class="ow-btn ow-serif" data-k="resume">Resume</button></p>${SUPPORT ? `<p class="ow-small" style="margin-top:18px"><a href="${SUPPORT}" target="_blank" rel="noopener" style="color:inherit">♥ Enjoying the calm? Support OtherWorlds</a></p>` : ''}</div></div>`);
+    <p style="margin-top:26px"><button class="ow-btn ow-serif" data-k="resume">Resume</button></p>${SUPPORT ? `<p style="margin-top:18px"><a class="ow-sup" href="${SUPPORT}" target="_blank" rel="noopener">♥ Support on Ko-fi</a></p>` : ''}</div></div>`);
   if (shot) for (const e of [load, start, hint, msg, dot, perf, menu]) e.style.display = 'none';
 
   const ui = {
