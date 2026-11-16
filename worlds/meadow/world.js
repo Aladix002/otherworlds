@@ -1,13 +1,13 @@
 // Čarovná lúka: a magical flower meadow with wisteria tunnels and a misty river. See NOTES.md.
 import { pcg, u2f, hash2i } from '../../core/src/noise.js';
 import { makeRng } from '../../core/src/math.js';
-import { ss, MS, MN, ZS, HW, SUN, DOOR, TUN, BRIDGES, FIELDS, yawTo, riverZ, riverT, hAt, bridgeAt, deckY, buildMap } from './layout.js';
-import { flower, clump, tuft, pack, tree, raceme, leafBlob, woodwork } from './geo.js';
+import { ss, MS, MN, ZS, HW, SUN, DOOR, RING, BIGTREE, WARREN, FLOCK, TUN, BRIDGES, FIELDS, yawTo, riverZ, riverT, hAt, bridgeAt, deckY, buildMap } from './layout.js';
+import { flower, clump, tuft, pack, tree, raceme, leafBlob, woodwork, rabbit, swing, hive } from './geo.js';
 import COMMON from './common.wgsl';
 import SCENE from './scene.wgsl';
 import FX from './fx.wgsl';
 
-const CAP = 6000, NB = 26;                                  // flora bins: 16 near (species x 2 lods), 8 clumps, 2 grass
+const CAP = 8000, NB = 26;                                  // flora bins: 16 near (species x 2 lods), 8 clumps, 2 grass
 const sat = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const pose = (x, z, up, tx, ty, tz, t) => { const y = hAt(x, z) + up; return { pos: [x, y, z], yaw: yawTo(x, z, tx, tz), pitch: Math.atan2(ty - y, Math.hypot(tx - x, tz - z)), t }; };
 const SP = [0, hAt(0, 20) + 1.6, 20], T2 = TUN[70], T3 = TUN[120];
@@ -50,21 +50,21 @@ function drawBatch(b, pass) {
 
 export default {
   id: 'meadow',
-  title: 'Čarovná lúka',
+  title: 'Enchanted Meadow',
   movement: 'walk',
   spawn: { pos: SP, yaw: 0, pitch: -0.04 },
   poses: [
-    pose(-3, 27, 3.4, -4, 1, -40, 14),                                     // wide meadow, colour fields, river
+    pose(-1, 27, 3.4, -9, 1, -40, 14),                                     // wide meadow, colour fields, river
     pose(6, 13, 1.45, 2, hAt(2, 8) + 0.5, 8, 22),                         // flowers blooming around the camera
     pose(T2[0], T2[1], 1.6, T3[0], hAt(T3[0], T3[1]) + 1.7, T3[1], 31),     // inside the wisteria tunnel
-    pose(-6, -26, 1.7, 14, 1.0, -40, 18),                                // misty river, bridge, golden trees
-    pose(-26, 6, 0.8, -26 + SUN[0] * 100, hAt(-26, 6) + 0.8 + SUN[1] * 100 - 6, 6 + SUN[2] * 100, 26),   // low across the lavender into the sun
+    pose(-3.5, -27, 1.45, 12, 0.6, -39, 18),                                // misty river, bridge, golden trees
+    pose(-24.6, 2.6, 0.85, -24.6 + SUN[0] * 100, hAt(-24.6, 2.6) + 0.85 + SUN[1] * 100 - 4, 2.6 + SUN[2] * 100, 26),   // low across the lavender into the sun
     pose(-5.4, 40.2, 1.6, DOOR[0], hAt(DOOR[0], DOOR[1]) + 1.15, DOOR[1], 12),   // the door
   ],
   flythrough: [
     [0, 20, 1.7, 0, -20], [2, 8, 1.7, 14, -5], [9, 0, 1.7, 15, -5], [15, -5, 1.7, 24, -10], [24, -10, 1.7, 34, -12], [34, -12, 1.7, 44, -17], [44, -17, 1.7, 52, -24],
     [52, -24, 1.7, 58, -32], [58.5, -31, 1.8, 60, -40], [60, -39.6, 4.2, 30, -42], [59, -52, 2.2, 30, -62], [44, -63, 2, 10, -50], [18, -62, 2.2, 8, -44],
-    [8.3, -46, 2.2, 9, -37], [9, -37.3, 4.2, 9.6, -30], [9.5, -27, 2, 0, -5], [0, -12, 2.2, -20, 10], [-14, 2, 2, -20, 30], [-16, 22, 2.2, -8, 44], [-8, 36, 1.8, -7, 46],
+    [8.3, -46, 2.2, 9, -37], [9, -37.3, 4.2, 9.6, -30], [9.5, -27, 2, 0, -5], [3, -15, 2.2, -30, -10], [-20, -4, 2.2, -30, -12], [-22, 12, 2, -15, 35], [-12, 27, 2.2, -8, 44], [-8, 36, 1.8, -7, 46],
     [-3.5, 40, 1.7, -7, 46], [-1, 30, 1.7, 0, 0], [0, 20, 1.7, 0, -20],
   ].map(([x, z, up, tx, tz]) => pose(x, z, up, tx, hAt(tx, tz) + 1.2, tz)),
   flythroughDuration: 60,
@@ -153,7 +153,7 @@ export default {
     const pk = pack(fl);
     this.flo = {
       vb: ctx.buffer(pk.v, 'vertex'), ib: ctx.buffer(pk.idx, 'index'), info: pk.info, cnt: new Int32Array(NB), stage: new Float32Array(NB * CAP * 4), buf: ctx.buffer(NB * CAP * 16, 'vertex'),
-      cell: [0.34, 1.02, 0.21], rad: [13.5, [44, 58, 72][q], [8, 10, 12][q]],
+      cell: [0.34, 1.02, 0.21], rad: [17, [50, 75, 95][q], [9, 12, 14][q]],
     };
     await progress(0.62);
 
@@ -179,17 +179,25 @@ export default {
         if (len > 0.3) rin[R.int(2)].push(p[0] + nx * lat - nz * o, y + ay, p[1] + nz * lat + nx * o, len, R() * 6.283, R(), 1, sat(i / TUN.length * 2.6 - 0.6 + R.range(-0.25, 0.25)) + sat(i / TUN.length * 2.6 - 1.5 + R.range(-0.25, 0.25)));
         if (k < 3) li.push(p[0] + nx * lat * 0.8, y + ay - 0.3, p[1] + nz * lat * 0.8, 1 + R() * 0.999);
       }
-      if (i % 3 === 0) for (let k = 0; k < 7; k++) { const a = (k - 3) * 0.44 + R.range(-0.2, 0.2), s = R.range(0.5, 0.78); if (Math.abs(a) < 0.7 || R() < 0.6) bin.push(p[0] + nx * 2.2 * Math.sin(a), y + 3.85 * Math.cos(a) + 0.1, p[1] + nz * 2.2 * Math.sin(a), s, R() * 6.283, R(), 0.8, 0); }
+      if (i % 3 === 0) for (let k = 0; k < 7; k++) { const a = (k - 3) * 0.44 + R.range(-0.2, 0.2), s = R.range(0.5, 0.78); if (Math.abs(a) < 0.7 || R() < 0.7) bin.push(p[0] + nx * 2.2 * Math.sin(a), y + 3.85 * Math.cos(a) + 0.1, p[1] + nz * 2.2 * Math.sin(a), s, R() * 6.283, R(), 0.8, R() < (Math.abs(a) < 0.7 ? 0.35 : 0.65) ? sat(i / TUN.length * 2.6 - 0.6) + sat(i / TUN.length * 2.6 - 1.5) : -1); }
     }
     for (let v = 0; v < 2; v++) this.batches.push(makeBatch(ctx, [up(raceme(0, v)), up(raceme(1, v))], rin[v], [[14, 18, 24][q], 170], -0.5, 1.2));
-    this.batches.push(makeBatch(ctx, [up(leafBlob(4, 2)), up(leafBlob(4, 1))], bin, [26, 400], 0, 1.6));
+    this.batches.push(makeBatch(ctx, [up(leafBlob(4, 0)), up(leafBlob(4, 1)), up(leafBlob(4, 2))], bin, [22, 70, 500], 0, 1.6));
     this.wood = up(woodwork(TUN, BRIDGES, hAt, deckY));
+    // ---------- discoveries: rabbits, a swing and a beehive on the big tree ----------
+    const rb = [], bx = BIGTREE[0], bz = BIGTREE[1], by = hAt(bx, bz);
+    WARREN.forEach((p, j) => { for (let i = 0; i < 4 - j; i++) { const a = i * 1.7 + j, r = 0.5 + 0.5 * i, x = p[0] + Math.cos(a) * r, z = p[1] + Math.sin(a) * r; rb.push(x, hAt(x, z) - 0.02, z, i ? 0.7 + 0.1 * i : 1.15, R() * 6.283, R(), 1, 1); } });
+    this.batches.push(makeBatch(ctx, [up(rabbit())], rb, [90], 0.2, 0.5));
+    this.batches.push(makeBatch(ctx, [up(swing(5.4))], [bx + 2.6, by + 6.2, bz - 1.6, 1, 0.9, 0, 1, 0], [300], -3, 3.5));
+    this.batches.push(makeBatch(ctx, [up(hive())], [bx - 2.4, by + 4.6, bz + 1.2, 1, 0, 0, 1, 0], [200], 0, 1));
     this.one = ctx.buffer(Float32Array.from([0, 0, 0, 1, 0, 0.5, 1, 0]), 'vertex');
     // ---------- small life ----------
-    for (let i = 0; i < 10; i++) { const a = R() * 6.283, r = 4 + R() * 22; li.push(3 + Math.cos(a) * r, 0, 12 + Math.sin(a) * r, 2 + R() * 0.999); }
+    for (let i = 0; i < 12; i++) { const a = R() * 6.283, r = 2.5 + R() * 9; li.push(BIGTREE[0] - 2.4 + Math.cos(a) * r, 0, BIGTREE[1] + 1.2 + Math.sin(a) * r, 2 + R() * 0.999); }
     this.leafI = ctx.buffer(Float32Array.from(li), 'vertex'); this.nLeaf = li.length / 4;
-    const bf = []; for (let i = 0; i < 18; i++) { const a = R() * 6.283, r = 6 + R() * 40; bf.push(4 + Math.cos(a) * r, 0, 2 + Math.sin(a) * r, R()); }
-    this.flyI = ctx.buffer(Float32Array.from(bf), 'vertex'); this.nFly = 18;
+    const bf = []; for (let i = 0; i < 26; i++) { const a = R() * 6.283, r = 6 + R() * 50; bf.push(4 + Math.cos(a) * r, 0, 2 + Math.sin(a) * r, R() * 0.999); }
+    for (let i = 0; i < 14; i++) { const x = R.range(-50, 90); bf.push(x, 0, riverZ(x) + R.range(-2, 2), 1 + R() * 0.999); }      // dragonflies
+    for (let i = 0; i < 14; i++) { const a = R() * 6.283, r = Math.sqrt(R()) * 3.2; bf.push(FLOCK[0] + Math.cos(a) * r, 0, FLOCK[1] + Math.sin(a) * r, 2 + R() * 0.999); }   // birds
+    this.flyI = ctx.buffer(Float32Array.from(bf), 'vertex'); this.nFly = bf.length / 4;
     this.nSeed = [140, 260, 420][q];
     await progress(0.82);
 
@@ -197,7 +205,7 @@ export default {
     const IL = M.instanceLayout(['float32x4', 'float32x4'], 3), I4 = M.instanceLayout(['float32x4'], 3), mod = ctx.shader(COMMON + SCENE, 'scene'), fx = ctx.shader(COMMON + FX, 'fx');
     const FL = [{ arrayStride: 44, attributes: [0, 12, 24].map((offset, i) => ({ shaderLocation: i, offset, format: 'float32x3' })).concat({ shaderLocation: 3, offset: 36, format: 'float32x2' }) }, M.instanceLayout(['float32x4'], 4)];
     const P = (d) => ctx.pipelineAsync({ layouts: [cL], ...d });
-    [this.pSky, this.pTer, this.pFlora, this.pObj, this.pWater, this.pSeed, this.pLeaf, this.pFly] = await Promise.all([
+    [this.pSky, this.pTer, this.pFlora, this.pObj, this.pWater, this.pSeed, this.pLeaf, this.pFly, this.pMist] = await Promise.all([
       P({ module: mod, vs: 'vsSky', fs: 'fsSky', depthWrite: false, label: 'sky' }),
       P({ module: mod, vs: 'vsTer', fs: 'fsTer', buffers: [M.layout], label: 'terrain' }),
       P({ module: mod, vs: 'vsFlora', fs: 'fsFlora', buffers: FL, cull: 'none', label: 'flora' }),
@@ -206,6 +214,7 @@ export default {
       P({ module: fx, vs: 'vsSeed', fs: 'fsSeed', cull: 'none', blend: 'premul', label: 'seed' }),
       P({ module: fx, vs: 'vsLeaf', fs: 'fsLeaf', buffers: [I4], cull: 'none', label: 'leaf' }),
       P({ module: fx, vs: 'vsFly', fs: 'fsLeaf', buffers: [I4], cull: 'none', label: 'fly' }),
+      P({ module: fx, vs: 'vsMist', fs: 'fsMist', cull: 'none', blend: 'premul', label: 'mist' }),
     ]);
     await progress(1);
   },
@@ -217,6 +226,12 @@ export default {
     const P = ctx.env.params, jx = cam.pos[0] - P[0], jz = cam.pos[2] - P[1];
     if (dt <= 0 || cam.frozen || jx * jx + jz * jz > 30) { P[0] = cam.pos[0]; P[1] = cam.pos[2]; } else { const k = 1 - Math.exp(-dt / 0.8); P[0] += jx * k; P[1] += jz * k; }
     this.mov = cam.moving;
+    P[3] += ((cam.moving > 1 ? 1 : cam.moving) - P[3]) * (dt > 0 ? 1 - Math.exp(-dt / 0.5) : 0);
+    // birds on the path fly up when you come close and settle again later
+    const fd = Math.hypot(cam.pos[0] - FLOCK[0], cam.pos[2] - FLOCK[1]), ft = fd < 11 ? 1 : 0;
+    if (ft && !this.fl && ctx.audio) ctx.audio.whoosh({ dur: 1.6, f0: 900, f1: 2400, gain: 0.02, reverb: 0.5 });
+    this.fl = ft;
+    P[2] = ctx.shot ? ft : P[2] + (ft - P[2]) * (1 - Math.exp(-dt / (ft ? 1.3 : 7)));
 
     // ---- flora: jittered world-fixed cells around the camera -> per-species, per-LOD instance bins ----
     const F = this.flo, st = F.stage, cnt = F.cnt, ex = cam.eye[0], ez = cam.eye[2], DEN = this.DEN, GR = this.GR, ZID = this.ZID, k1 = MN / (2 * MS), k2 = MN / (2 * ZS);
@@ -255,19 +270,23 @@ export default {
           if (((h2 >>> 16) & 255) < Fd[4] * 256) { sp = Fd[3]; acc = Fd[5]; }
           if (ly === 0) {
             if (sp === 1) { let m = i % 6; if (m < 0) m += 6; if (m > 2) continue; }
-            const dv = 7 + 6 * rank; if (d > dv) continue;
-            s = sat((dv - d) / 1.6); bin = sp * 2 + (d > 5.5 ? 1 : 0);
+            const dv = 9 + 8 * rank; if (d > dv) continue;
+            s = sat((dv - d) / 2); bin = sp * 2 + (d > 6.5 ? 1 : 0);
           } else {
             if (sp === 1) { if (i & 1) continue; x = (i + 0.36 + 0.28 * (h & 1023) / 1023) * c; }
-            const dn = 5.5 + 5 * rank; if (d < dn) continue;
+            const dn = 7 + 7 * rank; if (d < dn) continue;
             const dv = Rr * (0.6 + 0.4 * rank); if (d > dv) continue;
-            s = Math.min(sat((d - dn) / 2.5), sat((dv - d) / (dv * 0.22))) * (1 + d * 0.012); bin = 16 + sp;
+            s = Math.min(sat((d - dn) / 3), sat((dv - d) / (dv * 0.22))) * (1 + d * 0.012); bin = 16 + sp;
           }
         }
         const nI = cnt[bin]; if (nI >= CAP) continue;
         const o = (bin * CAP + nI) * 4; cnt[bin] = nI + 1;
         st[o] = x; st[o + 1] = z; st[o + 2] = acc + ((h2 >>> 4) & 0xffff) / 65537; st[o + 3] = s;
       }
+    }
+    for (let i = 0; i < 11; i++) {                       // the ring of giant flowers: same meshes, six times the size; they wake when you step inside
+      const b = (i % 3 === 0 ? 4 : i % 3 === 1 ? 2 : 6) * 2, o = (b * CAP + cnt[b]++) * 4;
+      st[o] = RING[0] + Math.cos(i * 0.5712) * 4.6; st[o + 1] = RING[1] + Math.sin(i * 0.5712) * 4.6; st[o + 2] = (i % 3 ? i % 3 + 2 : 0) + i * 0.0873 % 1; st[o + 3] = 6.5;
     }
     for (let b = 0; b < NB; b++) if (cnt[b]) ctx.queue.writeBuffer(F.buf, b * CAP * 16, st, b * CAP * 4, cnt[b] * 4);
   },
@@ -289,6 +308,7 @@ export default {
   },
   renderTransparent(ctx, pass) {
     pass.setBindGroup(1, this.cBG);
+    pass.setPipeline(this.pMist); pass.draw(6, 56);
     pass.setPipeline(this.pSeed); pass.draw(6, this.nSeed);
   },
 
@@ -299,7 +319,9 @@ export default {
     a.drone({ freq: a.hz(45), partials: [1, 2, 3.01], gain: 0.014, cutoff: 420 });
     a.pad({ chords: [[57, 64, 69, 73], [62, 66, 69, 76], [59, 64, 68, 71], [57, 61, 64, 69]], gain: 0.016, attack: 6, change: [16, 30], cutoff: 2000, reverb: 0.7 });
     for (const b of BRIDGES) a.noiseBed({ color: 'white', filter: 'bandpass', freq: 900, q: 0.5, gain: 0.07, mod: 0.2, modRate: 0.17, bus: a.spatial({ pos: [b.x, 0.3, b.z], ref: 9, rolloff: 1.2, reverb: 0.3, gain: 1 }) });   // river
-    const bee = a.spatial({ pos: [3, hAt(3, 12) + 0.8, 12], ref: 3, rolloff: 1.4, reverb: 0.1, gain: 1 });
+    const rs = a.spatial({ pos: [RING[0], hAt(RING[0], RING[1]) + 2, RING[1]], ref: 6, rolloff: 1.3, reverb: 0.8, gain: 1 });
+    a.every(3, 8, (when) => a.bell({ freq: a.hz(a.rng.pick([76, 81, 83, 88])), gain: 0.02, decay: 5, when, bus: rs }));        // the giant flowers chime
+    const bee = a.spatial({ pos: [BIGTREE[0] - 2.4, hAt(BIGTREE[0], BIGTREE[1]) + 4, BIGTREE[1] + 1.2], ref: 3, rolloff: 1.4, reverb: 0.1, gain: 1 });
     const bz = a.drone({ freq: 148, partials: [1, 2, 3, 4], type: 'sawtooth', detune: 14, cutoff: 700, gain: 0.012, bus: bee });
     a.every(3, 9, () => bz.setFreq(138 + a.rng() * 30));
     a.every(5, 16, (when) => {                                                                // birdsong: short phrases, far and sparse

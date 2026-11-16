@@ -1,6 +1,6 @@
 // Meadow geometry. Flora meshes carry two poses per vertex (closed bud / open bloom) that the vertex shader blends.
 import { makeRng } from '../../core/src/math.js';
-import { rock, tube, box, merge, computeNormals } from '../../core/src/mesh.js';
+import { rock, tube, box, sphere, merge, computeNormals, scale, translate } from '../../core/src/mesh.js';
 
 const TAU = Math.PI * 2, Z2 = [[0, 0, 0], [0, 0, 0]];
 const L = (v, o) => (typeof v === 'number' ? v : v[0] + (v[1] - v[0]) * o);
@@ -76,7 +76,7 @@ export function flower(sp, lod, sd) {
     ring(top, 4, { p0: 0.78, th: [0.16, 1.25], len: [0.11, 0.16], w: [0.12, 0.21], k: [0.2, -0.6], cup: 0.3, a: 1.5, e: 0.82, mat: 1 });
     dome(g, top, [0.012, 0.03], 0.022, 6, 2);
   } else if (sp === 1) {
-    if (far) { for (let i = 0; i < 18; i++) petal(g, { ph: R() * TAU, r: 0.06 * R(), th: [0.1, 0.08 + 0.8 * Math.sqrt(R())], len: [0.25, 0.42 + 0.22 * R()], w: 0.06, a: 1.6, e: 0.93, mat: 7, nl: 1, nw: 1 }); return g; }
+    if (far) { for (let i = 0; i < 30; i++) petal(g, { ph: i * 2.4, r: 0.1 * R(), th: [0.1, 0.06 + 0.95 * Math.sqrt((i + 0.5) / 30)], len: [0.25, 0.44 + 0.2 * R()], w: 0.1, a: 1.4, e: 0.9, mat: 7, nl: 1, nw: 1 }); return g; }
     for (let k = 0; k < (hi ? 7 : 5); k++) {
       const tl = 0.06 + 0.4 * R(), hs = 0.8 + 0.4 * R(), az = R() * TAU, H = [0.3 * hs, 0.64 * hs];
       const O = stem(g, (s, o) => { const h = L(H, o); return [Math.sin(tl) * h * s * (0.5 + 0.5 * s), Math.cos(tl) * h * s]; }, sr * 0.7, hi ? 3 : 2, az)(0.74);
@@ -142,22 +142,45 @@ export function pack(list) {
 
 // ---- standard-layout meshes (uv.x = material + shade, uv.y = free) ----
 const mat = (g, m, f) => { for (let i = 0; i < g.uv.length / 2; i++) g.uv[i * 2] = m + 0.98 * Math.min(Math.max(f ? f(g.pos[i * 3], g.pos[i * 3 + 1], g.pos[i * 3 + 2], i) : 0.7, 0), 1); return g; };
-// golden tree: trunk (mat 0), a few limbs, crown of lumpy leaf masses (mat 1)
+// leaf mass: a dark lumpy core wrapped in a shell of real leaves (lod 0: many small, lod 1: few large, lod 2: core only).
+// uv.x = material + shade, uv.y = per-leaf hue. ctr / sh give the crown centre and a shade function for soft crown lighting.
+function leafMass(parts, R, sd, c, s, lod, m, ctr, sh) {
+  const b = rock(sd, lod === 0 ? 2 : 1, 0.42), k = lod < 2 ? 0.72 : 1;
+  const soft = (px, py, pz, n, i, w) => { const nx = px - ctr[0], ny = (py - ctr[1]) * 1.3, nz = pz - ctr[2], l = Math.hypot(nx, ny, nz) || 1; n[i] = n[i] * (1 - w) + nx / l * w; n[i + 1] = n[i + 1] * (1 - w) + ny / l * w; n[i + 2] = n[i + 2] * (1 - w) + nz / l * w; };
+  for (let i = 0; i < b.pos.length; i += 3) {
+    const px = b.pos[i] * s * k + c[0], py = b.pos[i + 1] * s * k * 0.8 + c[1], pz = b.pos[i + 2] * s * k + c[2];
+    soft(px, py, pz, b.nrm, i, 0.55); b.pos[i] = px; b.pos[i + 1] = py; b.pos[i + 2] = pz;
+    b.uv[i / 3 * 2] = m + 0.98 * Math.min(Math.max(sh(px, py, pz) * (lod < 2 ? 0.3 : 0.55), 0), 1); b.uv[i / 3 * 2 + 1] = 0.4;
+  }
+  parts.push(b);
+  if (lod > 1) return;
+  const n = lod ? 40 : 120, nv = lod ? 4 : 6, g = { pos: new Float32Array(n * nv * 3), nrm: new Float32Array(n * nv * 3), uv: new Float32Array(n * nv * 2), idx: new Uint32Array(n * (nv - 2) * 3) };
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (i + 0.5) / n * 1.7, r = Math.sqrt(1 - y * y), ph = i * 2.39996 + R(), rr = s * (0.74 + 0.36 * R()), a = (lod ? 0.52 : 0.3) * (0.75 + 0.5 * R()) * Math.min(s, 1.2);
+    const d = [r * Math.cos(ph), y, r * Math.sin(ph)], p = [c[0] + d[0] * rr, c[1] + d[1] * rr * 0.8, c[2] + d[2] * rr];
+    let nx = d[0] + R() - 0.5, ny = d[1] + 0.3 + R() - 0.5, nz = d[2] + R() - 0.5, l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+    let tx = R() - 0.5, ty = -0.4 - R() * 0.5, tz = R() - 0.5; const dt = tx * nx + ty * ny + tz * nz; tx -= nx * dt; ty -= ny * dt; tz -= nz * dt; l = Math.hypot(tx, ty, tz) || 1; tx /= l; ty /= l; tz /= l;
+    const bx = ny * tz - nz * ty, by = nz * tx - nx * tz, bz = nx * ty - ny * tx, hue = R(), shd = sh(p[0], p[1], p[2]);
+    const V = lod ? [[-0.5, 0], [0, 0.34], [0.5, 0], [0, -0.34]] : [[-0.5, 0], [-0.15, 0.3], [0.2, 0.29], [0.5, 0], [0.2, -0.29], [-0.15, -0.3]];
+    for (let j = 0; j < nv; j++) {
+      const v = i * nv + j, f = V[j][1] ? -0.07 : 0.05;
+      g.pos.set([p[0] + (tx * V[j][0] + bx * V[j][1] + nx * f) * a, p[1] + (ty * V[j][0] + by * V[j][1] + ny * f) * a, p[2] + (tz * V[j][0] + bz * V[j][1] + nz * f) * a], v * 3);
+      g.nrm.set([nx, ny, nz], v * 3); soft(p[0], p[1], p[2], g.nrm, v * 3, 0.5);
+      g.uv[v * 2] = m + 0.98 * Math.min(Math.max(shd, 0), 1); g.uv[v * 2 + 1] = hue;
+      if (j > 1) g.idx.set([i * nv, v - 1, v], (i * (nv - 2) + j - 2) * 3);
+    }
+  }
+  parts.push(g);
+}
+// golden tree: trunk (mat 0), a few limbs, crown of leaf masses (mat 1)
 export function tree(sd, lod) {
-  const R = makeRng(sd * 77 + 5), parts = [], nb = [18, 9, 4][lod], tp = [];
+  const R = makeRng(sd * 77 + 5), parts = [], nb = [16, 9, 4][lod], tp = [];
   let x = 0, z = 0;
   for (let i = 0; i <= 5; i++) { tp.push([x, i * 0.78 - 0.4, z]); x += (R() - 0.5) * 0.36; z += (R() - 0.5) * 0.36; }
   parts.push(mat(tube(tp, (t) => 0.25 * (1 - 0.62 * t) + 0.16 * Math.max(0, 1 - t * 5) ** 2, lod ? 5 : 8), 0, (px, py) => 0.35 + py * 0.2));
   for (let i = 0; i < nb; i++) {
     const a = i * 2.4 + R(), rr = Math.sqrt((i + 0.5) / nb) * 2.5, c = [x + Math.cos(a) * rr, 4.9 + (R() - 0.35) * 2.0 - rr * 0.5, z + Math.sin(a) * rr], s = (0.85 + 0.55 * R()) * [1, 1.35, 1.9][lod];
-    const b = rock(sd * 13 + i, lod ? 1 : 2, 0.42);
-    for (let k = 0; k < b.pos.length; k += 3) {
-      const px = b.pos[k] * s + c[0], py = b.pos[k + 1] * s * 0.8 + c[1], pz = b.pos[k + 2] * s + c[2];
-      const nx = px - x, ny = (py - 4.3) * 1.3, nz = pz - z, l = Math.hypot(nx, ny, nz) || 1;      // blend toward crown-sphere normals: soft, fluffy shading
-      b.nrm[k] = b.nrm[k] * 0.45 + nx / l * 0.55; b.nrm[k + 1] = b.nrm[k + 1] * 0.45 + ny / l * 0.55; b.nrm[k + 2] = b.nrm[k + 2] * 0.45 + nz / l * 0.55;
-      b.pos[k] = px; b.pos[k + 1] = py; b.pos[k + 2] = pz;
-    }
-    parts.push(mat(b, 1, (px, py, pz) => 0.12 + 0.5 * (py - 2.6) / 4.2 + 0.38 * Math.hypot(px - x, pz - z) / 3.4));
+    leafMass(parts, R, sd * 13 + i, c, s, lod, 1, [x, 4.3, z], (px, py, pz) => 0.12 + 0.5 * (py - 2.6) / 4.2 + 0.38 * Math.hypot(px - x, pz - z) / 3.4);
     if (lod < 2 && i % 2 === 0) parts.push(mat(tube([[x, 3.3, z], [(x + c[0]) / 2, c[1] * 0.75 + 0.6, (z + c[2]) / 2], c], (t) => 0.09 - 0.05 * t, 4), 0, () => 0.3));
   }
   return merge(parts);
@@ -190,8 +213,8 @@ export function raceme(lod, sd) {
   return merge([g, body]);
 }
 function tubeLathe(P, segs) { return tube(P.map(([r, y]) => [0, y, 0]), (t) => P[Math.round(t * (P.length - 1))][0], segs); }
-// leafy mass for the tunnel roof (mat 3)
-export const leafBlob = (sd, sub) => mat(rock(sd, sub, 0.45), 3, (x, y) => 0.5 + 0.45 * y);
+// leafy / blossom mass for the tunnel roof (mat 3)
+export function leafBlob(sd, lod) { const parts = []; leafMass(parts, makeRng(sd), sd, [0, 0, 0], 1, lod, 3, [0, -0.6, 0], (x, y) => 0.5 + 0.45 * y); return merge(parts); }
 
 // tunnel frame + bridges, in world space (mat 0 wood)
 export function woodwork(TUN, BRIDGES, hAt, deckY) {
@@ -223,3 +246,9 @@ export function woodwork(TUN, BRIDGES, hAt, deckY) {
   }
   return mat(merge(parts), 0, () => 0.6);
 }
+
+// small discoveries: rabbit (mat 4 fur), swing hung from the origin (mat 5, swings in the shader), straw beehive (mat 4)
+const ball = (rx, ry, rz, x, y, z, sh) => mat(translate(scale(sphere(1, 1), rx, ry, rz), x, y, z), 4, () => sh);
+export const rabbit = () => merge([ball(0.15, 0.13, 0.21, 0, 0.13, 0, 0.45), ball(0.085, 0.085, 0.095, 0, 0.27, 0.17, 0.55), ball(0.025, 0.09, 0.04, 0.045, 0.4, 0.13, 0.6), ball(0.025, 0.09, 0.04, -0.045, 0.4, 0.13, 0.6), ball(0.05, 0.05, 0.05, 0, 0.13, -0.21, 1)]);
+export const swing = (L) => mat(merge([tube([[-0.28, 0, 0], [-0.28, -L, 0]], 0.014, 4), tube([[0.28, 0, 0], [0.28, -L, 0]], 0.014, 4), translate(box(0.7, 0.045, 0.24), 0, -L, 0)]), 5, () => 0.7);
+export const hive = () => merge([mat(tube([[0, 0.9, 0], [0, 0.3, 0]], 0.012, 4), 0, () => 0.5), mat(scale(rock(3, 2, 0.12), 0.27, 0.36, 0.27), 4, (x, y) => 0.55 + 0.35 * Math.sin(y * 40))]);

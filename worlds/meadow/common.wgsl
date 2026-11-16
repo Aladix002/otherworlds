@@ -24,14 +24,14 @@ fn gust(p: vec2f) -> f32 {
 fn hazeCol(rd: vec3f) -> vec3f {
   let s = max(dot(normalize(vec3f(rd.x, rd.y * 0.4, rd.z)), G.sunDir), 0.0);
   let s2 = s * s;
-  return mix(vec3f(0.34, 0.45, 0.8), vec3f(1.25, 0.78, 0.42), s2 * s2 * s);
+  return mix(vec3f(0.34, 0.45, 0.8), vec3f(1.5, 0.8, 0.32), s2 * s2);
 }
 fn skyCol(rd: vec3f) -> vec3f {
   let y = max(rd.y, 0.0); let s = max(dot(rd, G.sunDir), 0.0);
   var c = mix(vec3f(0.3, 0.5, 0.95), vec3f(0.06, 0.19, 0.62), smoothstep(0.0, 0.6, y));
   c = mix(c, vec3f(0.98, 0.62, 0.72), exp(-y * 5.0) * 0.4 * (1.0 - s));
   c = mix(c, hazeCol(rd), exp(-y * 8.0));
-  return c + vec3f(1.0, 0.5, 0.22) * pow(s, 6.0) * 0.28 + vec3f(1.0, 0.68, 0.36) * pow(s, 48.0) * 0.4;
+  return c + vec3f(1.0, 0.42, 0.12) * pow(s, 5.0) * 0.42 + vec3f(1.0, 0.6, 0.25) * pow(s, 40.0) * 0.5;
 }
 // aerial haze + morning mist pooled in the river valley (exponential in height)
 fn atmo(col: vec3f, wp: vec3f) -> vec3f {

@@ -24,7 +24,7 @@ fn postcard(rd: vec3f, t: f32) -> vec3f {
   if (rd.y < hh + 0.03) {
     let d = 5.0 / max(hh - rd.y, 0.003);                                            // pseudo distance on the meadow
     let p = normalize(rd.xz + vec2f(1e-4, 0.0)) * d;
-    let n = vnoise2(p * 0.014 + vec2f(3.7, 1.2)) * 0.5 + 0.5;
+    let n = mix(select(0.33, 0.2, p.x < -5.0 - d * 0.12 && d > 14.0), vnoise2(p * 0.014 + vec2f(3.7, 1.2)) * 0.5 + 0.5, smoothstep(45.0, 100.0, d));   // poppies at your feet, lavender rows to the left
     let id = floor(clamp(n * 1.5 - 0.25, 0.0, 0.999) * 6.0);
     var g = pcMeadow_col(id);
     let fine = vnoise2(p * 1.7);

@@ -7,7 +7,7 @@ export const MS = 140, MN = 512, ZS = 560, HW = 3.6;       // map half extent (m
 const sl = Math.hypot(0.38, 0.24, 0.9);
 export const SUN = [-0.38 / sl, 0.24 / sl, -0.9 / sl];
 export const yawTo = (x, z, tx, tz) => Math.atan2(-(tx - x), -(tz - z));
-export const DOOR = [-7, 46];
+export const DOOR = [-7, 46], RING = [-30, -10], BIGTREE = [-15, 35], WARREN = [[2.2, -30.6], [-19, 30.5]], FLOCK = [4, -17];
 
 export const riverZ = (x) => -46 + 9 * Math.sin(x * 0.035 + 0.6) + 4 * Math.sin(x * 0.083 + 2);
 const riverD = (x) => 0.315 * Math.cos(x * 0.035 + 0.6) + 0.332 * Math.cos(x * 0.083 + 2);
@@ -79,7 +79,8 @@ const SITES = [[-30, -6, 0], [16, 24, 1], [-36, 44, 4], [44, 12, 3], [26, -30, 6
 const DBG = typeof location !== 'undefined' && new URLSearchParams(location.search).get('z');
 function zone(x, z) {
   if (DBG) return +DBG;
-  const wx = x + 13 * snoise2(x * 0.012, z * 0.012), wz = z + 13 * snoise2(x * 0.012 + 7.7, z * 0.012 - 3.3);
+  const k = 1 / (1 + Math.max(0, Math.hypot(x, z) - 150) / 220);          // fields get broader toward the far hills
+  const wx = (x + 13 * snoise2(x * 0.012, z * 0.012)) * k, wz = (z + 13 * snoise2(x * 0.012 + 7.7, z * 0.012 - 3.3)) * k;
   const C = 72, ci = Math.floor(wx / C), cj = Math.floor(wz / C);
   let best = 1e9, id = 0;
   for (let j = cj - 1; j <= cj + 1; j++) for (let i = ci - 1; i <= ci + 1; i++) {
@@ -130,18 +131,24 @@ export async function buildMap(progress) {
   for (const P of PATHS) for (const p of P) path(p[0], p[1], 0.45, 1.25);
   for (const p of TUN) path(p[0], p[1], 0.95, 1.6);
   path(DOOR[0], DOOR[1] - 1.6, 1.3, 2.3);
+  const FM = new Float32Array(N * N).fill(1);                // no tall flowers right around the door (grass stays), except beside the posts
+  stamp(DOOR[0], DOOR[1], 2.4, 3.6, (k, f) => { FM[k / 4] = 1 - f; });
+  stamp(RING[0], RING[1], 3.2, 4.2, (k, f) => { FM[k / 4] = 1 - f; });
+  for (const p of WARREN) stamp(p[0], p[1], 2.2, 3.2, (k, f) => { FM[k / 4] = 1 - f; });
+  stamp(DOOR[0] - 1.2, DOOR[1], 0.3, 0.6, (k, f) => { FM[k / 4] = Math.max(FM[k / 4], f); });
   // ---- trees: [x, z, scale, variant] ----
   const trees = [], clear = (x, z, r) => {
     for (const P of [...PATHS, TUN]) for (let i = 0; i < P.length; i += 4) if (Math.hypot(P[i][0] - x, P[i][1] - z) < r) return false;
     for (const t of trees) if (Math.hypot(t[0] - x, t[1] - z) < 3.2) return false;
     return Math.hypot(x - DOOR[0], z - DOOR[1]) > 9 && Math.hypot(x, z - 20) > 12;
   };
+  trees.push([BIGTREE[0], BIGTREE[1], 1.9, 0]);
   const tryTree = (x, z, s) => { if (clear(x, z, 4.2) && riverT(x, z) > 1.2) trees.push([x, z, s, R.int(3)]); };
   for (let i = 0; i < 150; i++) {
     const x = R.range(-330, 330), sd = R.sign(), t = HW + 1.6 + 13 * R() * R();
     tryTree(x - sd * riverD(x) * t, riverZ(x) + sd * t * Math.hypot(1, riverD(x)), R.range(0.75, 1.35));
   }
-  for (const [gx, gz, n] of [[-62, 12, 6], [74, 26, 5], [-34, -98, 6], [44, -104, 5], [96, -72, 6], [-100, -42, 5], [-22, 34, 1], [100, 70, 6], [-90, 90, 6], [20, 100, 5], [-150, -150, 8], [170, -160, 8], [-200, 40, 8], [190, 60, 8], [0, -210, 8], [120, 190, 7], [-110, 200, 7]])
+  for (const [gx, gz, n] of [[-62, 12, 6], [74, 26, 5], [-34, -98, 6], [44, -104, 5], [96, -72, 6], [-100, -42, 5],  [100, 70, 6], [-90, 90, 6], [20, 100, 5], [-150, -150, 8], [170, -160, 8], [-200, 40, 8], [190, 60, 8], [0, -210, 8], [120, 190, 7], [-110, 200, 7]])
     for (let i = 0; i < n; i++) { const a = R() * 6.283, r = n > 1 ? 2 + Math.sqrt(R()) * (6 + n) : 0; tryTree(gx + Math.cos(a) * r, gz + Math.sin(a) * r, R.range(0.85, 1.5)); }
   for (const t of trees) stamp(t[0], t[1], 0.3, 1.1, (k, f) => { A[k + 1] = Math.min(A[k + 1], 1 - f); });
   // ---- sun visibility: hills (height-field march), then soft blobs for trees, tunnel, bridges and the door ----
@@ -185,9 +192,10 @@ export async function buildMap(progress) {
   // ---- CPU masks for the per-frame flower binning ----
   for (let k = 0; k < N * N; k++) {
     const x = wc(k % N), z = wc(Math.floor(k / N)), u = Math.floor((x + ZS) / (2 * ZS) * N), v = Math.floor((z + ZS) / (2 * ZS) * N);
+    const fd = FIELDS[ZID[v * N + u]][6];
     GR[k] = A[k * 4 + 1] * 255;
-    A[k * 4 + 1] *= 0.25 + 0.75 * FIELDS[ZID[v * N + u]][6];
-    DEN[k] = A[k * 4 + 1] / (0.25 + 0.75 * FIELDS[ZID[v * N + u]][6]) * FIELDS[ZID[v * N + u]][6] * 255;
+    DEN[k] = A[k * 4 + 1] * FM[k] * fd * 255;
+    A[k * 4 + 1] *= (0.25 + 0.75 * fd) * FM[k];
   }
   return { H, A, B, ZID, GR, DEN, trees, hb };
 }

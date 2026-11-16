@@ -22,8 +22,9 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let f1 = textureSample(NT, NS, p * 0.37);
   let f2 = textureSample(NT, NS, p * 0.047);
   let f3 = textureSample(NT, NS, p * 0.0063);
+  let f0 = textureSample(NT, NS, p * 2.3);
   let far = smoothstep(10.0, 60.0, d);
-  var grass = mix(vec3f(0.022, 0.065, 0.014), vec3f(0.11, 0.2, 0.035), f2.r * 0.55 + f3.g * 0.45) * (0.6 + 0.8 * f1.a);
+  var grass = mix(vec3f(0.022, 0.065, 0.014), vec3f(0.11, 0.2, 0.035), f2.r * 0.55 + f3.g * 0.45) * (0.6 + 0.8 * f1.a) * (0.75 + 0.5 * f0.a);
   grass = mix(grass, vec3f(0.2, 0.19, 0.05), smoothstep(0.55, 0.9, f3.r) * 0.35);
   let field = zb.rgb * (0.72 + 0.56 * f2.g);
   var cov = m.g * mix(0.03 + 0.3 * smoothstep(0.5, 0.7, f1.b), 0.88, far);
@@ -35,7 +36,8 @@ struct TO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   cov = min(cov, 1.0);
   var alb = mix(grass, field, cov);
   let path = smoothstep(0.2, 0.75, -m.b + (f1.g - 0.5) * 0.35 + (f2.a - 0.5) * 0.25);
-  let soil = mix(vec3f(0.19, 0.12, 0.07), vec3f(0.45, 0.34, 0.21), f1.r * 0.6 + f2.g * 0.4) * (0.7 + 0.6 * f1.a);
+  let peb = smoothstep(0.45, 0.62, f0.b) * (1.0 - smoothstep(4.0, 16.0, d));
+  let soil = mix(mix(vec3f(0.17, 0.105, 0.06), vec3f(0.42, 0.31, 0.19), f1.r * 0.6 + f2.g * 0.4) * (0.55 + 0.9 * f0.a), vec3f(0.5, 0.45, 0.38) * (0.6 + 0.6 * f0.b), peb * step(0.5, f1.b + f0.g * 0.5));
   alb = mix(alb, soil, path);
   alb = mix(alb, vec3f(0.06, 0.06, 0.04) * (0.5 + f1.r), smoothstep(0.1, 0.8, m.b));
   alb *= 0.84 + 0.4 * gust(p) * (0.25 + 0.75 * far) * (1.0 - path);
@@ -108,7 +110,13 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let mat = floor(v.uv.x);
   let R = rotY(v.b.x);
   let s = vec3f(v.a.w, v.a.w * v.b.z, v.a.w);
-  var q = R * (v.p * s);
+  var p = v.p;
+  if (mat == 5.0) { let a = 0.2 * sin(G.time * 1.25); p = vec3f(p.x, p.y * cos(a) - p.z * sin(a), p.y * sin(a) + p.z * cos(a)); }   // the swing
+  if (mat == 4.0 && v.b.w > 0.5) {                   // rabbits: sit up when you come near, hop now and then
+    p.y *= 1.0 + 0.3 * (1.0 - smoothstep(4.0, 10.0, distance(v.a.xz, G.camPos.xz))) * smoothstep(0.1, 0.3, p.y);
+    p.y += abs(sin(G.time * 2.4 + v.b.y * 20.0)) * 0.07 * smoothstep(0.55, 0.9, sin(G.time * 0.23 + v.b.y * 30.0));
+  }
+  var q = R * (p * s);
   let gu = gust(v.a.xz);
   var sp = v.a.xz + normalize(G.sunDir.xz) * 3.0 * v.a.w;
   if (mat == 2.0) {                                  // hanging cluster swings from its top
@@ -125,6 +133,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   o.pos = G.viewProj * vec4f(o.w, 1.0);
   return o;
 }
+fn wist(k: f32) -> vec3f { return mix(mix(vec3f(0.4, 0.22, 0.95), vec3f(0.93, 0.88, 1.0), saturate(k)), vec3f(1.0, 0.42, 0.7), saturate(k - 1.0)); }
 @fragment fn fsObj(in: VO, @builtin(front_facing) ff: bool) -> @location(0) vec4f {
   var n = normalize(in.n); if (!ff) { n = -n; }
   let mat = floor(in.uv.x); let t = fract(in.uv.x) / 0.98;
@@ -133,30 +142,29 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   let ls = select(1.1, 2.4, mat == 2.0);
   let bw = n * n;
   let tp = textureSample(NT, NS, wp.zy * ls) * bw.x + textureSample(NT, NS, wp.xz * ls + 0.37) * bw.y + textureSample(NT, NS, wp.xy * ls + 0.71) * bw.z;
-  let ndv = abs(dot(n, v));
   var alb: vec3f; var tr = 0.0; var ao = 1.0; var glow = 0.0;
-  if (mat == 0.0) {
+  if (mat == 4.0) { alb = mix(vec3f(0.14, 0.085, 0.05), vec3f(0.9, 0.78, 0.6), t) * (0.75 + 0.5 * tp.a); }
+  else if (mat == 0.0 || mat == 5.0) {
     alb = mix(vec3f(0.045, 0.032, 0.028), vec3f(0.3, 0.22, 0.16), tp.a * 0.6 + tp.r * 0.4);
     ao = 0.35 + 0.65 * t;
     n = normalize(n + vec3f(tp.r - 0.5, 0.0, tp.g - 0.5) * 0.8);
   } else if (mat == 2.0) {
-    let k = in.sd.y;
-    let base = mix(mix(vec3f(0.4, 0.22, 0.95), vec3f(0.93, 0.88, 1.0), saturate(k)), vec3f(1.0, 0.42, 0.7), saturate(k - 1.0));
+    let base = wist(in.sd.y);
     let body = step(in.uv.y, 0.3);
-    if (body * (0.5 - tp.b) > ndv * 0.9 - 0.1) { discard; }
+    if (body * (0.5 - tp.b) > abs(dot(n, v)) * 0.9 - 0.1) { discard; }
     alb = mix(base, base * base * vec3f(0.6, 0.4, 0.85), saturate(smoothstep(0.3, 1.0, t) + body * (0.6 - tp.b * 0.8))) * (0.7 + 0.4 * in.uv.y);
     tr = 0.9; glow = 0.22;
   } else {
-    if (tp.b < 0.5 - ndv * 1.1) { discard; }
-    let lf = smoothstep(0.3, 0.75, tp.b);
-    ao = (0.2 + 0.8 * t) * (0.4 + 0.6 * lf);
-    n = normalize(n + (vec3f(tp.r, tp.g, tp.a) - 0.5) * 0.9);
-    let hue = saturate(t * 0.55 + tp.r * 0.6 + (tp.a - 0.5) * 0.4);
+    let hv = in.uv.y;                                 // per-leaf hue
+    ao = 0.18 + 0.82 * t;
+    let hue = saturate(t * 0.6 + hv * 0.55 - 0.1);
     if (mat == 1.0) {
-      alb = mix(vec3f(0.4, 0.11, 0.01), vec3f(1.0, 0.62, 0.05), hue);
+      alb = mix(vec3f(0.45, 0.12, 0.01), vec3f(1.0, 0.6, 0.04), hue);
+      alb = mix(alb, vec3f(0.8, 0.72, 0.1), smoothstep(0.82, 1.0, hv) * 0.6);
       alb = mix(alb, alb * vec3f(1.05, 0.6, 0.35), smoothstep(0.55, 0.9, in.sd.x));
-    } else { alb = mix(vec3f(0.015, 0.05, 0.012), vec3f(0.2, 0.36, 0.06), hue); }
-    tr = 0.8;
+    } else if (in.sd.y < 0.0) { alb = mix(vec3f(0.02, 0.06, 0.012), vec3f(0.22, 0.4, 0.07), hue); }
+    else { let base = wist(in.sd.y); alb = mix(base * vec3f(0.3, 0.2, 0.5), base, hue); glow = 0.12; }      // blossom masses on the tunnel
+    tr = 1.2;
   }
   return vec4f(shade(alb, n, wp, ao, in.sd.z, tr, glow), 1.0);
 }
@@ -177,8 +185,17 @@ struct WO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) u
   let bank = smoothstep(0.3, 1.0, abs(in.u) + (a.a - 0.5) * 0.35);
   refl = mix(refl, vec3f(0.1, 0.09, 0.03) + vec3f(0.5, 0.3, 0.04) * b.a * b.a, bank * 0.8);
   let fr = 0.05 + 0.95 * pow(1.0 - max(dot(-v, n), 0.0), 5.0);
-  let deep = mix(vec3f(0.015, 0.05, 0.045), vec3f(0.05, 0.09, 0.05), a.a);
-  var c = mix(deep, refl, saturate(fr + 0.2));
+  var deep = mix(vec3f(0.015, 0.05, 0.045), vec3f(0.05, 0.09, 0.05), a.a);
+  var koi = 0.0;
+  for (var i = 0; i < 6; i++) {                       // koi idling under the bridges
+    let fi = f32(i); let t = G.time * 0.16 + fi * 2.1;
+    let c = select(vec2f(9.0, -37.3), vec2f(60.0, -39.6), i > 2) + vec2f(sin(t) * 4.5, sin(t * 1.7 + fi) * 1.7);
+    var e = p - c; e.y += sin(e.x * 5.0 * sign(cos(t)) + G.time * 2.0) * 0.035;
+    let k = 1.0 - smoothstep(0.6, 1.0, length(e * vec2f(2.4, 10.0)) + 0.35 * e.x * sign(cos(t)));
+    koi = max(koi, k);
+    deep = mix(deep, select(vec3f(0.9, 0.28, 0.03), vec3f(0.8, 0.72, 0.6), i == 1 || i == 4), k * 0.7);
+  }
+  var c = mix(deep, refl, saturate(fr + 0.2 - koi * 0.25));
   c += G.sunColor * pow(max(dot(r, G.sunDir), 0.0), 500.0) * 2.5 * m.a;
   return vec4f(atmo(c, in.w), 1.0);
 }
