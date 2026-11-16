@@ -315,8 +315,32 @@ export default {
     const surf = a.noiseBed({ color: 'pink', freq: 520, q: 0.5, gain: 0.07, mod: 0.6, modRate: 0.07, gainMod: 0.5 });       // waves on the sand
     a.noiseBed({ color: 'brown', freq: 170, gain: 0.05, mod: 0.4, modRate: 0.045 });                                       // the sea sliding past
     const wind = a.noiseBed({ color: 'pink', filter: 'bandpass', freq: 900, q: 0.7, gain: 0.02, mod: 0.6, modRate: 0.05 });
-    a.drone({ freq: a.hz(33), partials: [1, 2, 3.01], amps: [1, 0.4, 0.15], gain: 0.03, cutoff: 300 });
-    a.pad({ chords: [[50, 57, 62, 66], [45, 52, 61, 64], [47, 54, 62, 66], [43, 50, 59, 62]], gain: 0.026, change: [18, 30], cutoff: 1100 });
+    // music: F major (+ the 4th: F G A Bb C D, no leading tone), gentle ~70 bpm lilt. steel pan motif, ukulele strums, soft shaker
+    const R = a.rng, mus = a.bus({ gain: 1, reverb: 0.45 }), BPM = 70, BEAT = 60 / BPM;
+    a.drone({ freq: a.hz(29), partials: [1, 2, 3.01], amps: [1, 0.4, 0.15], gain: 0.03, cutoff: 300 });   // low F
+    const sc = a.scale(65, 'majorPent4', 3), MOT = [4, 6, 8, 6, 4, 3];     // C F A F C Bb
+    let v = 0;
+    a.every(35, 70, (when) => {
+      const k = v++ % 5, sh = R.pick([0, 0, 0, -3, 2]);
+      let notes = [{ deg: 4, dur: 0.75 }, { deg: 6, dur: 0.25 }, { deg: 8, dur: 1 }, { deg: 6, dur: 0.5 }, { deg: 4, dur: 0.5 }, { deg: 3, dur: 2 }];
+      if (k === 1) notes = [{ deg: 4, dur: 0.75 }, { deg: 6, dur: 0.25 }, { deg: 8, dur: 1 }, { deg: 9, dur: 1.5 }, { deg: 8, dur: 0.5 }, { rest: 1, dur: 1 }, { deg: 6, dur: 2 }];
+      else if (k === 2) notes = [{ deg: 6, dur: 0.75 }, { deg: 8, dur: 0.25 }, { deg: 6, dur: 1 }, { rest: 1, dur: 1 }, { deg: 4, dur: 0.75 }, { deg: 3, dur: 0.25 }, { deg: 2, dur: 2.5 }];
+      else if (k === 3) notes = [0, 2, 4, 6, 8, 6, 4, 2].map((deg, i) => ({ deg, dur: 0.5, vel: 0.6 + 0.3 * Math.sin(i / 7 * Math.PI) })).concat([{ deg: 4, dur: 2 }]);   // a rolling wave
+      else if (k === 4) notes = MOT.map((deg, i) => ({ deg, dur: i % 2 ? 0.5 : 1 })).concat([{ rest: 1, dur: 1 }, { deg: 4, dur: 2 }]);
+      notes.forEach((n) => { if (n.deg != null) n.deg = Math.max(0, n.deg + (k === 3 ? 0 : sh)); });
+      a.phrase({ notes, inst: a.steelPan, scale: sc, tempo: BPM, humanize: 0.02, when, opts: { gain: 0.055, reverb: 0.5, pan: R.range(-0.3, 0.3), bus: mus } });
+    }, { startDelay: 9 });
+    const UKE = { F: [60, 65, 69, 72], Bb: [62, 65, 70, 74], C: [60, 64, 67, 72], Dm: [62, 65, 69, 74] }, PROG = [['F', 'Bb', 'F', 'C'], ['F', 'Dm', 'Bb', 'C'], ['F', 'C', 'Bb', 'F']];
+    a.every(14, 32, (when) => {                                  // lilting strums: down, down-up, with a quiet shaker on the off-beats
+      const prog = R.pick(PROG), bars = 2 + R.int(2);
+      for (let b = 0; b < bars; b++) {
+        const ch = UKE[prog[b % 4]], tb = when + b * 3 * BEAT;
+        a.strum({ notes: ch, dir: 1, gain: 0.04, reverb: 0.4, bus: mus, when: tb });
+        a.strum({ notes: ch, dir: -1, gain: 0.025, vel: 0.7, reverb: 0.4, bus: mus, when: tb + 1.5 * BEAT });
+        if (R() < 0.6) a.strum({ notes: ch, dir: 1, gain: 0.03, vel: 0.8, reverb: 0.4, bus: mus, when: tb + 2 * BEAT });
+        a.shaker({ gain: 0.012, bus: mus, when: tb + 0.5 * BEAT }); a.shaker({ gain: 0.01, bus: mus, when: tb + 1.5 * BEAT }); if (R() < 0.5) a.shaker({ gain: 0.008, bus: mus, when: tb + 2.5 * BEAT });
+      }
+    }, { startDelay: 20 });
     this.snd = { surf, wind };
     a.every(7, 19, (when) => {                               // distant seabirds
       const f = a.rng.range(1500, 2300), pan = a.rng.range(-0.8, 0.8);
@@ -331,9 +355,9 @@ export default {
     });
     { const p = HOT[0], bus = src([p[0], at(p[0], p[1]), p[1]]);   // hot springs bubbling
       a.every(0.3, 1.4, (when) => { const f = a.rng.range(240, 520); a.chirp({ f0: f, f1: f * 1.7, dur: 0.07, gain: 0.02, when, bus }); }); }
-    { const bus = src([HUT[0] + 2.3, at(HUT[0], HUT[1]) + 2.4, HUT[1] + 0.9], { reverb: 0.5 }), notes = a.scale(81, 'pentatonic', 1);   // shell chimes at the hut
+    { const bus = src([HUT[0] + 2.3, at(HUT[0], HUT[1]) + 2.4, HUT[1] + 0.9], { reverb: 0.5 }), notes = a.scale(77, 'majorPent4', 1);   // shell chimes at the hut
       a.every(3, 11, (when) => { for (let i = 0, n = 1 + a.rng.int(3); i < n; i++) a.bell({ freq: a.hz(a.rng.pick(notes)), gain: 0.03, decay: 2.5, ratio: 2.76, index: 1.2, when: when + i * a.rng.range(0.12, 0.4), bus }); }); }
-    SHELLS.forEach((h, i) => a.drone({ freq: a.hz([45, 52, 50, 57, 47][i]), partials: [1, 2.005, 3, 5.02], amps: [1, 0.5, 0.22, 0.08], cutoff: 700, gain: 0.07, bus: src([h[0], at(h[0], h[1]) + 1, h[1]], { ref: 3, rolloff: 1.6, reverb: 0.6 }) }));   // the giant shells hum
+    SHELLS.forEach((h, i) => a.drone({ freq: a.hz([41, 48, 46, 53, 45][i]), partials: [1, 2.005, 3, 5.02], amps: [1, 0.5, 0.22, 0.08], cutoff: 700, gain: 0.07, bus: src([h[0], at(h[0], h[1]) + 1, h[1]], { ref: 3, rolloff: 1.6, reverb: 0.6 }) }));   // the giant shells hum
     { const bus = src([SHRINE[0], at(SHRINE[0], SHRINE[1]) + 1, SHRINE[1]], { ref: 8, reverb: 0.6 });                                    // crickets in the jungle by the shrine
       a.every(1.5, 6, (when) => a.chirp({ f0: 4300, f1: 4500, dur: 0.05, repeat: 3 + a.rng.int(5), gap: 0.06, gain: 0.008, when, bus })); }
   },
