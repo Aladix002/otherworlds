@@ -239,21 +239,37 @@ export default {
   audio(ctx, a) {
     a.setReverb({ seconds: 7, damp: 0.45, wet: 0.95, predelay: 0.05 });
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 130, gain: 0.03, mod: 0.3, modRate: 0.03 });           // the air of a huge room
-    a.drone({ freq: a.hz(38), partials: [1, 2, 3, 4.01], amps: [1, 0.5, 0.2, 0.08], detune: 4, cutoff: 300, gain: 0.03, attack: 6 });
-    // choir: sawtooth voices through two vowel formants, chords drifting slowly
-    const ac = a.ctx, bus = a.bus({ gain: 0.5, reverb: 0.85 }), chords = [[50, 57, 62, 66], [47, 54, 59, 62], [43, 50, 59, 62], [45, 52, 57, 61], [50, 54, 57, 64]];
-    const voices = [0, 1, 2, 3].map((i) => {
-      const o = ac.createOscillator(), o2 = ac.createOscillator(), g = ac.createGain(), f1 = ac.createBiquadFilter(), f2 = ac.createBiquadFilter(), g2 = ac.createGain();
-      o.type = o2.type = 'sawtooth'; o2.detune.value = 9; o.frequency.value = o2.frequency.value = a.hz(chords[0][i] + 12);
-      f1.type = f2.type = 'bandpass'; f1.frequency.value = 620; f1.Q.value = 5; f2.frequency.value = 1050; f2.Q.value = 7; g2.gain.value = 0.45; g.gain.value = 0;
-      o.connect(g); o2.connect(g); g.connect(f1); g.connect(f2); f1.connect(bus.input); f2.connect(g2); g2.connect(bus.input);
-      o.start(); o2.start(); a.wander(f1.frequency, 120, 0.05); a.wander(g.gain, 0.012, 0.07 + i * 0.013);
-      a.param(g.gain, 0.03, 6);
-      return [o, o2];
-    });
-    a.every(18, 30, () => { const c = a.rng.pick(chords); voices.forEach((v, i) => { a.param(v[0].frequency, a.hz(c[i] + 12), 2.5); a.param(v[1].frequency, a.hz(c[i] + 12), 2.5); }); });
-    const notes = a.scale(62, 'major', 2);
-    a.every(14, 34, (when) => a.bell({ freq: a.hz(a.rng.pick(notes)), gain: 0.007, decay: 7, ratio: 2.76, index: 1.2, when, pan: a.rng.range(-0.7, 0.7), reverb: 0.95 }), { startDelay: 8 });
+    // music: Eb major, hymn-like. choir "ooh" chorales with suspensions, soft organ undertone, celesta motif
+    const R = a.rng, mus = a.bus({ gain: 1, reverb: 0.9 });
+    a.drone({ freq: a.hz(39), partials: [1, 2, 3, 4, 6], amps: [1, 0.6, 0.25, 0.15, 0.05], detune: 3, cutoff: 520, gain: 0.03, attack: 8 });   // organ pedal on Eb
+    a.drone({ freq: a.hz(46), partials: [1, 2, 3], amps: [0.5, 0.3, 0.1], detune: 3, cutoff: 480, gain: 0.012, attack: 10 });                   // its fifth
+    const CH = { I: [58, 63, 67, 70], IV: [56, 60, 63, 68], V: [58, 62, 65, 70], vi: [55, 60, 63, 67], ii7: [53, 60, 63, 68], Isus: [58, 63, 68, 70], Vsus: [58, 63, 65, 70], IV6: [56, 60, 65, 68] };
+    const NEXT = { I: ['IV', 'vi', 'Vsus', 'ii7'], IV: ['I', 'Vsus', 'ii7'], vi: ['IV', 'ii7', 'I'], ii7: ['Vsus', 'V', 'I'], Vsus: ['V'], V: ['I', 'vi'], Isus: ['I'], IV6: ['IV', 'I'] };
+    const RES = { Vsus: ['V', 3], Isus: ['I', 3.5] };            // suspension resolves a few seconds after the chord enters
+    let cur = 'I';
+    const chord = (name, when, dur) => {
+      CH[name].forEach((m, i) => a.choir({ midi: m, vowel: i === 3 ? 'oh' : 'oo', dur, attack: 3.5, release: 4, voices: 3, gain: 0.018, bus: mus, when: when + i * 0.12 }));
+    };
+    a.every(22, 38, (when) => {                                  // a chorale of 2-4 chords, then silence
+      const len = 2 + R.int(3); let t = when;
+      for (let k = 0; k < len; k++) {
+        const dur = R.range(8, 12), r = RES[cur];
+        chord(cur, t, dur);
+        if (r) { const res = CH[r[0]]; CH[cur].forEach((m, i) => { if (m !== res[i]) a.choir({ midi: res[i], vowel: 'oo', dur: dur - r[1], attack: 2.5, release: 4, voices: 3, gain: 0.018, bus: mus, when: t + r[1] }); }); }
+        t += dur - 1; cur = r ? r[0] : R.pick(NEXT[cur]);
+        if (cur === 'I' && R() < 0.2) cur = 'Isus';
+      }
+    }, { startDelay: 3 });
+    const sc = a.scale(63, 'major', 3), MOT = [4, 7, 8, 7, 5, 4];     // Bb Eb F Eb C Bb
+    let v = 0;
+    a.every(40, 80, (when) => {                                  // celesta / music box motif, free tempo, with variations
+      const sh = R.pick([0, 0, 2, -2, 3]), box = R() < 0.35, k = v++ % 4;
+      let notes = MOT.map((deg, i) => ({ deg: deg + sh, dur: i === 2 ? 1.8 : 1.2, vel: 1 - i * 0.05 }));
+      if (k === 1) notes = [{ deg: 7 + sh, dur: 1.5 }, { deg: 8 + sh, dur: 1.5 }, { rest: 1, dur: 1 }, { deg: 11 + sh, dur: 2.2 }, { deg: 9 + sh, dur: 3 }];
+      else if (k === 2) notes = MOT.slice(0, 4).map((deg, i) => ({ deg: deg + sh, dur: 1.3 })).concat([{ rest: 1, dur: 1.5 }, { deg: 2 + sh, dur: 3 }]);
+      else if (k === 3) notes = [...MOT].reverse().map((deg, i) => ({ deg: deg + sh, dur: 1.3, vel: 0.8 }));
+      a.phrase({ notes, inst: a.celesta, scale: sc, tempo: 46, humanize: 0.03, when, opts: { box, gain: 0.03, reverb: 0.9, pan: R.range(-0.4, 0.4), bus: mus } });
+    }, { startDelay: 12 });
     a.every(9, 22, (when) => a.whoosh({ dur: 0.3, f0: 3000, f1: 5500, filter: 'bandpass', q: 0.8, gain: 0.005, reverb: 0.9, pan: a.rng.range(-0.8, 0.8), when }), { startDelay: 6 });   // far pages
     // places
     a.noiseBed({ color: 'white', filter: 'bandpass', freq: 1700, q: 0.5, gain: 0.09, mod: 0.15, modRate: 0.3, bus: a.spatial({ pos: [47, 1.5, 0], ref: 5, rolloff: 1.4, reverb: 0.3 }) });
@@ -261,7 +277,7 @@ export default {
     const fire = a.spatial({ pos: [-43, 0.8, -6.5], ref: 3, rolloff: 1.6, reverb: 0.25 });
     a.noiseBed({ color: 'brown', filter: 'lowpass', freq: 400, gain: 0.09, mod: 0.5, modRate: 0.5, bus: fire });
     a.every(0.6, 2.8, (when) => a.chirp({ f0: a.rng.range(900, 2200), f1: 400, dur: 0.02, gain: 0.02, bus: fire, when }));
-    const orr = a.spatial({ pos: OC, ref: 7, rolloff: 1.2, reverb: 0.7 }), on = a.scale(74, 'pentatonic', 2);
+    const orr = a.spatial({ pos: OC, ref: 7, rolloff: 1.2, reverb: 0.7 }), on = a.scale(75, 'pentatonic', 2);
     a.every(4, 11, (when) => a.bell({ freq: a.hz(a.rng.pick(on)), gain: 0.02, decay: 5, ratio: 3.5, index: 0.8, bus: orr, when }), { startDelay: 3 });
   },
 };
