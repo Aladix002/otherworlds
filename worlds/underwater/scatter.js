@@ -1,5 +1,5 @@
 // Load-time placement of rocks and blade flora (seagrass, anemones, soft corals, sea pens).
-export function scatter(H, N, rng, q, padTest, keep) {
+export function scatter(H, N, rng, q, padTest, keep, SEAH) {
   const rocks = [], blades = [], R = [];
   const free = (x, z, r) => { for (let i = 0; i < R.length; i += 4) if (Math.hypot(R[i] - x, R[i + 2] - z) < R[i + 3] + r) return false; return true; };
   const rock = (x, z, s, deep) => {
@@ -33,7 +33,8 @@ export function scatter(H, N, rng, q, padTest, keep) {
   const ng = [5000, 11000, 18000][q];
   for (let i = 0, tries = 0; i < ng && tries < ng * 6; tries++) {
     const x = rng() * 150 - 75, z = 4 + rng() * 128;
-    const m = N.fbm2(x * 0.065 + 3.3, z * 0.065 - 1.1, 3) + 0.25 * N.fbm2(x * 0.3, z * 0.3 + 5, 1);
+    // (a guaranteed lush meadow where the seahorses live)
+    const m = Math.max(N.fbm2(x * 0.065 + 3.3, z * 0.065 - 1.1, 3) + 0.25 * N.fbm2(x * 0.3, z * 0.3 + 5, 1), 0.75 - 0.14 * Math.hypot(x - SEAH[0], z - SEAH[1]));
     if (m < 0.16 + rng() * 0.06 || padTest(x, z) < 1.2 || !free(x, z, 0.3) || near(x, z, 2.6)) continue;
     const k = Math.min(1, (m - 0.12) * 2.4) * (0.35 + 0.65 * rng()), y = H(x, z) - 0.03, nb = 3 + Math.floor(rng() * (4 + 12 * k));
     const hh = 0.22 + 0.95 * k * k;
@@ -62,6 +63,22 @@ export function scatter(H, N, rng, q, padTest, keep) {
       const a = rng() * 6.283, r = rocks[i + 3] * (0.9 + rng() * 0.8), x = rocks[i] + Math.cos(a) * r, z = rocks[i + 2] + Math.sin(a) * r;
       blade(x, H(x, z) - 0.05, z, rng() * 6.283, 0.4 + rng() * 0.8, 0.025, 2);
     }
+  }
+  // kelp-floor understory: clumps of colourful fronds, with barrel sponges and coral heads among them
+  const nu = [1000, 2000, 2800][q];
+  for (let i = 0, tries = 0; i < nu && tries < nu * 5; tries++) {
+    const cx = rng() * 190 - 95, cz = -5 - rng() * 138;
+    if (N.fbm2(cx * 0.05 + 1.7, cz * 0.05 + 8.2, 2) < -0.12 + 0.25 * rng() || near(cx, cz, 1.3) || !free(cx, cz, 0.2)) continue;
+    const nb = 3 + Math.floor(rng() * 6), hh = 0.3 + 0.7 * rng(), col = rng();
+    for (let k = 0; k < nb; k++) {
+      const a = rng() * 6.283, r = 0.05 + rng() * 0.25, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      blades.push(x, H(x, z) - 0.04, z, a, hh * (0.6 + 0.6 * rng()), 0.05 + 0.07 * rng(), 4, Math.floor(col * 4) / 4 * 0.1369 + 0.004 * rng());
+    }
+    if (rng() < 0.16) {
+      const x = cx + 0.5, s = 0.22 + 0.4 * rng() * rng();
+      rocks.push(x, H(x, cz) + s * 0.25, cz, s, rng() * 6.283, rng(), 0.9 + rng() * 0.7, 2);
+    }
+    i++;
   }
   const np = [200, 380, 600][q];
   for (let i = 0; i < np; i++) {

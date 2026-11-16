@@ -1,5 +1,5 @@
 // Marble temple / ruins / amphorae (static, world space).
-// uv.x = material (0 marble, 1 terracotta, 2 marble + painted meander, 3 starfish) + baked AO * 0.9, uv.y = height above seabed.
+// uv.x = material (0 marble, 1 terracotta, 2 marble + painted meander, 3 starfish, 4 glowing pearl, 5 turtle eggs) + baked AO * 0.9, uv.y = height above seabed.
 override ARCHY: f32 = 6.74;   // architrave bottom, above the pad
 struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n: vec3f, @location(2) m: vec2f };
 @vertex fn vs(@location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f) -> VO {
@@ -39,7 +39,7 @@ fn key(p: vec2f) -> f32 {
   }
   if (mt > 0.5 && mt < 1.5) { alb = vec3f(0.72, 0.33, 0.16) * (0.75 + 0.4 * nm.r) * (0.9 + 0.2 * nf.r);
     alb = mix(alb, vec3f(0.16, 0.09, 0.06), 0.6 * smoothstep(0.03, 0.0, abs(fract(hgt * 2.2 + nz.r * 0.3) - 0.5) - 0.07)); }
-  if (mt > 2.5) { alb = mix(vec3f(0.95, 0.3, 0.1), vec3f(1.0, 0.62, 0.3), smoothstep(0.55, 0.7, nf.g)); }
+  if (mt > 2.5) { alb = mix(mix(vec3f(0.95, 0.3, 0.1), vec3f(1.0, 0.62, 0.3), smoothstep(0.55, 0.7, nf.g)), vec3f(0.95, 0.94, 0.9), step(3.5, mt)); }
   else {
     // algae film on top faces and a weathered, stained band near the seabed
     let up = smoothstep(0.45, 0.9, n.y) * smoothstep(0.42, 0.62, nz.b + 0.15 * nf.g);
@@ -51,5 +51,8 @@ fn key(p: vec2f) -> f32 {
   let sh = colShadow(wp + n * 0.45);
   let ao = bao * mix(0.5, 1.0, smoothstep(-0.25, 1.0, hgt)) * mix(1.0, sh.y, smoothstep(0.3, 0.8, n.y));
   var c = uwLit(alb, n, wp, caus * sh.x, ao * mix(0.45, 1.0, sh.x));
+  // the tholos pearl: glows softly, brighter as the swimmer comes near
+  let dc = distance(wp, G.camPos);
+  c += vec3f(0.5, 0.95, 1.0) * step(3.5, mt) * step(mt, 4.5) * (0.5 + 1.8 * smoothstep(16.0, 3.0, dc)) * (0.85 + 0.15 * sin(G.time * 0.8)) * (1.0 - fogF(dc));
   return vec4f(c, 1.0);
 }

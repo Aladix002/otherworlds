@@ -45,7 +45,9 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   var alb = mix(vec3f(0.66, 0.61, 0.5), vec3f(0.8, 0.75, 0.63), smoothstep(0.35, 0.7, m));
   alb *= (0.9 + 0.2 * nf.z) * (1.0 - 0.1 * rip * (0.5 - 0.5 * s));
   let kel = mix(vec3f(0.56, 0.4, 0.22), vec3f(0.42, 0.31, 0.2), smoothstep(0.4, 0.7, nf.w + m * 0.4));
-  alb = mix(alb, kel, kelp);
+  // kelp floor: patches of olive turf, pale shell grit and scattered pebbles
+  let kf = mix(mix(kel, vec3f(0.3, 0.42, 0.15), smoothstep(0.45, 0.65, nb.y) * 0.75), vec3f(0.8, 0.74, 0.62), smoothstep(0.74, 0.82, nf.x) * 0.35);
+  alb = mix(alb, kf * (0.75 + 0.5 * nf.y), kelp);
   alb = mix(alb, vec3f(0.26, 0.28, 0.32) * (0.8 + 0.4 * nf.z), deep);
   let rock = smoothstep(0.55, 0.35, n.y);
   alb = mix(alb, vec3f(0.42, 0.4, 0.38) * (0.7 + 0.5 * nf.x), rock);

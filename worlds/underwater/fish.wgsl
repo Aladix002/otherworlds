@@ -10,6 +10,8 @@ override NF: u32 = 256u;
 fn anchor(S: School, t: f32) -> vec3f {
   let w = S.c.w / max(length(S.r.xz), 1.0) * 0.5;
   let ph = S.m.w;
+  // species 6 (jacks) circle their centre
+  if (S.m.z > 5.5) { return S.c.xyz + S.r.xyz * vec3f(sin(t * w * 2.0), sin(t * w * 0.71 + ph), cos(t * w * 2.0)); }
   return S.c.xyz + S.r.xyz * vec3f(sin(t * w + ph), sin(t * w * 0.71 + ph * 2.0), sin(t * w * 0.83 + ph * 1.3 + 1.0));
 }
 
@@ -75,6 +77,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   if (spc < 0.5) { shape = vec3f(1.0, 1.35, 1.0); }
   else if (spc < 1.5) { shape = vec3f(1.0, 1.5, 0.9); }
   else if (spc > 3.5 && spc < 4.5) { shape = vec3f(0.85, 0.7, 1.1); }
+  else if (spc > 5.5) { shape = vec3f(0.9, 1.3, 1.0); }
   lp *= shape;
   let amp = 0.16 * pow(max(0.4 - p.z, 0.0), 1.5);
   lp.x += sin(F.v.w - p.z * 6.0) * amp;
@@ -92,7 +95,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   var n = normalize(in.n);
   let v = normalize(in.w - G.camPos);
   if (dot(n, v) > 0.0) { n = -n; }
-  let fin = step(5.0, in.sp.x);
+  let fin = step(9.5, in.sp.x);
   let spc = in.sp.x - fin * 10.0;
   let hv = in.sp.y;
   let z = in.lp.z; let y = in.lp.y;
@@ -114,8 +117,11 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   } else if (spc < 4.5) {     // sardine
     alb = mix(vec3f(0.85, 0.9, 0.95), vec3f(0.08, 0.25, 0.38), smoothstep(-0.02, 0.06, y));
     spec = 1.4;
-  } else {                    // garibaldi
+  } else if (spc < 5.5) {     // garibaldi
     alb = vec3f(1.0, 0.36, 0.04);
+  } else {                    // jack: silver, dark back, yellow fins
+    alb = mix(mix(vec3f(0.8, 0.85, 0.88), vec3f(0.2, 0.34, 0.4), smoothstep(0.0, 0.1, y)), vec3f(1.0, 0.8, 0.1), fin);
+    spec = 1.0;
   }
   alb = mix(alb, vec3f(0.02), smoothstep(0.03, 0.015, length(vec2f(z - 0.36, y - 0.03))) * (1.0 - fin));
   var c = uwLit(alb, n, in.w, causticsAt(in.w), 1.0);

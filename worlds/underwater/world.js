@@ -8,7 +8,7 @@ import { buildTemple, mat } from './temple.js';
 import FISH from './fish.wgsl';
 import CRIT from './critter.wgsl';
 import DEEP from './deep.wgsl';
-import { turtleGeo, rayGeo, whaleGeo, animate } from './critters.js';
+import { turtleGeo, rayGeo, whaleGeo, dolphinGeo, lanternGeo, octoGeo, seahorseGeo, eelGeo, animate, NEST, SEAH, LAN } from './critters.js';
 import KELP from './kelp.wgsl';
 import FLORA from './flora.wgsl';
 import ROCK from './rock.wgsl';
@@ -16,7 +16,7 @@ import { scatter } from './scatter.js';
 import SHAFTS from './shafts.wgsl';
 import MOTES from './motes.wgsl';
 
-const PADY = -13.0, DOORX = 14.0, DOORZ = 104.0;
+const PADY = -13.0, DOORX = 14.0, DOORZ = 104.0, THO = [-26, 6], MED = [9, -84, -285];
 const SEGX = 256, SEGZ = 440, SX = 320, SZ = 550, CZ = -125;
 const SUN = [0.4202, 0.8804, 0.2201], WCOL = [0.03, 0.27, 0.37], KCOL = [0.075, 0.215, 0.145];
 
@@ -84,7 +84,7 @@ export default {
     { pos: [-9.5, -10.8, 61], yaw: -1.0, pitch: 0.5 },
     { pos: [-8, -20, -40], yaw: 0.25, pitch: 0.24 },
     { pos: [18.3, -17.3, -67.3], yaw: 0.18, pitch: -0.48, t: 14 },
-    { pos: [4, -29, -139], yaw: 0.0, pitch: -0.55, t: 215 },
+    { pos: [-13.5, -12.6, 17.5], yaw: 0.83, pitch: 0.06, t: 30 },
     { pos: [0, -95, -255], yaw: 0, pitch: 0.2, t: 57 },
   ],
   flythrough: [
@@ -94,8 +94,9 @@ export default {
     { pos: [2, -9, 64], yaw: 0.1, pitch: 0.05 },
     { pos: [-12.5, -11, 50], yaw: -1.0, pitch: 0.05 },
     { pos: [-12.5, -11.5, 40], yaw: -1.3, pitch: 0.05 },
-    { pos: [-22, -11, 20], yaw: -0.3, pitch: 0 },
-    { pos: [-8, -14, 0], yaw: 0, pitch: 0 },
+    { pos: [-15, -11.5, 22], yaw: 0.5, pitch: 0 },
+    { pos: [-13, -12.5, 14], yaw: 1.0, pitch: 0.05 },
+    { pos: [-14, -14, 0], yaw: 0.6, pitch: 0 },
     { pos: [-30, -17, -22], yaw: 0.5, pitch: 0.1 },
     { pos: [-30, -18.5, -42], yaw: 0.0, pitch: 0.1 },
     { pos: [-14, -18, -50], yaw: -0.6, pitch: 0.05 },
@@ -193,22 +194,27 @@ export default {
     await progress(0.3);
 
     // --- temple and ruins (one static mesh)
-    const T = buildTemple(ctx.mesh, (x, z) => this.heightAt(x, z), PADY, [DOORX, this.doorY, DOORZ], ctx.math.makeRng(7), [8.0, 62.2]);
+    const T = buildTemple(ctx.mesh, (x, z) => this.heightAt(x, z), PADY, [DOORX, this.doorY, DOORZ], ctx.math.makeRng(7), [8.0, 62.2], THO, NEST);
+    this.T = T;
     this.cols = T.cols; this.boxes = T.boxes;
     this.templeMesh = ctx.mesh.upload(T.geo, 'uw-temple');
     // analytic column shadows (temple + gateway columns) shared by the terrain and temple shaders
     const SC = T.cols.filter((c) => c[3] - this.heightAt(c[0], c[1]) > 1.5);
     const f2 = (v) => v.toFixed(2);
     const SB = [...T.shade, [DOORX, DOORZ, 0.72, 0.13]];
-    const SH = `const NCOL = ${SC.length}u;\nconst COLS = array<vec4f, ${SC.length}>(${SC.map((c) => `vec4f(${f2(c[0])}, ${f2(c[1])}, ${f2(c[2] - 0.05)}, ${f2(c[3])})`).join(',')});
+    const SH = `const NCOL = ${SC.length}u;
+const NT = ${SC.filter((c) => c[1] < 27).length}u;\nconst COLS = array<vec4f, ${SC.length}>(${SC.map((c) => `vec4f(${f2(c[0])}, ${f2(c[1])}, ${f2(c[2] - 0.05)}, ${f2(c[3])})`).join(',')});
 const NSB = ${SB.length}u;\nconst SBX = array<vec4f, ${SB.length}>(${SB.map((b) => `vec4f(${b.map(f2).join(',')})`).join(',')});
-fn inRuins(p: vec2f) -> bool { return (abs(p.x) < 15.0 && p.y > 27.0 && p.y < 64.0) || (abs(p.x - DOORX) < 9.0 && abs(p.y - DOORZ) < 10.0); }
+fn inRuins(p: vec2f) -> bool { return (abs(p.x) < 15.0 && p.y > 27.0 && p.y < 64.0) || (abs(p.x - DOORX) < 9.0 && abs(p.y - DOORZ) < 10.0) || distance(p, vec2f(${THO})) < 10.0; }
 // x = analytic sun shadow of the columns and the entablature, y = contact occlusion at the column feet
 fn colShadow(wp: vec3f) -> vec2f {
   if (!inRuins(wp.xz)) { return vec2f(1.0); }
   let d = SUN.xz / SUN.y;
   var s = 1.0; var c = 1.0;
-  for (var i = 0u; i < NCOL; i++) {
+  // the tholos columns come last and only shade their own surroundings
+  var i0 = 0u; var i1 = NCOL - NT;
+  if (wp.z < 27.0) { i0 = i1; i1 = NCOL; }
+  for (var i = i0; i < i1; i++) {
     let C = COLS[i];
     let h = C.w - wp.y;
     let rel = C.xy - wp.xz;
@@ -219,7 +225,7 @@ fn colShadow(wp: vec3f) -> vec2f {
     s *= mix(1.0, smoothstep(C.z - 0.2, C.z + 0.25, dist), smoothstep(0.0, 0.5, h - t) * step(0.05, t));
   }
   let hE = PADY + 7.4 - wp.y;
-  if (hE > 0.4 && wp.z < 64.0) {
+  if (hE > 0.4 && wp.z < 64.0 && wp.z > 27.0) {
     let q = wp.xz + d * hE;
     let e = min(sdBox2(q - vec2f(0.0, 55.3), vec2f(7.0, 0.7)), sdBox2(vec2f(abs(q.x) - 6.25, q.y - 52.0), vec2f(0.5, 3.6)));
     s *= smoothstep(-0.15, 0.25 + hE * 0.04, e);
@@ -228,7 +234,7 @@ fn colShadow(wp: vec3f) -> vec2f {
 }
 // soft contact shade on the sand around the stylobate, plinths, fallen blocks, amphorae and the door
 fn sandAO(p: vec2f) -> f32 {
-  if (!inRuins(p)) { return 1.0; }
+  if (!inRuins(p) || p.y < 27.0) { return 1.0; }
   var a = 1.0;
   for (var i = 0u; i < NSB; i++) {
     let B = SBX[i];
@@ -279,8 +285,8 @@ fn sandAO(p: vec2f) -> f32 {
     await progress(0.6);
     // --- rocks + blade flora
     {
-      const pad = (x, z) => Math.min(sdBox2(x, z - 44, 8.5, 13.5), Math.hypot(x - DOORX, z - DOORZ) - 2.5);
-      const S = scatter((x, z) => this.heightAt(x, z), N, ctx.math.makeRng(23), ctx.q.level, pad, [...this.poses, ...this.flythrough].map((p) => p.pos));
+      const pad = (x, z) => Math.min(sdBox2(x, z - 44, 8.5, 13.5), Math.hypot(x - DOORX, z - DOORZ) - 2.5, Math.hypot(x - THO[0], z - THO[1]) - 5.4, Math.hypot(x - NEST[0], z - NEST[1]) + 0.4);
+      const S = scatter((x, z) => this.heightAt(x, z), N, ctx.math.makeRng(23), ctx.q.level, pad, [...this.poses, ...this.flythrough].map((p) => p.pos), SEAH);
       this.rockCol = S.colliders;
       this.nRocks = S.rocks.length / 8;
       this.rockInst = ctx.buffer(S.rocks, 'vertex');
@@ -298,7 +304,7 @@ fn sandAO(p: vec2f) -> f32 {
         [0, -8.2, 44, 0.8, 14, 1.0, 19, 0.34, 36, 0], [5, -9.6, 59, 0.6, 6, 0.8, 4, 0.3, 24, 1],
         [-14, -10, 46, 0.5, 4, 1.5, 9, 0.16, [36, 60, 80][q], 2], [-6, -6.8, 90, 0.7, 8, 1, 7, 0.26, 26, 3], [7, -10.2, 60, 0.45, 5, 0.8, 3.5, 0.2, 22, 2], [1, -10, 60, 0.5, 6, 1, 3, 0.24, 14, 3],
         [-15, -17, -55, 1.5, 22, 3, 25, 0.3, [120, 220, 320][q], 4], [30, -24, -95, 0.4, 6, 1.5, 6, 0.42, 8, 5],
-        [-6, -19, -50, 0.6, 6, 2, 6, 0.36, 16, 3]];
+        [-6, -19, -50, 0.6, 6, 2, 6, 0.36, 16, 3], [THO[0], this.T.thoY + 2.6, THO[1], 0.9, 5.7, 0.9, 5.7, 0.36, [30, 44, 56][q], 6]];
       const sd = new Float32Array(SC.length * 12), fd = [];
       let start = 0;
       SC.forEach((c, k) => {
@@ -322,25 +328,45 @@ fn sandAO(p: vec2f) -> f32 {
     // --- turtles, rays, mantas, whale shark
     {
       this.H = (x, z) => this.heightAt(x, z);
-      this.critData = new Float32Array(7 * 12);
-      animate(this.critData, 0, this.H);
+      this.critData = new Float32Array(25 * 12);
+      animate(this.critData, 0, this.H, this.spawn.pos, this.T);
       this.critBuf = ctx.buffer(this.critData, 'storage');
       const cl = ctx.layout(['storage']);
       this.critBG = ctx.bindGroup(cl, [this.critBuf]);
       this.crit = ctx.pipeline({ code: COMMON + CRIT, buffers: [ctx.mesh.layout], layouts: [this.envL, cl], cull: 'none', constants: this.consts, label: 'uw-crit' });
       const M = ctx.mesh;
-      this.critMeshes = [[M.upload(turtleGeo(M)), 2, 0], [M.upload(rayGeo(M, false)), 1, 2], [M.upload(rayGeo(M, true)), 2, 3], [M.upload(whaleGeo(M)), 2, 5]];
+      this.critMeshes = [[turtleGeo, 7], [(m) => rayGeo(m, false), 1], [(m) => rayGeo(m, true), 2], [whaleGeo, 2], [dolphinGeo, 3], [lanternGeo, 3], [octoGeo, 1], [seahorseGeo, 5], [eelGeo, 1]];
+      let first = 0;
+      for (const m of this.critMeshes) { m[0] = M.upload(m[0](M)); m[2] = first; first += m[1]; }
     }
     // --- deep life
     {
       const rng = ctx.math.makeRng(41), J = [[-2.55, -94.05, -259.96, 0.55], [3.77, -93.9, -259.63, 0.46], [-6, -89.5, -276, 0.55], [6, -92, -281, 0.5]];
       for (let i = 0; i < 12; i++) J.push([(rng() - 0.5) * 120, -60 - rng() * 45, -200 - rng() * 100, 0.35 + rng() * 0.35]);
-      for (const j of J) j[1] = Math.max(j[1], this.heightAt(j[0], j[2]) + 3);
       this.nJel = J.length;
+      // medusae: the giant one, then small ones along the drop-off
+      J.push([...MED, 3.6]);
+      for (let i = 0; i < 7; i++) J.push([(rng() - 0.5) * 80, -34 - rng() * 26, -150 - rng() * 45, 0.35 + rng() * 0.5]);
+      for (const j of J) j[1] = Math.max(j[1], this.heightAt(j[0], j[2]) + 3 + j[3] * 2);
+      {
+        const pos = [], uv = [], idx = [], pr = [];
+        for (let i = 0; i <= 14; i++) pr.push([Math.max(0.001, Math.sin(i / 8) / 0.984), 0.7 * Math.cos(i / 8)]);
+        const bell = ctx.mesh.lathe(pr, 32);
+        for (let i = 0; i < bell.uv.length; i += 2) { bell.uv[i] = 0.25; bell.uv[i + 1] = Math.acos(bell.pos[i / 2 * 3 + 1] / 0.7) / 1.75; }
+        const rib = (x, z, len, part, rows) => {
+          const b = pos.length / 3;
+          for (let j = 0; j <= rows; j++) for (const e of [0.25, 0.75]) { pos.push(x, -0.1 - len * j / rows, z); uv.push(part + e, j / rows); }
+          for (let j = 0; j < rows; j++) { const a = b + j * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+        };
+        for (let k = 0; k < 4; k++) rib(0.25 * Math.cos(k * 1.571 + 0.4), 0.25 * Math.sin(k * 1.571 + 0.4), 2.2 + 0.25 * k, 1, 12);
+        for (let k = 0; k < 24; k++) rib(0.97 * Math.cos(k * 0.2618), 0.97 * Math.sin(k * 0.2618), 3 + 1.6 * rng(), 2, 9);
+        this.medMesh = ctx.mesh.upload(ctx.mesh.merge([bell, { pos: new Float32Array(pos), nrm: new Float32Array(pos.length), uv: new Float32Array(uv), idx: new Uint32Array(idx) }]));
+      }
       const dl = ctx.layout(['storage']);
       this.deepBG = ctx.bindGroup(dl, [ctx.buffer(new Float32Array(J.flat()), 'storage')]);
       const mod = ctx.shader(COMMON + DEEP, 'uw-deep');
       this.chain = ctx.pipeline({ module: mod, vs: 'vsChain', fs: 'fsGlow', layouts: [this.envL, dl], blend: 'add', cull: 'none', constants: this.consts, label: 'uw-chain' });
+      this.med = ctx.pipeline({ module: mod, vs: 'vsMed', fs: 'fsMed', buffers: [ctx.mesh.layout], layouts: [this.envL, dl], blend: 'add', cull: 'none', constants: this.consts, label: 'uw-med' });
       this.jelly = ctx.pipeline({ module: mod, vs: 'vsJelly', fs: 'fsJelly', buffers: [ctx.mesh.layout], layouts: [this.envL, dl], blend: 'add', cull: 'none', constants: this.consts, label: 'uw-jelly' });
       const jp = []; for (let i = 0; i <= 20; i++) { const y = i / 10 - 1; jp.push([0.001 + 0.68 * Math.sin(Math.PI * i / 20) ** 0.62 * (1 - 0.14 * y), y]); }
       this.jellyMesh = ctx.mesh.upload(ctx.mesh.lathe(jp, 48));
@@ -385,8 +411,9 @@ fn sandAO(p: vec2f) -> f32 {
         this.zoneG[0] = g0; this.zoneG[1] = g1; this.zoneG[2] = g2;
         this.zones[0].set(g0, 2); this.zones[1].set(g1, 2); this.zones[2].set(g2, 2);
       }
+      this.dol.setPos(this.critData[144], this.critData[145], this.critData[146]);
     }
-    animate(this.critData, t, this.H);
+    animate(this.critData, t, this.H, cam.eye, this.T);
     ctx.write(this.critBuf, this.critData);
     // kelp culling (distance + frustum) -> compact visible index list
     const f = cam.fwd, r = cam.right, u = cam.up, ty = Math.tan(cam.fov / 2), tx = ty * ctx.width / ctx.height;
@@ -421,6 +448,7 @@ fn sandAO(p: vec2f) -> f32 {
       pass.setBindGroup(2, this.deepBG);
       pass.setPipeline(this.chain); pass.draw(18, 5 * 70);
       pass.setPipeline(this.jelly); this.jellyMesh.draw(pass, this.nJel);
+      pass.setPipeline(this.med); this.medMesh.draw(pass, 8, this.nJel);
     }
     pass.setPipeline(this.moteDraw); pass.setBindGroup(2, this.moteDrawBG); pass.draw(6, this.nMotes + 12 * 18);
   },
@@ -450,6 +478,21 @@ fn sandAO(p: vec2f) -> f32 {
     a.drone({ freq: a.hz(29), partials: [1, 2, 3.01, 4.53], gain: 0.05, cutoff: 280, bus: Z[2] });
     const notes = a.scale(81, 'minorPentatonic', 2);
     a.every(3, 9, (when) => a.bell({ freq: a.hz(notes[Math.floor(r() * notes.length)]), gain: 0.012, decay: 6 + r() * 3, ratio: 2.76, index: 0.9, when, bus: pick(2) }));
+    // positional voices for the new places and creatures
+    const sp = (x, y, z, ref) => a.spatial({ pos: [x, y, z], ref, reverb: 0.5 });
+    const lyre = a.scale(62, 'dorian', 2), tho = sp(THO[0], this.T.thoY + 2, THO[1], 7), lan = sp(LAN[0], LAN[1], LAN[2], 5), med = sp(MED[0], MED[1], MED[2], 12);
+    const eel = sp(this.T.eel[0], this.T.eel[1], this.T.eel[2], 3), dol = this.dol = sp(0, -3, 60, 10);
+    // the tholos: a few lyre-like notes, as if the shrine remembered music
+    a.every(3, 9, (when) => a.pluck({ freq: a.hz(lyre[Math.floor(r() * lyre.length)]), decay: 2.5, gain: 0.02, when, bus: tho }));
+    // dolphins: a rising whistle and a short run of clicks
+    a.every(7, 18, (when) => {
+      a.chirp({ f0: 1700 + r() * 600, f1: 2500 + r() * 900, dur: 0.25 + r() * 0.3, vib: 30, vibRate: 9, gain: 0.005, when, bus: dol });
+      a.chirp({ f0: 3000, f1: 2400, dur: 0.012, repeat: 4 + Math.floor(r() * 5), gap: 0.035, vib: 0, gain: 0.003, when: when + 0.5 + r(), bus: dol });
+    });
+    // lantern fish: tiny high chimes. giant medusa: a low soft bell with each slow pulse. moray: a bubble now and then
+    a.every(4, 10, (when) => a.bell({ freq: a.hz(notes[Math.floor(r() * notes.length)] + 12), gain: 0.01, decay: 2.5, ratio: 2, index: 0.5, when, bus: lan }));
+    a.every(6, 13, (when) => a.bell({ freq: a.hz(45 + 7 * Math.floor(r() * 2)), gain: 0.02, decay: 8, ratio: 1.5, index: 0.5, when, bus: med }));
+    a.every(5, 12, (when) => a.chirp({ f0: 300 + r() * 200, f1: 900 + r() * 400, dur: 0.07, repeat: 2, gap: 0.09, vib: 0, gain: 0.008, when, bus: eel }));
     this.zoneG = [1, 0, 0];
   },
 

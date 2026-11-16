@@ -1,4 +1,5 @@
-// Instanced blades (triangle strip, 10 verts): 0 seagrass, 1 anemone tentacle, 2 soft coral / sea whip, 3 glowing sea pen
+// Instanced blades (triangle strip, 10 verts): 0 seagrass, 1 anemone tentacle, 2 soft coral / sea whip, 3 glowing sea pen,
+// 4 kelp-floor understory fronds (red, purple, gold and green algae)
 struct Blade { a: vec4f, b: vec4f };   // a = (x, y, z, yaw), b = (height, width, type, phase)
 @group(2) @binding(0) var<storage, read> blades: array<Blade>;
 
@@ -19,6 +20,7 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
   var bend = 0.08 + 0.5 * fract(ph * 3.3); var curl = 0.0;
   if (ty > 0.5 && ty < 1.5) { bend = 0.75; curl = 0.6; }
   if (ty > 1.5) { bend = 0.08; }
+  if (ty > 3.5) { bend = 0.2 + 0.5 * fract(ph * 3.3); }
   let pp = ph + B.a.w * 2.0 * step(0.5, ty);
   let sw = sin(tm * 0.7 + pp + base.x * 0.13) * 0.6 + sin(tm * 0.43 + pp * 1.7 + base.z * 0.11) * 0.4;
   let h = B.b.x * fade;
@@ -54,6 +56,9 @@ struct VO { @builtin(position) pos: vec4f, @location(0) w: vec3f, @location(1) n
     em = body * tip * 0.06;
   } else if (ty > 1.5 && ty < 2.5) {
     alb = mix(vec3f(0.95, 0.45, 0.12), vec3f(0.95, 0.75, 0.2), hv) * (0.7 + 0.4 * t);
+  } else if (ty > 3.5) {
+    alb = select(select(vec3f(0.8, 0.1, 0.16), vec3f(0.62, 0.2, 0.65), hv > 0.2), select(vec3f(0.85, 0.65, 0.12), vec3f(0.3, 0.7, 0.2), hv > 0.7), hv > 0.45)
+      * (0.5 + 0.7 * t) * (0.75 + 0.35 * smoothstep(0.6, 0.0, abs(in.k.z)));
   } else if (ty > 2.5) {
     // deep-floor sea pens: soft glowing feathers
     alb = vec3f(0.3, 0.32, 0.4);

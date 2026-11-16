@@ -13,8 +13,8 @@ export function mat(rx, ry, rz, tx, ty, tz, s = 1) {
   return [r00 * s, r10 * s, r20 * s, 0, r01 * s, r11 * s, r21 * s, 0, r02 * s, r12 * s, r22 * s, 0, tx, ty, tz, 1];
 }
 
-export function buildTemple(M, heightAt, PADY, door, rng, fg) {
-  const parts = [], cols = [], boxes = [], shade = [];
+export function buildTemple(M, heightAt, PADY, door, rng, fg, THO, nest) {
+  const parts = [], cols = [], boxes = [], shade = [], late = [];
   const add = (g, m, mat_ = 0) => { if (m) M.transform(g, m); for (let i = 0; i < g.uv.length; i += 2) g.uv[i] = mat_; parts.push(g); return g; };
   const box = (w, h, d, x, y, z, ry = 0, rx = 0, rz = 0, solid = true, mt = 0) => {
     add(M.box(w, h, d), mat(rx, ry, rz, x, y, z), mt);
@@ -121,8 +121,17 @@ export function buildTemple(M, heightAt, PADY, door, rng, fg) {
     block(Math.cos(a) * rr * 0.8, TZ + Math.sin(a) * rr * 1.2, 0.8 + rng() * 1.6, 0.6 + rng() * 0.4, 0.9, rng() * TAU);
   }
 
+  // archaic head with a face (brow, almond eyes, nose, lips, chin, cheeks, ears, a row of curls), centred on the face, looking +z
+  const head = (sub) => {
+    const g = [ell(0.093, 0.12, 0.105, 0, 0, 0.012, sub), ell(0.102, 0.105, 0.108, 0, 0.038, -0.032, sub), ell(0.062, 0.062, 0.07, 0, 0.02, -0.15),
+      ell(0.016, 0.034, 0.021, 0, -0.012, 0.112), ell(0.066, 0.011, 0.02, 0, 0.026, 0.098), ell(0.03, 0.02, 0.024, 0, -0.08, 0.083),
+      ell(0.027, 0.007, 0.012, 0, -0.046, 0.105), ell(0.021, 0.007, 0.011, 0, -0.058, 0.1)];
+    for (const s of [-1, 1]) g.push(ell(0.021, 0.0095, 0.011, s * 0.037, 0.008, 0.097), ell(0.012, 0.03, 0.02, s * 0.095, 0, -0.005));
+    for (let i = -3; i <= 3; i++) g.push(ell(0.021, 0.021, 0.021, 0.093 * Math.sin(i * 0.4), 0.06, 0.008 + 0.1 * Math.cos(i * 0.4)));
+    return M.merge(g);
+  };
   // ---- statues: a kore (draped maiden) holding an offering bowl ----
-  const kore = (m, head, pedestal) => {
+  const kore = (m, hd, pedestal) => {
     const g = [];
     const p0 = [[0.001, 0]];
     for (let j = 0; j <= 10; j++) { const f = j / 10; p0.push([0.3 - 0.13 * Math.pow(f, 0.7), 0.02 + f * 1.0]); }
@@ -133,7 +142,7 @@ export function buildTemple(M, heightAt, PADY, door, rng, fg) {
       sk.pos[v * 3] *= k; sk.pos[v * 3 + 2] *= k * 0.8;
     }
     g.push(M.computeNormals(sk));
-    const to = M.lathe([[0.15, 0.84], [0.225, 0.86], [0.23, 0.9], [0.205, 0.98], [0.175, 1.05], [0.19, 1.16], [0.215, 1.28], [0.21, 1.38], [0.16, 1.46], [0.075, 1.5], [0.055, 1.54], [0.052, head ? 1.63 : 1.57], [0.001, head ? 1.63 : 1.56]], 32);
+    const to = M.lathe([[0.15, 0.84], [0.225, 0.86], [0.23, 0.9], [0.205, 0.98], [0.175, 1.05], [0.19, 1.16], [0.215, 1.28], [0.21, 1.38], [0.16, 1.46], [0.075, 1.5], [0.055, 1.54], [0.052, hd ? 1.63 : 1.57], [0.001, hd ? 1.63 : 1.56]], 32);
     for (let v = 0; v < to.pos.length / 3; v++) {
       const y = to.pos[v * 3 + 1], th = to.uv[v * 2] * TAU, k = 1 + 0.05 * ss(1.0, 0.86, y) * Math.sin(9 * th);
       to.pos[v * 3] *= (1 + 0.3 * ss(1.25, 1.42, y) * ss(1.52, 1.44, y)) * k; to.pos[v * 3 + 2] *= 0.72 * k;
@@ -142,14 +151,14 @@ export function buildTemple(M, heightAt, PADY, door, rng, fg) {
     g.push(M.tube([[0.25, 1.42, 0], [0.285, 1.2, -0.01], [0.285, 1.0, 0.03], [0.265, 0.83, 0.08]], (t) => 0.058 - 0.02 * t, 10), ell(0.035, 0.055, 0.03, 0.262, 0.8, 0.085));
     g.push(M.tube([[-0.25, 1.42, 0], [-0.285, 1.22, -0.01], [-0.27, 1.1, 0.07], [-0.21, 1.13, 0.3]], (t) => 0.058 - 0.02 * t, 10));
     g.push(M.translate(M.lathe([[0.001, 0], [0.05, 0.005], [0.105, 0.05], [0.1, 0.055], [0.001, 0.03]], 16), -0.2, 1.14, 0.37));
-    if (head) g.push(ell(0.093, 0.12, 0.105, 0, 1.73, 0.012, 3), ell(0.102, 0.105, 0.108, 0, 1.768, -0.032, 3), ell(0.062, 0.062, 0.07, 0, 1.75, -0.15), ell(0.085, 0.17, 0.05, 0, 1.57, -0.085), ell(0.016, 0.03, 0.02, 0, 1.72, 0.115, 1));
+    if (hd) g.push(M.translate(head(3), 0, 1.73, 0), ell(0.085, 0.17, 0.05, 0, 1.57, -0.085));
     g.push(M.translate(M.box(0.74, 0.14, 0.74), 0, -0.07, 0));
     if (pedestal) g.push(M.translate(M.box(0.86, 0.86, 0.86), 0, -0.57, 0), M.translate(M.box(1.02, 0.1, 1.02), 0, -0.19, 0), M.translate(M.box(1.06, 0.14, 1.06), 0, -1.0, 0));
     return add(M.merge(g), m);
   };
   const sx = 9.4, sz = TZ + 15.5, sy = heightAt(sx, sz) + 1.2;
   kore(mat(0, 0.75, 0, sx, sy, sz, 1.4), true, true);
-  boxes.push([sx, sy, sz, 0.55, 1.6, 0.55, 0]);
+  late.push([sx, sy, sz, 0.55, 1.6, 0.55, 0]);
   shade.push([sx, sz, 0.74, 0.74]);
   const fx = -10.5, fz = TZ + 13;
   kore(mat(-Math.PI / 2 + 0.1, 2.2, 0.1, fx, heightAt(fx, fz) + 0.16, fz, 1.35), false, false);
@@ -207,6 +216,36 @@ export function buildTemple(M, heightAt, PADY, door, rng, fg) {
   block(dx + 3.4, dz - 4.6, 1.5, 0.6, 0.8, 0.5); block(dx - 3.3, dz - 3.9, 1.1, 0.55, 0.8, 2.0); block(dx - 5.6, dz + 2.2, 1.3, 0.6, 0.9, 1.0);
   block(dx + 5.8, dz + 2.6, 0.9, 0.5, 0.8, 0.3); block(dx + 0.9, dz - 8.6, 1.7, 0.6, 0.8, 1.2); block(dx - 1.4, dz + 4.6, 1.2, 0.5, 0.8, 2.6);
 
+  // ---- a colossal marble head resting in the kelp clearing ----
+  const cx = 18.2, cz = -77.5, cy = heightAt(cx, cz) + 0.7;
+  add(M.merge([head(4), M.translate(M.cylinder(0.062, 0.07, 0.1, 24, 1), 0, -0.14, -0.02)]), mat(-0.95, 0.3, 0.22, cx, cy, cz, 12));
+  // ---- tholos: a round shrine on the way to the kelp. Three columns still carry their lintels; a pearl glows on the altar ----
+  const hx = THO[0], hz = THO[1], hy = heightAt(hx, hz) + 0.9;
+  add(M.lathe([[0.001, -3], [5.3, -3], [5.3, -0.6], [4.9, -0.6], [4.9, -0.3], [4.5, -0.3], [4.5, 0], [0.001, 0]], 48), mat(0, 0, 0, hx, hy, hz));
+  cols.push([hx, hz, 4.6, hy]);
+  [-1, -1, -1, 2.4, 0.9, 0, 3.4, 1.5].forEach((h, k) => {
+    const a = k * TAU / 8 + 0.2, am = a + TAU / 16, x = hx + 3.42 * Math.cos(am), z = hz + 3.42 * Math.sin(am), ry = Math.atan2(-Math.cos(am), -Math.sin(am));
+    if (h) column(hx + 3.7 * Math.cos(a), hy, hz + 3.7 * Math.sin(a), h);
+    if (k < 2) { box(3.15, 0.62, 0.95, x, hy + H + CAPH + 0.31, z, ry); box(3.4, 0.18, 1.25, x, hy + H + CAPH + 0.71, z, ry, 0, 0, false); }
+  });
+  box(2.9, 0.62, 0.95, hx + 6.3, heightAt(hx + 6.3, hz - 2) + 0.15, hz - 2, 0.5, 0.2, 0.1);
+  add(shaft(R0, R0, 1.4, true, 2), mat(0, 2.2, Math.PI / 2, hx - 1.5, heightAt(hx - 1.5, hz + 6.6) + 0.36, hz + 6.6));
+  add(M.merge([M.lathe([[0.001, 0], [0.7, 0], [0.7, 0.1], [0.55, 0.16], [0.5, 0.8], [0.62, 0.9], [0.62, 1], [0.001, 1]], 32),
+    M.lathe([[0.001, 1], [0.3, 1.02], [0.75, 1.22], [0.72, 1.25], [0.3, 1.1], [0.001, 1.08]], 32)]), mat(0, 0, 0, hx, hy, hz));
+  add(M.sphere(0.2, 3), mat(0, 0, 0, hx, hy + 1.27, hz), 4);
+  cols.push([hx, hz, 0.8, hy + 1.3]);
+  // ---- a big broken pithos (the moray's home) ----
+  const px = -4.5, pz = 68.5, yw = 1.87, py = heightAt(px, pz) + 0.22, ax = [-0.989 * Math.cos(yw), 0.149, 0.989 * Math.sin(yw)];
+  add(M.lathe([[0.001, 0], [0.06, 0.01], [0.12, 0.08], [0.185, 0.2], [0.215, 0.34], [0.21, 0.48], [0.17, 0.6], [0.14, 0.66], [0.125, 0.65], [0.15, 0.56], [0.18, 0.4], [0.001, 0.25]], 28),
+    mat(0, yw, Math.PI / 2 - 0.15, px, py, pz, 1.7), 1);
+  const eel = [px + ax[0] * 0.87, py + ax[1] * 0.87, pz + ax[2] * 0.87, ...ax];
+  // ---- turtle nest: eggs in a ring of stones ----
+  for (let i = 0; i < 18; i++) {
+    const a = i * 0.7 + rng(), r = i < 9 ? 0.55 + 0.1 * rng() : 0.04 + 0.03 * (i - 9) * (0.5 + rng()), x = nest[0] + r * Math.cos(a), z = nest[1] + r * Math.sin(a);
+    add(i < 9 ? ell(0.13 + 0.05 * rng(), 0.07, 0.1, 0, 0, 0) : ell(0.06, 0.07, 0.06, 0, 0, 0), mat(0, a, 0, x, heightAt(x, z) + 0.03, z), i < 9 ? 0 : 5);
+  }
+  star(nest[0] - 1.1, nest[1] + 0.7, 1.2);
+
   const geo = M.merge(parts);
   // bake: uv.y = height above the seabed, uv.x += ambient occlusion from the colliders
   const sdf = (x, y, z) => {
@@ -231,5 +270,6 @@ export function buildTemple(M, heightAt, PADY, door, rng, fg) {
     ao = ao < 0.22 ? 0.22 : ao > 1 ? 1 : ao;
     geo.uv[v * 2] += ao * 0.9;
   }
-  return { geo, cols, boxes, shade };
+  boxes.push(...late); cols.push([cx, cz, 1.3, cy + 1.1]);
+  return { geo, cols, boxes, shade, eel, oct: [5, TY, TZ + 11.6], thoY: hy };
 }

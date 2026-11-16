@@ -105,3 +105,50 @@ struct JO { @builtin(position) pos: vec4f, @location(0) lp: vec3f, @location(1) 
   let fr = select(0.45, 1.0, ff);
   return vec4f((body + rb * mask * (0.12 + 1.5 * wave)) * fade * fr, 0.0);
 }
+
+// medusae (a giant one in the deep, small ones along the drop-off). mesh: p = rest position, uv = (part: 0 bell | 1 oral arm |
+// 2 tentacle, + 0.5 on the far edge of a ribbon; t along the part)
+struct MO { @builtin(position) pos: vec4f, @location(0) lp: vec3f, @location(1) n: vec3f, @location(2) w: vec3f, @location(3) k: vec3f };
+@vertex fn vsMed(@location(0) p: vec3f, @location(1) n: vec3f, @location(2) uv: vec2f, @builtin(instance_index) ii: u32) -> MO {
+  let J = jel[ii]; let t = G.time; let f = f32(ii) * 2.1;
+  let c = J.xyz + vec3f(1.5 * sin(t * 0.03 + f), 0.9 * sin(t * 0.05 + f * 1.3) + 0.12 * sin(t * 0.5 + f), 1.2 * sin(t * 0.024 + f * 0.7));
+  let part = floor(uv.x); let T = uv.y; let ph = t * 0.5 + f;
+  var q = p;
+  let rim = 1.0 - 0.15 * sin(ph - 2.0);
+  if (part < 0.5) {
+    q = vec3f(p.x, p.y + 0.05 * sin(ph - 0.6), p.z) * vec3f(1.0 - 0.15 * T * T * sin(ph - T * 2.0), 1.0, 1.0 - 0.15 * T * T * sin(ph - T * 2.0));
+  } else {
+    let a = atan2(p.z, p.x) * 3.0 + f;
+    q = vec3f(p.x * rim, p.y * (1.0 + 0.05 * sin(ph - 2.6 - T * 3.0)), p.z * rim)
+      + vec3f(sin(t * 0.4 + T * 3.5 + a), 0.0, cos(t * 0.33 + T * 2.9 + a * 1.3)) * 0.22 * T * (0.4 + T);
+  }
+  var o: MO;
+  o.w = c + q * J.w;
+  if (part > 0.5) {
+    let d = distance(o.w, G.camPos);
+    let hw = select(max(0.012 * J.w, d * G.tanHalfFov * G.invResolution.y * 1.4), 0.09 * J.w * (1.0 - 0.6 * T), part < 1.5);
+    o.w += normalize(cross(vec3f(0.0, 1.0, 0.0), G.camPos - o.w)) * hw * (fract(uv.x) - 0.5) * 4.0;
+  }
+  o.n = n; o.lp = p; o.k = vec3f(uv.x, T, f);
+  o.pos = G.viewProj * vec4f(o.w, 1.0);
+  return o;
+}
+@fragment fn fsMed(in: MO) -> @location(0) vec4f {
+  let part = floor(in.k.x); let T = in.k.y;
+  let d = distance(in.w, G.camPos);
+  let fade = (1.0 - fogF(d) * 0.85) * uss(0.4, 2.0, d) * (0.75 + 0.25 * sin(G.time * 0.5 + in.k.z - 1.0));
+  let hv = fract(in.k.z * 0.37);
+  let c0 = mix(vec3f(1.0, 0.35, 0.62), vec3f(0.45, 0.5, 1.0), hv);
+  var a: f32; var col = mix(c0, vec3f(0.3, 0.8, 1.0), T);
+  if (part < 0.5) {
+    let nv = abs(dot(normalize(in.n), normalize(G.camPos - in.w)));
+    let ang = atan2(in.lp.z, in.lp.x);
+    let ring = smoothstep(0.03, 0.0, abs(length(abs(in.lp.xz) - 0.2) - 0.13) - 0.025);
+    a = 0.035 + 0.5 * pow(1.0 - nv, 2.0) + 0.1 * T * T * (0.5 + 0.5 * cos(ang * 24.0)) + 0.35 * smoothstep(0.9, 1.0, T) + ring * 0.3;
+    col = mix(col, vec3f(1.0, 0.8, 0.9), ring * 0.6);
+  } else if (part < 1.5) {
+    a = 0.22 * (1.0 - T) * (0.55 + 0.45 * sin(T * 26.0 + fract(in.k.x) * 9.0)) + 0.03;
+    col = mix(c0, vec3f(1.0, 0.85, 0.9), 0.3);
+  } else { a = 0.16 * (1.0 - 0.8 * T) * (0.6 + 0.4 * sin(T * 60.0 - G.time * 0.6)); }
+  return vec4f(col * a * fade, 0.0);
+}
